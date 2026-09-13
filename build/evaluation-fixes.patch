@@ -1,0 +1,51 @@
+diff --git a/evaluation.py b/evaluation.py
+index 304d7bb..67ffe53 100644
+--- a/evaluation.py
++++ b/evaluation.py
+@@ -16,6 +16,10 @@ import json
+ import sys
+ import os
+ 
++import torch
++import numpy as np
++import random
++
+ cyborg_version = CYBORG_VERSION
+ EPISODE_LENGTH = 500
+ 
+@@ -359,6 +363,9 @@ if __name__ == "__main__":
+     parser.add_argument(
+         "--seed", type=int, default=None, help="Set the seed for CybORG"
+     )
++    parser.add_argument(
++        "--deterministic", action="store_true", help="Use argmax action selection"
++    )
+ 
+     # Added to speed up evaluation 
+     parser.add_argument(
+@@ -377,13 +384,22 @@ if __name__ == "__main__":
+ 
+     rmkdir(args.output_path)
+ 
++    if args.seed is not None:
++        torch.manual_seed(args.seed)
++        np.random.seed(args.seed)
++        random.seed(args.seed)
++
+     submission = load_submission(args.submission_path)
+ 
++    if args.deterministic:
++        for _a in submission.AGENTS.values():
++            _a.set_deterministic(True)
++
+     if args.distribute == 1:
+         run_evaluation(
+-            submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed
++            submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed, write_to_file=True
+         )
+     else: 
+         run_evaluation_parallel(
+-            submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed, workers=args.distribute
++            submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed, workers=args.distribute, write_to_file=True
+         )
+\ No newline at end of file
