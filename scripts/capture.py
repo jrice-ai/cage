@@ -18,6 +18,8 @@ from joblib import Parallel, delayed
 from CybORG import CybORG, CYBORG_VERSION
 from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
+from CybORG.Simulator.Actions import Sleep as SleepAction
+from CybORG.Simulator.Actions import Monitor as MonitorAction
 from submission import Submission
 
 EPISODE_LENGTH = 500
@@ -58,9 +60,10 @@ def red_session_count(state):
             if a.startswith("red")}
 
 
-def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
+def capture_episode(ep, base_seed, out_dir, agents, policy="keep", policy_seed=None):
     seed = base_seed + ep
-    torch.manual_seed(seed)
+    pseed = seed if policy_seed is None else policy_seed + ep
+    torch.manual_seed(pseed)
     np.random.seed(seed)
     random.seed(seed)
 
@@ -76,6 +79,16 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
     if policy == 'keep_greedy':
         for _a in agents.values():
             _a.set_deterministic(True)
+
+    if policy in ('sleep', 'monitor'):
+        _orig_tr = env.action_translator
+        def _tr(agent_name, a_id):
+            if a_id == -1:
+                return SleepAction()
+            if a_id == -2:
+                return MonitorAction(session=0, agent=agent_name)
+            return _orig_tr(agent_name, a_id)
+        env.action_translator = _tr
 
     wrapped_obs, _ = env.reset()
     state = cyborg.environment_controller.state
@@ -94,6 +107,7 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
             "record": "header",
             "episode": ep,
             "seed": seed,
+            "policy_seed": pseed,
             "cyborg_version": CYBORG_VERSION,
             "scenario": "Scenario4",
             "episode_length": EPISODE_LENGTH,
@@ -102,9 +116,10 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
             "policy": policy,
             "blue_agents": BLUE,
             "hosts": sorted(state.hosts.keys()),
-            "phase_rewards": jsonable(
-                cyborg.environment_controller.team_reward_calculators
-                ["Blue"]["BlueRewardMachine"].phase_rewards),
+            "phase_rewards": jsonable({
+                ph: cyborg.environment_controller.team_reward_calculators
+                ["Blue"]["BlueRewardMachine"].get_phase_rewards(ph)
+                for ph in (0, 1, 2)}),
             "host_subnet": {h: str(s) for h, s
                             in state.hostname_subnet_map.items()},
         }) + "\n")
@@ -116,7 +131,11 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
             actions = {}
             for name in BLUE:
                 if policy == 'sleep':
+                    actions[name] = -1
+                elif policy == 'analyse':
                     actions[name] = 0
+                elif policy == 'monitor':
+                    actions[name] = -2
                 elif policy == 'random':
                     import random as _r
                     actions[name] = _r.randrange(
@@ -131,6 +150,8 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
 
             raw_obs = {n: jsonable(cyborg.get_observation(n)) for n in BLUE}
             executed = {n: str(cyborg.get_last_action(n)) for n in BLUE}
+            blocked = {n: str(raw_obs[n].get("success")) == "IN_PROGRESS"
+                       for n in BLUE}
             red_acts = {n: str(cyborg.get_last_action(n)) for n in RED}
             red_acts = {k: v for k, v in red_acts.items()
                         if v not in ("None", "[Sleep]")}
@@ -148,6 +169,7 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep"):
                 "obs": raw_obs,
                 "action_index": {n: jsonable(actions[n]) for n in BLUE},
                 "action": executed,
+                "blocked": blocked,
                 "red_action": red_acts,
                 "green_action_counts": dict(green_acts),
                 "reward": {n: float(v) for n, v in rew.items()},
@@ -179,9 +201,10 @@ def main():
     p = argparse.ArgumentParser("CAGE 4 trace capture")
     p.add_argument("--episodes", type=int, default=5)
     p.add_argument("--base-seed", type=int, default=0)
+    p.add_argument("--policy-seed", type=int, default=None)
     p.add_argument("--out", default="/work/data/traces/pilot")
     p.add_argument("--policy", default="keep",
-                   choices=["keep", "keep_greedy", "sleep", "random"])
+                   choices=["keep", "keep_greedy", "sleep", "analyse", "monitor", "random"])
     p.add_argument("--workers", type=int, default=1,
                    help="Parallel capture processes")
     args = p.parse_args()
@@ -197,7 +220,7 @@ def main():
     t_start = time.time()
 
     results = Parallel(n_jobs=args.workers, prefer="processes")(
-        delayed(capture_episode)(ep, args.base_seed, args.out, agents, args.policy)
+        delayed(capture_episode)(ep, args.base_seed, args.out, agents, args.policy, args.policy_seed)
         for ep in range(args.episodes)
     )
 
