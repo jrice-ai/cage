@@ -1,0 +1,24 @@
+FROM python:3.10-slim
+
+ENV PYTHONUNBUFFERED=1 PYTHONHASHSEED=0 \
+    OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git build-essential vim && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir torch==2.2.0 \
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple
+RUN pip install --no-cache-dir "ray[rllib]==2.12.0"
+
+WORKDIR /opt/cage
+COPY repos/cage-challenge-4/ /opt/cage/cage-challenge-4/
+RUN cd cage-challenge-4 && pip install --no-cache-dir -r Requirements.txt && pip install --no-cache-dir -e .
+
+COPY repos/cage-4-submission/ /opt/cage/cage-4-submission/
+RUN pip install --no-cache-dir -r cage-4-submission/requirements.txt
+
+RUN pip install --no-cache-dir "pyarrow==15.0.2"
+
+VOLUME /data
+CMD ["/bin/bash"]
