@@ -12,6 +12,8 @@ sys.path.insert(0, "/opt/cage/cage-4-submission")
 import numpy as np
 import torch
 
+from joblib import Parallel, delayed
+
 from CybORG import CybORG, CYBORG_VERSION
 from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
@@ -154,6 +156,8 @@ def main():
     p.add_argument("--episodes", type=int, default=5)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--out", default="/work/data/traces/pilot")
+    p.add_argument("--workers", type=int, default=1,
+                   help="Parallel capture processes")
     args = p.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -163,12 +167,23 @@ def main():
     print(f"Agent: {Submission.NAME} / {Submission.TEAM}")
     print(f"Writing to {args.out}")
 
+    print(f"Workers: {args.workers}")
+    t_start = time.time()
+
+    results = Parallel(n_jobs=args.workers, prefer="processes")(
+        delayed(capture_episode)(ep, args.base_seed, args.out, agents)
+        for ep in range(args.episodes)
+    )
+
     totals = []
-    for ep in range(args.episodes):
-        r, steps, secs = capture_episode(ep, args.base_seed, args.out, agents)
+    for ep, (r, steps, secs) in enumerate(results):
         totals.append(r)
         print(f"  ep {ep:>4}  seed {args.base_seed + ep:>5}  "
               f"steps {steps:>4}  reward {r:>9.2f}  {secs:>6.1f}s")
+
+    wall = time.time() - t_start
+    print(f"\nwall {wall:.1f}s  "
+          f"({wall / max(1, args.episodes):.1f}s per episode effective)")
 
     print(f"\nmean {sum(totals)/len(totals):.2f} over {len(totals)} episodes")
 
