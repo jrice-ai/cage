@@ -393,3 +393,1143 @@ red state, episode boundaries, and timestamps. Episodes are concatenated with
 
 The logger should be written fresh rather than extending this. Borrow the setup
 code from `run_evaluation` and discard the rest.
+
+
+## Trace logger
+
+Written to replace the unusable `full.txt` output. Standalone, does not import
+or extend `evaluation.py`.
+
+Location
+
+```
+~/cage/scripts/capture.py
+```
+
+Run
+
+```bash
+docker run --rm -it -v ~/cage:/work cage-keep:dev \
+  bash -c "cd /opt/cage/cage-4-submission && \
+    python3 -u /work/scripts/capture.py --episodes 3 --out /work/data/traces/v1"
+```
+
+Output is one JSONL file per episode, named `ep_NNNNN.jsonl`. Each file is a
+header record, one record per step, and a footer record. A 499 step episode
+gives 501 lines.
+
+### Record contents
+
+Header carries episode id, seed, CybORG version, scenario, episode length,
+agent name and team, the full host list, the host to subnet map, and the phase
+reward table pulled from `BlueRewardMachine.phase_rewards`.
+
+Step records carry step index, mission phase, raw per agent observation, action
+index, executed action as a readable string, per agent reward, step reward,
+cumulative reward, and a `truth` field holding red session counts and the set
+of hosts with red presence.
+
+Footer carries step count, total reward, and wall clock seconds.
+
+### Design decisions
+
+**Raw CybORG observations, not the wrapper encoding.** `Submission.wrap()`
+returns KEEP specific graph tuples that are not JSON serializable and would not
+transfer to another agent. The logger records
+`cyborg.get_observation(agent_name)` instead, which is agent faithful and
+wrapper independent.
+
+**Per episode seeding.** Each episode constructs its own `CybORG` instance and
+seeds torch, numpy and random from `base_seed + episode_index`. Episode N is
+therefore determined by N alone, independent of which process or machine runs
+it. This is the fix for the defect found in `run_evaluation_parallel`, applied
+from the start rather than retrofitted.
+
+**Sampling mode, not greedy.** Greedy selection scores -550 against -196 and is
+a materially different policy. Capture has to run the agent that was actually
+evaluated.
+
+**Ground truth kept separate.** Red presence is read from `state.hosts` and
+`state.sessions` and written to a distinct `truth` field. This is Tier 3 data.
+It exists so decisions can later be scored independent of reward. It must never
+reach a human supervisor display.
+
+### Verification
+
+Determinism was confirmed by capturing the same three episodes twice to
+different directories and diffing, excluding the footer since `wall_seconds` is
+a timing measurement.
+
+```bash
+for i in 0 1 2; do
+  diff -q <(grep -v '"record": "footer"' ~/cage/data/traces/v1/ep_0000$i.jsonl) \
+          <(grep -v '"record": "footer"' ~/cage/data/traces/v1check/ep_0000$i.jsonl) \
+    && echo "ep $i identical"
+done
+```
+
+All three identical. Rewards were -154.00, -179.00 and -195.00 on both runs.
+
+Stronger evidence, episode 0 returned -154.00 in the first pilot run and again
+after several rounds of script edits. Determinism has held across code changes,
+not just across consecutive invocations.
+
+Throughput is roughly 16 seconds per episode on the Surface, close to the
+`evaluation.py` serial figure, so the logging overhead is small.
+
+## CybORG internals discovered
+
+Found by probing rather than from documentation. Recorded here because the
+bridge and the escalation gate will need the same handles.
+
+| Need | Location |
+|---|---|
+| Mission phase | `cyborg.environment_controller.state.mission_phase`, integer |
+| Phase reward table | `ec.team_reward_calculators["Blue"]["BlueRewardMachine"].phase_rewards` |
+| Red presence per host | `state.hosts[name].sessions`, keys starting `red` |
+| Red session totals | `state.sessions["red_agent_N"]` |
+| Host to subnet map | `state.hostname_subnet_map` |
+| Host to IP map | `state.hostname_ip_map` |
+| Executed action | `cyborg.get_last_action(agent_name)` |
+| Raw observation | `cyborg.get_observation(agent_name)` |
+
+The scenario holds 97 hosts and six red agents. Only `red_agent_0` has a
+session at reset.
+
+### `get_reward_breakdown` is broken in CC4
+
+`cyborg.get_reward_breakdown(agent)` raises
+
+```
+AttributeError: 'AgentInterface' object has no attribute 'reward_calculator'
+```
+
+The method at `SimulationController.py:1116` returns
+`self.agent_interfaces[agent].reward_calculator.host_scores`, but
+`AgentInterface` exposes only `create_reward_calculator`. The attribute does
+not exist. This is dead code in the released environment, not a calling error.
+
+Per host reward attribution is therefore unavailable through the public API.
+`BlueRewardMachine` exposes `phase_rewards` and `get_phase_rewards`, which give
+the zone weighting per phase, so the weighting is recoverable even though the
+per step attribution is not.
+
+### Reward is broadcast, not per agent
+
+The reward dict returned by `step()` holds the same value for all five blue
+agents, for example
+
+```
+{'blue_agent_0': -1, 'blue_agent_1': -1, 'blue_agent_2': -1,
+ 'blue_agent_3': -1, 'blue_agent_4': -1}
+```
+
+This is the shared team reward repeated, not five independent signals. The
+logger takes one value rather than averaging.
+
+Consequence for later work. There is no reward signal attributable to an
+individual agent or an individual decision. Any measure of whether a specific
+action was correct has to be built from ground truth, not from reward.
+
+## Observation sparsity
+
+The most consequential finding for the legibility layer.
+
+`get_observation` returns the result of the action that just resolved, plus any
+passive alerts raised in that agent's zone. It does not return a standing
+picture of network state. There is no such picture anywhere in the environment.
+
+Only the observation from `reset()` is a full inventory. Every subsequent
+observation is an event report.
+
+### What a typical step looks like
+
+An agent that ran `AllowTrafficZone` sees
+
+```json
+{"success": "FALSE",
+ "message": [[false, false, false, false, false, false, false, true],
+             [false, false, false, false, false, false, false, true],
+             [false, false, false, false, false, false, false, true],
+             [false, false, false, false, false, false, false, true]]}
+```
+
+A boolean and a four by eight message grid from the other agents. Nothing
+about hosts, compromise, or network state.
+
+### What a substantive step looks like
+
+```json
+{"admin_network_subnet_user_host_1": {
+   "Processes": [{"Connections": [{"local_port": 49473,
+                                   "local_address": "10.0.184.135"}]}, ...],
+   "Interface": [{"ip_address": "10.0.184.135"}],
+   "System info": {"Hostname": "admin_network_subnet_user_host_1",
+                   "OSType": "LINUX", "OSDistribution": "KALI", ...}}}
+```
+
+Hostname, IP, connections, operating system. Note `OSDistribution: KALI`, which
+appears to mark a compromised host. Worth confirming whether that is a
+deliberate detection cue or a scenario authoring artifact, since if deliberate
+it is a signal a human could read directly.
+
+### Rate
+
+Measured over episode 0, counting observations with more than the two baseline
+keys
+
+```
+364 substantive observations out of 2,495 agent-steps, 14.6%
+```
+
+Notably, the first substantive observation in the episode came from a `Sleep`
+step. `Sleep` produces no action result, so that content is passive detection
+of activity in the agent's zone rather than a response to anything the agent
+did. The observation stream therefore carries both action results and
+unsolicited alerts.
+
+### Timing convention
+
+The logger reads observations after `step()`. Because the environment emits
+event results, the pre step observation at step N is byte identical to the post
+step observation at step N-1. Every observation is captured exactly once. It is
+attributed to the step that produced it rather than the step that consumed it.
+
+Recorded here because anyone reading the traces needs to know the convention.
+
+## Three rates that size the human condition
+
+All from the sampled 100 episode run and episode 0 of the trace corpus.
+
+| Measure | Rate | Per episode |
+|---|---|---|
+| Substantive observations | 14.6% | roughly 364 |
+| Consequential actions | 20.3% | roughly 505 |
+| Restore only | 3.09% | roughly 77 |
+
+An episode is 499 logged steps across five agents, so 2,495 agent-steps.
+
+A Restore only escalation gate yields roughly 77 decisions per episode, which
+is a session length a person could plausibly sustain. Gating all consequential
+actions yields roughly 505, which is not. Gating uniformly would mean asking a
+supervisor to approve `Sleep` several hundred times.
+
+These numbers were derived from data rather than assumed, and they constrain
+the escalation gate design directly.
+
+## Revised open items
+
+1. Capture a real corpus, 50 episodes or more, and parallelize it correctly
+   with one environment per episode seeded from its index.
+2. Run stratification measures over that corpus. Per episode correctness
+   variance, event rate, compromise cascade shape.
+3. Fix the parallel seeding in `evaluation.py` and quantify the parallel versus
+   serial gap with a matched run.
+4. Report the parallel defect and the `get_reward_breakdown` bug upstream.
+5. Build the H-MARL image and reproduce its baseline.
+6. Re-verify the image, the -196.06 figure, and trace determinism on the
+   Alienware and the PowerEdge.
+7. Confirm whether `OSDistribution: KALI` is a deliberate compromise marker.
+8. Design the accumulation layer. The environment emits events and forgets, so
+   a human facing view has to maintain state that neither CybORG nor the agents
+   maintain. This is the substance of the legibility problem and it cannot be
+   solved by display design alone.
+
+## Trace logger defect found and fixed
+
+The first 100 episode corpus was invalid. Worth recording because the output
+looked plausible and nothing failed.
+
+The logger bound a reference to the simulator state once at episode setup
+
+```python
+state = cyborg.environment_controller.state
+```
+
+`env.reset()` replaces that object rather than mutating it. The reference then
+pointed at an orphan for the rest of the episode. Mission phase and red ground
+truth were frozen at their initialization values and written unchanged to all
+499 step records.
+
+Symptoms that gave it away
+
+```
+phase first-seen: {0: 0}
+sum of red_hosts counts across episode: 499
+```
+
+Phase never advanced, and red presence was exactly one host on every step. Both
+are impossible. `mission_phases` for a 500 step episode is `(167, 167, 166)`,
+and `SimulationController.py:227` calls the phase check every step, so phases
+should advance at 167 and 334.
+
+After the fix, reading through the controller each step
+
+```
+phase first-seen: {0: 0, 1: 168, 2: 335}
+red hosts min/max/final: 1 45 44
+```
+
+The reward was never affected, since it comes from `step()` rather than from
+the cached reference. The -196.06 reproduction and the -187.32 corpus mean both
+stand. Only the two fields added by the logger were wrong.
+
+Lesson for the bridge. Anything read from simulator state must be read through
+the controller at the point of use. Caching references across a reset is silent
+and the output stays well formed.
+
+## Red and green action logging
+
+Added after ground truth alone failed to explain reward variance.
+`cyborg.get_last_action` works for red and green agents as well as blue.
+
+Red actions come back as readable strings with targets, for example
+
+```
+[PrivilegeEscalate contractor_network_subnet_user_host_6]
+[DiscoverRemoteSystems 10.0.134.0/24]
+[DegradeServices operational_zone_b_subnet_user_host_5]
+```
+
+Green actions distinguish `GreenLocalWork` from `GreenAccessService` and carry
+the target IP.
+
+Storage decisions. Red actions are filtered to drop `Sleep`, since most of the
+six red agents idle most steps. Green is stored as a per step count by action
+type rather than as 63 individual records.
+
+## Variance analysis, KEEP against itself
+
+Run over 100 episodes of KEEP in sampling mode, seeds 0 to 99. Reward range
+-113 to -527, a 4.7x spread.
+
+Measures that do **not** explain the spread, comparing worst 20 episodes
+against best 20
+
+| Measure | Worst 20 | Best 20 |
+|---|---|---|
+| BlockTrafficZone | 173.8 | 162.2 |
+| Restore | 77.5 | 74.5 |
+| Remove | 98.2 | 101.7 |
+| Analyse | 260.0 | 272.9 |
+| Sleep | 934.1 | 934.0 |
+| Evictions, Remove plus Restore | 175.7 | 176.2 |
+| Mean red hosts held | 22.1 | 23.0 |
+
+Peak red host count also fails to separate. The worst episode peaked at 37
+compromised hosts, the best at 41.
+
+The measure that **does** explain it
+
+| Red action | Worst 20 | Best 20 |
+|---|---|---|
+| Impact | 101.5 | 58.0 |
+| DegradeServices | 92.0 | 59.5 |
+| PrivilegeEscalate | 22.6 | 22.8 |
+| ExploitRemoteService | 338.1 | 353.5 |
+| DiscoverRemoteSystems | 28.3 | 29.7 |
+
+Only the damage actions differ. Every reconnaissance and access action is flat.
+
+Normalized by red presence, impacts per thousand host-steps ranged from 4.07 in
+the best episode to 24.00 in the worst, with equal eviction pressure from blue
+in both.
+
+Conclusion for a fixed policy. Red reaches the same places and holds the same
+ground regardless. What varies is how often it chooses to cause damage, drawn
+from the `FiniteStateRedAgent` transition matrix and fixed at seed.
+
+## Three policy comparison
+
+Matched seeds 0 to 99, same environment, three action selection policies. Run
+to test whether the reward has construct validity, after the within policy
+analysis suggested outcome was driven by uncontrollable factors.
+
+| Policy | Mean | Stdev | Min | Max |
+|---|---|---|---|---|
+| KEEP sampled | -187.3 | 61.2 | -527 | -113 |
+| KEEP greedy | -552.2 | 343.7 | -1746 | -125 |
+| Sleep only | -6592.7 | 1340.5 | -10426 | -3761 |
+
+The greedy mean of -552.2 matches the -550.45 obtained earlier through
+`evaluation.py`, from an independent implementation and a different seeding
+scheme.
+
+Red impact actions under each policy
+
+| Policy | Impact mean | Stdev |
+|---|---|---|
+| KEEP sampled | 161.8 | 48.9 |
+| KEEP greedy | 195.2 | 48.0 |
+| Sleep only | 738.2 | 81.0 |
+
+### Findings
+
+**The reward measures defensive quality across a 35x range.** A policy that
+does nothing scores -6593. KEEP scores -187. Construct validity is not in
+question.
+
+**Better policies reduce variance, not just the mean.** Standard deviation
+scales with policy quality, 61.2 against 343.7 against 1340.5, a 22x spread.
+This is variance reduction rather than a level shift.
+
+**The mechanism is impact suppression.** KEEP cuts red impact actions by 78
+percent against doing nothing. The earlier finding that blue cannot influence
+red aggression holds only within a fixed policy, where blue behavior is
+identical by construction. Across policies blue plainly does influence it.
+
+**Defensive value scales with threat.** Splitting episodes by red aggression
+under the Sleep arm, the gap between Sleep and KEEP is 5,621 points in the 20
+least aggressive episodes and 7,206 in the 20 most aggressive.
+
+### Consequence for the research design
+
+The constraint is not construct validity. It is headroom.
+
+KEEP is close enough to a ceiling that a supervisor has little room to improve
+on it. Working against KEEP means a standard deviation of 61 on a mean of -187
+with a best observed episode of -113. Detecting a supervision effect there
+would require a large effect against a floor, which is precisely the condition
+the meta analysis predicts human AI combinations fail.
+
+This argues directly for running the human arm against a degraded policy rather
+than the converged one. A mid training checkpoint in the greedy performance
+range, standard deviation around 340, leaves real room for supervision to
+matter. That is an argument for building the competence checkpoint pool, now
+made from measurement rather than intuition.
+
+### Note on the Sleep baseline
+
+The Sleep arm passes action index 0 through KEEP's graph wrapper. A random
+policy arm was attempted and abandoned, since sampling the action space raises
+
+```
+IndexError: list index out of range
+```
+
+in `wrapper/graph_wrapper.py:40`, where `a_id // MAX_ACTIONS` indexes a subnet
+list. The wrapper's action space is not uniformly samplable.
+
+## Capture throughput
+
+100 episodes, 12 workers, on the Surface
+
+```
+wall 354s, 3.5s per episode effective
+```
+
+Serial is roughly 16s per episode. Parallel per episode wall time rises to
+around 40s under contention, but effective throughput is 4.5x better.
+
+Verified that parallel and serial capture produce byte identical episodes,
+excluding the footer `wall_seconds` field.
+
+```bash
+for i in 0 1 2 3 4 5; do
+  diff -q <(grep -v footer ser/ep_0000$i.jsonl) \
+          <(grep -v footer par/ep_0000$i.jsonl) && echo "ep $i identical"
+done
+```
+
+All six identical. This is the property `run_evaluation_parallel` lacks, and
+the difference is per episode seeding rather than one seed shared across
+prebuilt environments.
+
+## Programmatic oracle experiments
+
+Run to bound the headroom available to a supervisor before building any
+display or running any participant. The question was whether perfect knowledge
+of the thing blue cannot see, namely which hosts hold red sessions, translates
+into better outcomes.
+
+A programmatic oracle rather than a human one, deliberately. It needs no
+display, no control surface and no participant, and it answers the stronger
+question of what any supervisor could do through this channel.
+
+Script at `scripts/oracle.py`. The override mechanism wraps
+`GraphWrapper.action_translator`, which returns a CybORG action object, so
+substitutions slot in before execution and all of KEEP's observation
+processing runs untouched. Verified transparent by running `--rule none` and
+recovering KEEP's exact per episode rewards.
+
+### Rules tested
+
+| Rule | Behavior |
+|---|---|
+| none | KEEP unmodified, control |
+| O1 | Restore any compromised host in the agent's subnets |
+| O2 | Override unless KEEP is already acting on a compromised host |
+| O3 | As O1 but Remove rather than Restore |
+| O4 | Restore only in zones flagged expensive |
+| O5 | Budget limited to 77 Restores per episode, targets ranked by phase reward weight |
+| O6 | Never adds an action. Replaces Restore or Remove aimed at a clean host with a no-op |
+
+The budget of 77 in O5 matches KEEP's own observed Restore rate, so the
+comparison is perfect targeting against learned targeting at equal action cost.
+
+### Results, 100 episodes each, seeds 0 to 99
+
+| Arm | Mean | Stdev | Overrides per episode |
+|---|---|---|---|
+| KEEP, control | -187.3 | 61.2 | 0 |
+| O5, budget limited | -238.6 | 48.0 | 77.0 |
+| O5 variant, alternative cost model | -246.1 | 65.6 | 77.0 |
+| O6, decline only | -201.5 | 168.9 | 270.7 |
+| O2 | -541.5 | 140.7 | 450.0 |
+| O1 | -576.5 | 188.8 | 484.0 |
+| O3 | -4963.0 | 431.3 | 2175.0 |
+
+Every rule performs worse than the unmodified policy.
+
+O1, O2 and O3 fire on nearly every step, since compromise is near permanent at
+20 to 45 hosts held throughout an episode. They do not supervise, they replace
+the policy with a single rule. O3 in particular, using Remove rather than
+Restore, approaches the Sleep baseline of -6593, because red re-enters
+immediately and the agents spend the entire episode re-removing.
+
+O5 is the fair comparison and the informative one. At equal action budget with
+correct phase aware zone weighting, perfect targeting loses to learned
+targeting by 27 percent.
+
+### Agreement between oracle and policy
+
+Across 77 overrides per episode, O5 and KEEP agreed on the target roughly
+**0.2 times per episode**. They are not solving the same problem.
+
+KEEP's Restore targets in a representative episode, by zone
+
+```
+operational_zone_b   13
+restricted_zone_b    12
+restricted_zone_a    12
+operational_zone_a    8
+office_network        7
+admin_network         4
+public_access         1
+```
+
+Roughly proportional to how many hosts each agent owns, not concentrated on
+the zones the reward table weights most heavily.
+
+### Eviction precision against ground truth
+
+Measured over 20 episodes of the KEEP arm, counting every Remove and Restore.
+
+```
+evictions on a currently compromised host:   486
+evictions on a clean host:                 3,185
+```
+
+**Precision is 13 percent.** Roughly seven out of eight evictions target hosts
+with no red session at the moment of action.
+
+Checking whether those evictions are anticipatory, using a 20 step window in
+each direction
+
+```
+of 3,185 clean host evictions
+  compromised within the next 20 steps:    146   (4.6%)
+  compromised within the prior 20 steps:   821   (25.8%)
+  neither:                               2,273   (71.4%)
+```
+
+They are not anticipatory. Nearly three quarters have no relationship to red
+presence in either direction.
+
+### The result that does not fit
+
+O6 suppresses exactly those apparently wasted evictions and substitutes a
+no-op. It never adds an action, so it can only differ from KEEP where ground
+truth says KEEP was wrong.
+
+Performance gets worse, -201.5 against -187.3, and the standard deviation
+nearly triples, from 61.2 to 168.9.
+
+Verified that this is a property of declining rather than of the substitute.
+Running O6 with `Sleep` instead of `Monitor` produced different per step traces
+but identical aggregate statistics to full precision, so the choice of no-op
+does not drive the result.
+
+### What can and cannot be claimed
+
+**Can be claimed.** Six perfect information oracle rules, including one matched
+on action budget with correct phase aware zone weighting, all fail to improve
+on a converged MARL policy in CAGE 4. The policy's eviction precision against
+current compromise is 13 percent, and those evictions are not anticipatory.
+Suppressing them degrades performance and destabilizes outcomes.
+
+**Cannot be claimed.** Why. Something about that eviction behavior is load
+bearing in a way that current compromise ground truth does not capture, and the
+data collected so far cannot say what.
+
+**Should not be claimed.** That there is no headroom for supervision. These
+rules test one intervention channel, remediation retargeting given perfect
+knowledge of compromise. They say nothing about escalation timing, novelty
+detection outside the training distribution, or objective divergence where an
+operator's priority differs from the coded reward.
+
+### Consequence for the research design
+
+**Ground truth compromise is not a valid correctness criterion for blue actions
+in this environment.** This is the operationally important finding and it holds
+regardless of the unexplained mechanism.
+
+An escalation gate keyed on current compromise would fire on the wrong signal.
+A supervisor asked to check whether a host is actually compromised before
+approving a Restore would be applying a criterion that measurably degrades
+performance. Any per decision correctness metric built on compromise state
+inherits the same defect, which is directly relevant to the metrics question
+in E4.
+
+The supervision study should not be built around the retargeting channel. The
+remaining candidates named in the pathway documents are untested here and
+remain open.
+
+### Open hypotheses for the eviction behavior
+
+Listed in rough order of expected payoff, for a later session.
+
+1. **Decoy interaction.** `DeployDecoy` creates fake services. A host where red
+   interacts with a decoy would show activity without holding a session, so it
+   would read as clean under the current ground truth definition while being a
+   legitimate target. Check whether clean host evictions concentrate on hosts
+   with decoys previously deployed.
+2. **Detection noise.** Green `LocalWork` can raise false positive alerts. If
+   clean host evictions cluster on hosts that recently produced alerts, KEEP is
+   responding correctly to its observations and the imprecision is measured
+   against the wrong reference.
+3. **Active versus passive.** O6 substituted passive no-ops. Substituting a
+   different active action, `DeployDecoy` or `Analyse` on the same host, would
+   show whether the value lies in acting at all rather than in eviction
+   specifically.
+4. **Training distribution mismatch.** Reading `train.py` would show which red
+   agents and reward shaping KEEP trained against. If the training red behaves
+   differently from `FiniteStateRedAgent`, the evictions may be vestigial
+   responses to patterns that do not occur in evaluation.
+
+Hypotheses 1 and 2 share a script and are cheap. They are the natural opening
+for the next session.
+
+## Reading the reward function
+
+After six oracle rules failed to improve on KEEP, the source was read rather
+than probed. Four levels down, the mechanism became clear.
+
+### What Restore actually does
+
+`Restore` is a reimage, not an eviction. Its docstring claims a flat -1
+penalty, which is **not implemented**. The chain runs
+
+```
+Restore.execute
+  -> RestoreFromBackup.execute
+    -> RestoreFromBackup.execute_targeteted_local_action
+      -> Host.restore
+```
+
+`Host.restore` rebuilds the host from its original attributes. It resets
+`files`, `sessions`, `processes`, `services` and `ephemeral_ports`, and clears
+`events`. Red sessions are wiped, because `sessions` is rebuilt from
+`original_sessions`.
+
+Decoys are processes. So **restoring a host destroys every decoy blue has
+deployed there.**
+
+`Restore` also has `duration = 5`, so the acting agent is occupied for five
+steps.
+
+`restore_count` is incremented per host but is used nowhere. The one call site
+that would have consumed it is commented out at `SimulationController.py:557`.
+
+### What the reward actually counts
+
+`BlueRewardMachine.calculate_reward` sums exactly three things.
+
+```python
+for agent_name, action in action_dict.items():
+    if isinstance(action, Impact):            hostname = action.hostname
+    elif isinstance(action, GreenAccessService) \
+      or isinstance(action, GreenLocalWork):  hostname = state.ip_addresses[...]
+    else:                                     continue
+```
+
+Every blue action hits the `continue`. **No blue action carries a direct
+reward or penalty.**
+
+The three terms are
+
+| Term | Trigger |
+|---|---|
+| LWF | a green agent's `GreenLocalWork` returns success False |
+| ASF | a green agent's `GreenAccessService` returns success False |
+| RIA | a red agent's `Impact` returns success True |
+
+Note that despite the name meaning Red Impact slash Access, RIA requires
+`isinstance(action, Impact)`. **Red merely holding sessions costs nothing.**
+This is why compromise count never correlated with reward across the corpus,
+and why an episode with 45 compromised hosts could score -113.
+
+Blue influences the score only by changing whether green can work and whether
+red's Impact succeeds. Everything blue does is scored through second order
+effects.
+
+### Demonstration: information gathering is reward invisible
+
+Three baseline arms were run over the same 100 seeds. Each produces a
+completely different action stream.
+
+| Arm | Every agent, every step | Mean | Stdev |
+|---|---|---|---|
+| Sleep | `Sleep()` | -6592.68 | 1340.47 |
+| Analyse | `Analyse` on host 0 | -6592.68 | 1340.47 |
+| Monitor | `Monitor` | -6592.68 | 1340.47 |
+
+Identical to the last decimal, and identical episode by episode across all 100.
+Verified that the traces themselves differ while the rewards match.
+
+```
+ep 00000 traces differ
+ep 00001 traces differ
+ep 00002 traces differ
+rewards identical: True
+first 6 sleep   [-7391.0, -8417.0, -5866.0, -6111.0, -6402.0, -4691.0]
+first 6 analyse [-7391.0, -8417.0, -5866.0, -6111.0, -6402.0, -4691.0]
+```
+
+**A policy that only gathers information scores identically to one that does
+nothing at all.** Three of the eight blue actions are invisible to the reward
+in isolation.
+
+### This explains every oracle result
+
+KEEP's target selection weighs at least four considerations, of which current
+compromise is one.
+
+1. Does restoring prevent a future Impact
+2. Does taking the host offline cause green work to fail
+3. Does the reimage destroy decoys already deployed there
+4. Does the five step duration lock the agent out of acting
+
+Only the first two enter the reward. The oracle rules optimized against
+compromise alone, which is one term of four and the one the reward does not
+score directly.
+
+That accounts for the full pattern
+
+- **13 percent eviction precision** against current compromise, because
+  compromise is not the criterion
+- **0.2 agreements per episode** between oracle and policy, because they
+  optimize different objectives
+- **O7 at -512** when targets were randomized, because the other three terms
+  still carried 325 points of value
+- **O1 and O3 collapsing** to near baseline, because forcing Restore every step
+  continuously destroys the team's own decoys and locks agents out five steps
+  at a time
+
+### Superseding the earlier open question
+
+The earlier oracle section stated that the eviction behavior was load bearing
+in a way the data could not explain. It can now be explained. Restore is a
+multi cost action whose value depends on accumulated deception investment and
+agent availability, neither of which appears in compromise ground truth.
+
+Hypotheses 1 and 2 from that section were tested and neither holds in strong
+form. Clean host evictions show a 1.5x enrichment for recent observation
+against an 18.1 percent base rate, and 1.3x for recent decoy against 7.9
+percent. Real but weak. The mechanism is the cost structure, not the targeting
+signal.
+
+## Blocked agent steps
+
+A measurement error found while checking action counts, affecting several
+earlier tables.
+
+39.3 percent of blue agent-steps report `success == IN_PROGRESS`. During those
+steps `get_last_action` reports `Sleep` regardless of what the agent proposed.
+Verified by cross tabulating action against the blocked flag over one episode
+
+```
+AllowTrafficZone     blocked=False    679
+Analyse              blocked=False    248
+BlockTrafficZone     blocked=False    149
+DeployDecoy          blocked=False    183
+Monitor              blocked=False     99
+Remove               blocked=False    140
+Restore              blocked=False     57
+Sleep                blocked=True     940
+```
+
+Every non Sleep action appears only when free. Every Sleep appears only when
+blocked. **Voluntary Sleep is zero.** The Sleep counts in the earlier action
+mix tables were blocked time, not idling.
+
+Restore, Remove, Analyse and DeployDecoy counts were never inflated, so the
+eviction precision figures, the oracle results and the policy comparison all
+stand.
+
+A `blocked` flag is now captured per agent per step.
+
+### Corrected action mix, free decisions only
+
+Over 20 episodes per arm, excluding blocked steps.
+
+| Action | KEEP sampled | KEEP greedy |
+|---|---|---|
+| AllowTrafficZone | 43.0% | 51.7% |
+| Analyse | 17.6% | 6.3% |
+| DeployDecoy | 10.6% | 14.9% |
+| BlockTrafficZone | 10.4% | 6.7% |
+| Remove | 6.8% | 0.0% |
+| Monitor | 6.4% | 17.4% |
+| Restore | 5.2% | 2.9% |
+
+Blocked rates were 38.5 percent for sampled KEEP, 24.8 percent for greedy, and
+50.1 percent for the Analyse baseline. Greedy is blocked less because it barely
+uses the long duration actions.
+
+Greedy's `Remove` count is 3 out of 37,505 free decisions.
+
+### Corrected rates for gate design
+
+The earlier figures were shares of all agent-steps. These are shares of
+decisions the agent was actually free to make, which is the relevant
+denominator for an escalation gate.
+
+| Measure | Share of free decisions | Per episode |
+|---|---|---|
+| Consequential actions | 33.0% | roughly 500 |
+| Restore only | 5.2% | roughly 82 |
+| Reward invisible, Analyse plus Monitor | 24.0% | roughly 370 |
+
+The last row is new and matters. **Roughly a quarter of blue's free decisions
+are actions the reward cannot see.** Escalating those to a human means asking
+for approval of decisions whose consequences are unobservable within the
+episode score.
+
+## Consolidated consequences for the research design
+
+**Compromise ground truth is not a valid correctness criterion.** Demonstrated
+three ways. Precision against it is 13 percent. Perfect knowledge of it does not
+beat the policy. And the reward function does not score compromise at all, only
+successful Impact.
+
+**Per decision correctness is structurally unmeasurable for a quarter of blue
+decisions.** Analyse and Monitor are reward invisible. This is not a limitation
+of the reward as a crude summary. It is structural blindness to part of the
+action space, and it is a direct finding for the E4 metrics question.
+
+**An escalation gate keyed on compromise would fire on the wrong signal.** A
+supervisor asked to verify compromise before approving a Restore would apply a
+criterion that measurably degrades performance.
+
+**The retargeting intervention channel has no demonstrated headroom.** Six
+perfect information rules, including one matched on action budget with correct
+phase aware weighting, all lose to the learned policy.
+
+**Untested channels remain.** Escalation timing, novelty detection outside the
+training distribution, and objective divergence where an operator's priority
+differs from the coded reward. None of these were addressed by the oracle work.
+
+**A better oracle target now suggests itself.** Since the reward counts green
+failures and blue actions cause them, the question worth testing is not which
+host to restore but when blue is doing more damage than red. That is a
+different rule and it is cheap to build.
+
+## Policy seed decoupling
+
+`capture.py` originally derived one seed per episode
+
+```python
+seed = base_seed + ep
+torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
+cyborg = CybORG(sg, "sim", seed=seed)
+```
+
+This ties environment generation and policy sampling to the same value, so
+two arms cannot be compared with the environment held fixed. A `--policy-seed`
+argument was added
+
+```python
+pseed = seed if policy_seed is None else policy_seed + ep
+torch.manual_seed(pseed)
+```
+
+`np.random.seed` and `random.seed` remain on the environment seed. KEEP samples
+through torch only, and leaving the other two streams alone avoids any risk of
+CybORG drawing from global numpy state. The header record now carries both
+`seed` and `policy_seed`, so an arm is self-describing.
+
+Default behaviour is unchanged. Omitting the flag reproduces prior runs exactly.
+
+Verification, two episodes at `--policy-seed 9000` against `corpus_v1`
+
+```
+ep 00000  blue diverges at step 0  reward -186.0 vs -154.0
+ep 00001  blue diverges at step 0  reward -192.0 vs -179.0
+```
+
+Blue diverges immediately, the environment is unchanged, rewards differ.
+
+## Null arm and the noise floor
+
+`keep_null` is KEEP sampled, same 100 environment seeds as `corpus_v1`,
+`--policy-seed 9000`. Only the policy's sampling luck differs. It is the
+placebo against which any supervised arm must be read.
+
+| Arm | Mean | Stdev | Better than corpus_v1 | Mean gain | Mean loss |
+|---|---|---|---|---|---|
+| corpus_v1 (KEEP sampled) | -187.32 | 61.24 | reference | | |
+| keep_null (KEEP resampled) | -196.09 | 51.96 | 35/100 | +57.5 | -44.4 |
+| oracle_O8 | -253.27 | 197.27 | 51/100 | +67.7 | -205.1 |
+
+### Findings
+
+**Resampling alone moves the mean 8.8 points and flips a third of episodes by
+roughly 50.** Every arm comparison in this file is anchored to a single
+sampling draw of KEEP. `corpus_v1` is one sample, not a canonical value.
+
+**Per-episode improvement is strongly anti-correlated with baseline score even
+when nothing is happening.** Correlation between per-episode delta and
+`corpus_v1` score
+
+```
+keep_null   -0.712
+oracle_O8   -0.272
+```
+
+The null arm shows the stronger effect. This is regression to the mean, and its
+magnitude here means any claim of the form "the supervisor rescues episodes the
+policy handled badly" requires the null arm as a control. Read against that
+floor, O8's -0.272 is weaker than chance and carries no rescue signal.
+
+**The oracle's gains are within noise, its losses are not.** O8 gains +67.7
+against a null floor of +57.5. It loses -205.1 against a floor of -44.4, a
+factor of 4.6, with standard deviation 197.27 against 51.96. An 81 percent
+override rate against perfect Tier 3 ground truth reliably destroys value and
+does not reliably create it.
+
+### Consequence for the research design
+
+The headroom question is not answered by this arm and cannot be. A rule
+overriding 154 times per episode is a replacement policy, not a supervisor.
+The human relevant region is a sparse gate near the 77 decisions per episode
+sustainability figure, roughly 40 percent of O8's rate, and that region is
+untested.
+
+Any future arm comparison reports the null band alongside it.
+
+## Oracle variant series
+
+Eight rule variants plus revisions, `oracle_O1` through `oracle_O8`, n=100
+where noted. None beat KEEP.
+
+| Variant | Mean | Stdev |
+|---|---|---|
+| oracle_O5 | -238.56 | 48.04 |
+| oracle_O5b | -187.32 | 61.24 |
+| oracle_O5c | -246.05 | 65.56 |
+| oracle_O6 / O6b | -201.49 | 168.93 |
+| oracle_O7 | -511.95 | 165.48 |
+| oracle_O8 | -253.27 | 197.27 |
+
+`oracle_O5b` reproduces `corpus_v1` exactly on all 100 footers, confirming the
+oracle harness is transparent when its rule does not fire. It is an accidental
+but valid k=0 control.
+
+`oracle_O5` has the lowest standard deviation of any arm at 48.04, which
+initially read as tail suppression. Percentiles refute it
+
+```
+corpus_v1    min -527  p10 -245  med -181  max -113
+oracle_O5    min -478  p10 -288  med -238  max -155
+oracle_O8    min -1092 p10 -536  med -184  max  -51
+```
+
+Every O5 percentile above the minimum is worse. The low variance comes from
+consistent mediocrity, not from avoiding disasters.
+
+O8's maximum of -51 is better than KEEP's best episode in 100 draws, and its
+minimum of -1092 is roughly double KEEP's worst. Median is unchanged.
+
+### Difficulty does not explain the deltas
+
+Red aggression over the first 100 steps, counting `Impact`,
+`ExploitRemoteService`, `PrivilegeEscalate` and `DegradeServices`
+
+```
+corr(delta, early_aggression)          -0.057
+corr(delta, keep_score)                -0.272
+corr(keep_score, early_aggression)     -0.183
+partial corr(delta, agg | keep_score)  -0.113
+```
+
+Early red aggression carries no explanatory power for when supervision helps.
+
+## Note on CC4 red behaviour
+
+Red action distribution over 100 episodes
+
+| Action | Count |
+|---|---|
+| ExploitRemoteService | 34455 |
+| DiscoverDeception | 11727 |
+| DegradeServices | 8598 |
+| Impact | 8465 |
+| AggressiveServiceDiscovery | 6160 |
+| StealthServiceDiscovery | 6048 |
+| DiscoverRemoteSystems | 2911 |
+| PrivilegeEscalate | 2466 |
+
+`DiscoverDeception` is the second most frequent red action, exceeding `Impact`
+and `PrivilegeEscalate` combined. Red spends more effort identifying decoys
+than on either escalation or damage. This is a property of CC4's red model
+independent of any blue policy and is relevant to any work treating decoy
+deployment as a defensive action.
+
+## Two defects in local tooling
+
+**Container writes are root owned.** Every trace directory captured so far is
+owned by root, since the container runs as root against a bind mount. Symptom
+is `Permission denied` on host side cleanup. Fix
+
+```bash
+sudo chown -R $(id -u):$(id -g) ~/cage/data/traces
+```
+
+and add `--user $(id -u):$(id -g)` to future `docker run` invocations.
+
+**Episode id parsing by substring.** Analysis scripts used
+
+```python
+k = f.split('ep_')[1].split('.')[0]
+```
+
+Any output directory whose name contains `ep_` collapses every episode to one
+key. `keep_null` contains the sequence and silently reduced 100 episodes to a
+single data point, producing a well formed mean over n=1. Use positional
+parsing
+
+```python
+k = os.path.basename(f)[3:-6]
+```
+
+This is the second defect in this project that produced plausible output rather
+than an error, after the cached state reference that froze phase and ground
+truth across a corpus. Arms should be checked for episode count before any
+statistic is computed.
+
+## Schema divergence between capture paths
+
+The oracle harness writes a different record schema than `capture.py`, and
+neither is a superset.
+
+| Field | capture.py arms | oracle arms |
+|---|---|---|
+| raw per-agent observation | yes | no |
+| `truth` (red sessions, hosts with red presence) | yes | no |
+| `red_action` | no | yes |
+| `n_compromised_owned` | no | yes |
+| `proposed` / `overridden` | no | no |
+
+The oracle arms lack Tier 3 ground truth, which was the stated reason for
+logging it, so an override cannot be scored against the correct answer in the
+arms where overrides occur. Neither path logs the counterfactual.
+
+Before further capture, both writers should emit `truth`, `red_action`,
+`n_compromised_owned`, `proposed` and `overridden`, so one reader handles every
+arm.
+
+## KEEP reference value and the sampling noise floor
+
+Four sampling seeds over the same 100 environment seeds, `--policy-seed`
+unset / 9000 / 9001 / 9002.
+
+| Arm | Mean | Stdev |
+|---|---|---|
+| corpus_v1 | -187.32 | 61.24 |
+| keep_null | -196.09 | 51.96 |
+| keep_null_9001 | -198.44 | 83.33 |
+| keep_null_9002 | -183.51 | 49.40 |
+
+```
+grand mean  -191.34
+sd of means    7.08    se 3.54
+95% CI      -199.66 to -183.02   (t, 3 df)
+```
+
+The published KEEP score of -193.68 falls inside this interval. The earlier
+point reproduction of -196.06 understated the agreement.
+
+### The bar for any arm comparison
+
+Pairwise deltas between identical policies differing only in sampling seed
+
+| Pair | Delta mean | Per-episode sd | Better |
+|---|---|---|---|
+| corpus_v1 vs keep_null | -8.77 | 72.82 | 35/100 |
+| corpus_v1 vs keep_null_9001 | -11.12 | 101.11 | 43/100 |
+| corpus_v1 vs keep_null_9002 | +3.81 | 72.11 | 43/100 |
+| keep_null vs keep_null_9001 | -2.35 | 92.71 | 54/100 |
+| keep_null vs keep_null_9002 | +12.58 | 62.15 | 66/100 |
+| keep_null_9001 vs keep_null_9002 | +14.93 | 94.70 | 52/100 |
+
+Identical policies differ by up to 26 points of mean and win up to 66 of 100
+episodes. Arm stdev ranges 49.40 to 83.33, a 1.7x spread from sampling alone,
+so `oracle_O5`'s stdev of 48.04 is inside the null range and was never anomalous.
+
+Any arm reporting a delta under roughly 25 points, or a win rate under roughly
+66 percent, has reported nothing. `oracle_O8`'s 51/100 is below the null range.
+
+### Variance decomposition
+
+```
+mean within-episode sd across seeds   44.50   sampling luck
+sd of per-episode means               36.39   situation difficulty
+```
+
+Sampling luck exceeds situation difficulty, ratio 1.22. Episodes carry real
+intrinsic difficulty, but a perfect difficulty measure would explain at most
+about 40 percent of outcome variance.
+
+Consequence for stratification: episode difficulty must be estimated as a mean
+over several policy seeds, not read from a single run. Labelling an episode
+hard from one observation is mostly labelling sampling luck, which is the same
+artifact that produces the -0.712 null correlation above.
+
+Consequence for supervision: with the majority of outcome variance irreducible
+at this competence level, a detectable supervision effect must be large. This
+is a quantitative argument for running the human arm against a degraded policy,
+where both variance terms are larger.
+
+### Difficulty does not transfer across competence levels
+
+Greedy KEEP is deterministic, so all of its between-episode variance is
+situation rather than sampling luck.
+
+```
+sampled  within-ep sd  44.50   between-ep sd   36.39
+greedy   within-ep sd   0.00   between-ep sd  343.75
+corr(greedy score, sampled mean score) = -0.059
+```
+
+Greedy percentiles, n=100, same environment seeds
+
+```
+min -1746  p10 -1142  p25 -758  med -434.5  p75 -293  max -125
+```
+
+The distribution is smooth rather than bimodal, so the spread is a difficulty
+gradient rather than a failure-mode statistic. Greedy's best episode at -125 is
+close to sampled's best at -113: the degraded mode is competent on forgiving
+situations and collapses on unforgiving ones.
+
+**Difficulty is a property of the policy-environment pair, not of the
+environment.** The same episode is not hard for both action-selection modes.
+Stratification therefore cannot be computed once and reused across competence
+levels; each level needs its own corpus at multiple policy seeds.
+
+**Difficulty is 9.4x more legible at degraded competence**, with no sampling
+noise to separate it from. This supplies a stopping criterion for any
+competence checkpoint pool: train until between-episode variance dominates
+within-episode variance, measurable in one 100-episode arm per candidate
+checkpoint.
