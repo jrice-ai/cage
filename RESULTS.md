@@ -1533,3 +1533,28 @@ noise to separate it from. This supplies a stopping criterion for any
 competence checkpoint pool: train until between-episode variance dominates
 within-episode variance, measurable in one 100-episode arm per candidate
 checkpoint.
+
+### The reward floor is action-insensitive
+
+Three degenerate policies with byte-different action streams produce identical
+statistics over 100 episodes.
+
+| Arm | Action distribution (per episode) | Mean | Stdev |
+|---|---|---|---|
+| `arm_sleep` | Sleep 2495 | -6592.68 | 1340.47 |
+| `arm_monitor` | Monitor 2495 | -6592.68 | 1340.47 |
+| `arm_analyse` | Sleep 1250, Analyse 1245 | -6592.68 | 1340.47 |
+
+`Monitor` executes automatically each step regardless of selection, and
+`Analyse` gathers information without altering state. None of the three changes
+the network, and the reward is identical to two decimals across all of them.
+
+This resolves the earlier `arm_sleep` anomaly, where a corrected Sleep arm
+returned the same mean as the mislabelled Analyse arm it replaced. Not a stale
+output — the two policies genuinely score the same.
+
+**Consequence.** CC4's reward is insensitive to blue actions that do not change
+state. Pure information gathering buys nothing. Any supervisory metric built on
+reward alone cannot distinguish a well-informed passive defender from an
+oblivious one, which bounds what E4 collaboration-quality measures and C2
+escalation designs can be validated against.

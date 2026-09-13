@@ -124,9 +124,9 @@ episodes improved, has reported nothing.** Always report a null arm alongside.
 | Directory | Policy | Schema | Mean | Stdev | Notes |
 |---|---|---|---|---|---|
 | `arm_keep_greedy` | KEEP argmax | A | -552.2 | 343.7 | Deterministic. All variance is situation, none sampling. |
-| `arm_analyse` | Always Analyse | A | -6592.7 | 1340.5 | Acts without targeting logic. |
-| `arm_sleep` | Always Sleep | A | TBD | TBD | See known issues. |
-| `arm_monitor` | TBD | TBD | TBD | TBD | Undocumented. |
+| `arm_sleep` | Always Sleep | A | -6592.68 | 1340.47 | Verified all-Sleep, 2495/2495 |
+| `arm_monitor` | Always Monitor | A | -6592.68 | 1340.47 | Monitor is automatic each step; selecting it is a no-op |
+| `arm_analyse` | Sleep/Analyse alternation | A | -6592.68 | 1340.47 | 1250 Sleep / 1245 Analyse per episode |
 
 A random-policy arm was attempted and abandoned: KEEP's action space is not
 uniformly samplable (`wrapper/graph_wrapper.py:40`, `IndexError` on
