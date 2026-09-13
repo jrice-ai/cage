@@ -94,6 +94,7 @@ def install_oracle(env, cyborg, rule, stats, budget=77):
     original = env.action_translator
 
     def patched(agent_name, a_id):
+        stats["calls"] += 1
         act = original(agent_name, a_id)
         if rule == "none":
             return act
@@ -210,7 +211,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77):
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "episode": ep, "seed": seed,
-            "rule": rule, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -246,7 +247,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77):
 
         f.write(json.dumps({
             "record": "footer", "episode": ep, "steps": step + 1,
-            "total_reward": total, "overrides": stats["override"],
+            "total_reward": total, "overrides": stats["override"], "translator_calls": stats["calls"],
             "agreements": stats["agree"],
             "wall_seconds": round(time.time() - t0, 2),
         }) + "\n")
