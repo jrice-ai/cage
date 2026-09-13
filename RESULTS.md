@@ -1558,3 +1558,142 @@ state. Pure information gathering buys nothing. Any supervisory metric built on
 reward alone cannot distinguish a well-informed passive defender from an
 oblivious one, which bounds what E4 collaboration-quality measures and C2
 escalation designs can be validated against.
+
+## Cross-machine reproduction
+
+Verified on a second machine (Alienware, WSL2 Ubuntu, different
+microarchitecture) from the repository plus `build/evaluation-fixes.patch`.
+
+```
+2.2.0+cpu 1.26.4 2.12.0 2.3.1
+--distribute 1 --max-eps 2 --seed 0
+  -194, stdev 76.36753236814714
+```
+
+Identical to fifteen significant figures against the reference machine.
+
+Run first against pristine upstream `evaluation.py`, before applying the patch,
+the same command returned **-154, stdev 32.53**. The difference is entirely the
+unseeded policy sampling defect: upstream never calls `torch.manual_seed`, so
+the result varies per machine and per invocation. With the fix applied the
+output is bit-identical across hardware.
+
+This is the seed-disclosure argument demonstrated rather than asserted.
+
+## Capture throughput
+
+Alienware, Intel Core Ultra 9 275HX, 24 physical cores (8 P + 16 E), no SMT.
+24 episodes per configuration, KEEP sampled, seeds 0-23.
+
+| Workers | Mean per-episode wall | Effective | Speedup | Efficiency |
+|---|---|---|---|---|
+| 1 | 14.45s | 14.45s | 1.00x | 100% |
+| 2 | 15.25s | 7.63s | 1.89x | 95% |
+| 4 | 15.40s | 3.85s | 3.75x | 94% |
+| 8 | 17.30s | 2.16s | 6.68x | 84% |
+| 12 | 19.57s | 1.63s | 8.86x | 74% |
+| 16 | 21.01s | 1.31s | 11.01x | 69% |
+| 20 | 23.85s | 1.19s | 12.13x | 61% |
+| 24 | 26.98s | 1.12s | 12.86x | 54% |
+
+Degradation is smooth and roughly linear from four workers onward, with no step
+at the P-core/E-core boundary. The limiting factor is contention rather than
+core heterogeneity. Throughput still improves at 24 workers but only 6 percent
+over 20; the practical operating point is 12 to 16.
+
+For comparison, the reference machine reached 3.5s effective at 12 workers.
+This machine reaches 1.63s at the same worker count, a 2.1x improvement that is
+mostly parallel efficiency rather than single-thread speed (14.45s vs 16.7s
+serial).
+
+Determinism verified across worker counts on this machine: episodes 0, 7 and 19
+are byte-identical between 1 and 24 workers, excluding footer `wall_seconds`.
+The property holds across hardware and across a 24x range in worker count.
+
+**`oracle.py` parallel path segfaults above six workers on 24-core Arrow Lake.**
+`{SIGSEGV(-11)}` from joblib workers at `--workers 12`; stable at 6. The same
+machine runs `capture.py` at 24 workers without incident, so the fault is
+specific to the oracle harness, which constructs and patches a CybORG instance
+per worker.
+
+The failure mode matters more than the cause: joblib reports the batch failed,
+but workers that completed had already written their files. The budget-10 arm
+left 12 well-formed episodes and the budget-20 arm left 60, in directories
+indistinguishable from a successful 100-episode run. Any statistic computed
+over them would be silently wrong.
+
+Assert the expected episode count before computing anything over an arm.
+
+## O5 budget sweep
+
+Dose-response for the phase-aware budgeted oracle. 100 episodes per budget,
+environment seeds 0-99, six workers, captured on the second machine.
+
+| Budget | Mean | Stdev | Delta vs KEEP | Overrides/ep |
+|---|---|---|---|---|
+| 0 | -187.32 | 61.24 | reference | 0.0 |
+| 10 | -186.33 | 52.32 | +0.99 | 10.0 |
+| 20 | -200.44 | 65.00 | -13.12 | 20.0 |
+| 40 | -216.15 | 65.21 | -28.83 | 40.0 |
+| 77 | -246.05 | 65.56 | -58.73 | 77.0 |
+| 150 | -312.01 | 57.15 | -124.69 | 147.8 |
+| 300 | -368.92 | 72.59 | -181.60 | 206.2 |
+
+Two incidental reproduction checks passed. Budget 0 returns -187.32 / 61.24,
+identical to `corpus_v1` on the reference machine. Budget 77 returns -246.05 /
+65.56, identical to `oracle_O5`, captured on different hardware at a different
+worker count.
+
+Override counts track the budget exactly up to 77 and saturate below it above
+that: 147.8 at a budget of 150 and 206.2 at 300, where the rule's own
+low-value-zone skip binds before the cap does.
+
+### Findings
+
+**The response is monotonic with no interior peak.** Reward declines roughly
+linearly in override count, about -0.9 points per override from budget 20
+onward. There is no intervention rate at which supervision helps.
+
+**Only budgets 0 to 20 are inside the null band** of -11.1 to +14.9. Budget 10
+at +0.99 is indistinguishable from doing nothing; budget 20 at -13.12 is inside
+the band on the wrong side. From budget 40 the losses clear the floor
+decisively.
+
+**Agreements are near zero throughout**, 0.0 to 0.2 per episode. The rule
+almost never endorsed KEEP's proposed action, so these arms measure action
+substitution rather than review.
+
+### Consequence for the research design
+
+Across eight rules spanning blind intervention (O1, O3, O4), correction (O2,
+O5), suppression (O6, O8) and a targeting control (O7), at rates from 10 to
+over 400 overrides per episode, no configuration beats KEEP. The dose-response
+establishes that the failure is directional rather than a matter of tuning.
+
+**Supervision experiments against converged KEEP are not viable.** The oracle
+ceiling condition was run to bound achievable gain before any participant saw
+anything, and the bound is at or below zero.
+
+This does not bound supervision generally. It bounds action-substitution
+supervision informed by ground truth about red presence. A supervisor with
+different information, such as reward lookahead or counterfactual rollout, or a
+different action space, such as retasking or priority reweighting rather than
+per-action override, is untested.
+
+The practical consequence is that the competence checkpoint pool moves from
+argued-for to required, with the stopping criterion established earlier: train
+until between-episode variance dominates within-episode variance
+
+**`oracle.py` parallel path segfaults above six workers on 24-core Arrow Lake.**
+`{SIGSEGV(-11)}` from joblib workers at `--workers 12`; stable at 6. The same
+machine runs `capture.py` at 24 workers without incident, so the fault is
+specific to the oracle harness, which constructs and patches a CybORG instance
+per worker.
+
+The failure mode matters more than the cause: joblib reports the batch as
+failed, but workers that had already completed left their files on disk. The
+budget-10 arm left 12 well-formed episodes and budget-20 left 60, in
+directories indistinguishable from a successful run. Any statistic computed
+over them would have been silently wrong.
+
+Assert the expected episode count before computing anything over an arm.
