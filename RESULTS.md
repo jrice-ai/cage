@@ -3,16 +3,17 @@
 ## Overview
 
 Record of the first working session standing up CybORG CAGE Challenge 4 and
-reproducing the KEEP baseline. Covers container build, dependency pins not
+reproducing the KEEP baseline, then extended across later sessions. Covers container build, dependency pins not
 declared by either repo, a clean reproduction of the published score, and three
-defects found in the KEEP evaluation harness that affect reproducibility.
+defects found in the KEEP evaluation harness that affect reproducibility. Five
+upstream defects and four local ones are recorded across this file.
 
 Scope was the go/no-go gate. Reproduce a published autonomous baseline in a
 container we control, so later human supervision work has something valid to
 compare against. Gate passed.
 
-All numbers below come from a single machine and a single image. Nothing here
-has been checked on second hardware yet.
+Early sections come from a single machine and a single image. The cross-machine
+reproduction section supersedes that limitation.
 
 ## Environment
 
@@ -863,23 +864,33 @@ recovering KEEP's exact per episode rewards.
 | O4 | Restore only in zones flagged expensive |
 | O5 | Budget limited to 77 Restores per episode, targets ranked by phase reward weight |
 | O6 | Never adds an action. Replaces Restore or Remove aimed at a clean host with a no-op |
+| O7 | Target scramble control. Keeps KEEP's action type, randomizes the hostname to any owned host |
+| O8 | As O6 but restricted to Restore, with a 30-step memory permitting restores on hosts impacted recently |
+
+Source-accurate descriptions of all eight rules are in `ARMS.md`.
 
 The budget of 77 in O5 matches KEEP's own observed Restore rate, so the
 comparison is perfect targeting against learned targeting at equal action cost.
 
-### Results, 100 episodes each, seeds 0 to 99
+### Results, seeds 0 to 99 except where noted
 
-| Arm | Mean | Stdev | Overrides per episode |
-|---|---|---|---|
-| KEEP, control | -187.3 | 61.2 | 0 |
-| O5, budget limited | -238.6 | 48.0 | 77.0 |
-| O5 variant, alternative cost model | -246.1 | 65.6 | 77.0 |
-| O6, decline only | -201.5 | 168.9 | 270.7 |
-| O2 | -541.5 | 140.7 | 450.0 |
-| O1 | -576.5 | 188.8 | 484.0 |
-| O3 | -4963.0 | 431.3 | 2175.0 |
+| Arm | n | Mean | Stdev | Overrides per episode |
+|---|---|---|---|---|
+| KEEP, control | 100 | -187.3 | 61.2 | 0 |
+| O5, budget limited | 100 | -238.6 | 48.0 | 77.0 |
+| O5 variant, alternative cost model | 100 | -246.1 | 65.6 | 77.0 |
+| O6, decline only | 100 | -201.5 | 168.9 | 270.7 |
+| O2 | **2** | -541.5 | 140.7 | 450.0 |
+| O1 | **2** | -576.5 | 188.8 | 484.0 |
+| O3 | **2** | -4963.0 | 431.3 | 2175.0 |
 
 Every rule performs worse than the unmodified policy.
+
+The three blind-intervention rules were only ever run as two-episode smoke
+tests and are reported here at that n. Their magnitudes are large enough that
+more seeds are unlikely to change the direction, but any claim resting on them
+should say so, or they should be rerun at 100 episodes (roughly 15 minutes at
+six workers).
 
 O1, O2 and O3 fire on nearly every step, since compromise is near permanent at
 20 to 45 hosts held throughout an episode. They do not supervise, they replace
@@ -1333,8 +1344,8 @@ where noted. None beat KEEP.
 | oracle_O8 | -253.27 | 197.27 |
 
 `oracle_O5b` reproduces `corpus_v1` exactly on all 100 footers, confirming the
-oracle harness is transparent when its rule does not fire. It is an accidental
-but valid k=0 control.
+oracle harness is transparent when its rule does not fire. It is a valid k=0
+control, captured deliberately with `--rule none`.
 
 `oracle_O5` has the lowest standard deviation of any arm at 48.04, which
 initially read as tail suppression. Percentiles refute it
@@ -1413,7 +1424,7 @@ parsing
 k = os.path.basename(f)[3:-6]
 ```
 
-This is the second defect in this project that produced plausible output rather
+This is the third defect in this project that produced plausible output rather
 than an error, after the cached state reference that froze phase and ground
 truth across a corpus. Arms should be checked for episode count before any
 statistic is computed.
@@ -1682,18 +1693,4 @@ per-action override, is untested.
 
 The practical consequence is that the competence checkpoint pool moves from
 argued-for to required, with the stopping criterion established earlier: train
-until between-episode variance dominates within-episode variance
-
-**`oracle.py` parallel path segfaults above six workers on 24-core Arrow Lake.**
-`{SIGSEGV(-11)}` from joblib workers at `--workers 12`; stable at 6. The same
-machine runs `capture.py` at 24 workers without incident, so the fault is
-specific to the oracle harness, which constructs and patches a CybORG instance
-per worker.
-
-The failure mode matters more than the cause: joblib reports the batch as
-failed, but workers that had already completed left their files on disk. The
-budget-10 arm left 12 well-formed episodes and budget-20 left 60, in
-directories indistinguishable from a successful run. Any statistic computed
-over them would have been silently wrong.
-
-Assert the expected episode count before computing anything over an arm.
+until between-episode variance dominates within-episode variance.
