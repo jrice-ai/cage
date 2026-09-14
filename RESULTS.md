@@ -985,7 +985,9 @@ operator's priority differs from the coded reward.
 
 ### Consequence for the research design
 
-**SUPERSEDED — see "Two criteria, two answers" below.** **Ground truth compromise is not a valid correctness criterion for blue actions
+**SUPERSEDED — see "Two criteria, two answers" below.**
+
+**Ground truth compromise is not a valid correctness criterion for blue actions
 in this environment.** This is the operationally important finding and it holds
 regardless of the unexplained mechanism.
 
@@ -1223,7 +1225,9 @@ episode score.
 
 ## Consolidated consequences for the research design
 
-**SUPERSEDED — see "Two criteria, two answers" below.** **Compromise ground truth is not a valid correctness criterion.** Demonstrated
+**SUPERSEDED — see "Two criteria, two answers" below.**
+
+**Compromise ground truth is not a valid correctness criterion.** Demonstrated
 three ways. Precision against it is 13 percent. Perfect knowledge of it does not
 beat the policy. And the reward function does not score compromise at all, only
 successful Impact.
