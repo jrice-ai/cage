@@ -89,8 +89,29 @@ def compromised_by_agent(cyborg):
     return out
 
 
-def install_oracle(env, cyborg, rule, stats, budget=77):
+SERVER_W = 2.0
+
+
+def _zone_weight(cyborg, subnet):
+    ph = int(cyborg.environment_controller.state.mission_phase)
+    tbl = cyborg.environment_controller.team_reward_calculators[
+        "Blue"]["BlueRewardMachine"].get_phase_rewards(ph)
+    e = tbl.get(subnet, {})
+    return -(e.get("LWF", 0) + e.get("ASF", 0) + e.get("RIA", 0))
+
+
+def _host_score(cyborg, hostname, decoys):
+    sn = subnet_of(hostname)
+    w = _zone_weight(cyborg, sn) if sn else 0.0
+    if "server" in hostname:
+        w *= SERVER_W
+    return w / (1.0 + decoys.get(hostname, 0))
+
+
+def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
     """Wrap action_translator so overrides slot in before execution."""
+    if decoys is None:
+        decoys = {}
     original = env.action_translator
 
     def patched(agent_name, a_id):
@@ -98,6 +119,49 @@ def install_oracle(env, cyborg, rule, stats, budget=77):
         act = original(agent_name, a_id)
         if rule == "none":
             return act
+
+        if rule in ("O9r", "O9s"):
+            name = type(act).__name__
+            if name == "DeployDecoy":
+                t = getattr(act, "hostname", None)
+                if t:
+                    decoys[t] = decoys.get(t, 0) + 1
+                return act
+
+            dirty = {c[0] for c in
+                     compromised_by_agent(cyborg).get(agent_name, [])}
+            pool = [h for h in owned_hosts(cyborg, agent_name)
+                    if h not in dirty]
+            if not pool:
+                return act
+            ranked = sorted(pool,
+                            key=lambda h: -_host_score(cyborg, h, decoys))
+
+            if rule == "O9s":
+                if name != "Restore":
+                    return act
+                tgt = getattr(act, "hostname", None)
+                cutoff = set(ranked[:max(1, len(ranked) // 3)])
+                if tgt in cutoff:
+                    stats["agree"] += 1
+                    return act
+                if stats["override"] >= budget:
+                    stats["exhausted"] += 1
+                    return act
+                stats["override"] += 1
+                decoys[ranked[0]] = 0
+                return Restore(session=0, agent=agent_name,
+                               hostname=ranked[0])
+
+            if stats["override"] >= budget:
+                stats["exhausted"] += 1
+                return act
+            if name == "Restore" and getattr(act, "hostname", None) == ranked[0]:
+                stats["agree"] += 1
+                return act
+            stats["override"] += 1
+            decoys[ranked[0]] = 0
+            return Restore(session=0, agent=agent_name, hostname=ranked[0])
 
         comp = compromised_by_agent(cyborg).get(agent_name, [])
 
@@ -197,7 +261,8 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77):
     agents = Submission.AGENTS
 
     stats = Counter()
-    install_oracle(env, cyborg, rule, stats, budget)
+    decoys = {}
+    install_oracle(env, cyborg, rule, stats, budget, decoys)
 
     wrapped_obs, _ = env.reset()
     for a in agents.values():
@@ -258,7 +323,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77):
 def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8"])
+                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s"])
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=1)

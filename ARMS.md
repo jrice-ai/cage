@@ -101,6 +101,32 @@ exists in the agent's subnets:
 | `none` | KEEP unmodified. Reproduces `corpus_v1` exactly. |
 | `O7` | Target scramble. Keeps KEEP's action type, randomizes the hostname to any owned host. Isolates targeting from action choice. |
 
+**Value-ranked** — built from the measured restore-target skews rather than
+from compromise. Candidates are all owned hosts not currently showing a red
+session, ranked by
+
+```
+score = zone_penalty_exposure(phase) x (2.0 if server) / (1 + decoys_on_host)
+```
+
+where `zone_penalty_exposure` is `-(LWF + ASF + RIA)` from
+`BlueRewardMachine.get_phase_rewards(phase)`. All entries in that table are
+penalties, so summing and negating gives exposure, with operational_zone_a in
+phase 1 at 20 against public_access_zone at 5.
+
+Decoy counts are maintained per episode from `DeployDecoy` passing through the
+translator, and reset to zero for a host when it is restored, since the reimage
+destroys them.
+
+| Rule | Behaviour |
+|---|---|
+| `O9r` | Reconstruction. Ignores KEEP's proposal and restores the top-ranked host, up to `--budget`. |
+| `O9s` | Supervision. Keeps KEEP's Restore target if it falls in the top third of the ranking; otherwise substitutes the top-ranked host, up to `--budget`. |
+
+Note that `O5`'s inline zone weight uses the earlier `-RIA + LWF` expression and
+is deliberately unchanged, so the O5 arms and the budget sweep remain valid
+against their original definition.
+
 ---
 
 ## Oracle arms
@@ -150,9 +176,36 @@ now exist.
 | `o_smoke_O4` | O4 | -260.50 | 102.53 | not run |
 | `o_smoke_O5` | O5 | -237.00 | 62.23 | -238.56 |
 | `o5b` | TBD | -223.50 | 81.32 | |
+| `smoke_O9r` | O9r | -260.00 | 32.05 | n/a |
+| `smoke_O9s` | O9s | -813.67 | 290.34 | n/a |
 
 `o_smoke_O5` agreeing with `oracle_O5` to 1.5 points is coincidence, not
 validation.
+
+### O9 result
+
+Three episodes, seeds 0 to 2, where KEEP scores -154, -179, -195 (mean -176).
+
+| Arm | Mean | Stdev | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|
+| `smoke_O9r` | -260.00 | 32.05 | 77.0 | 0.0 |
+| `smoke_O9s` | -813.67 | 290.34 | 77.0 | 15.0 |
+
+O9s agrees with KEEP on 15 of 77 restores. A ranking derived from KEEP's own
+aggregate target statistics predicts its per-decision choice about a fifth of
+the time.
+
+An earlier version inherited O5's `-RIA + LWF`, which inverts the ranking.
+Correcting it moved agreement from 12.3 to 15.0 and made both arms slightly
+worse: -246.67 to -260.00 and -685.00 to -813.67. The sign was wrong and was
+not the cause.
+
+Neither arm was run at n=100. **Aggregate skews describe the distribution of
+KEEP's targets without reconstructing the rule that produced them.**
+
+O9s intervening less and scoring worse than O9r repeats a pattern from O6 and
+O8: partial intervention is consistently worse than full replacement across
+this series, and no explanation for it is established.
 
 ---
 

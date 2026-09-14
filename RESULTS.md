@@ -1808,3 +1808,36 @@ showing a red session. Budget 77 to match KEEP's own rate.
 If O9 closes the gap, the oracle failures were targeting and the information
 gap is identified. If it still loses, targeting is not the whole story and the
 green-disruption channel becomes the next question.
+
+### O9: aggregate target statistics do not reconstruct the decision rule
+
+Two arms built from the measured restore-target skews — servers 1.75x,
+operational and restricted zones 1.3 to 1.7x, decoy load half the average.
+Ranking is zone penalty exposure summed across LWF, ASF and RIA for the current
+phase, doubled for servers, divided by accumulated decoys on the host.
+
+Three episodes, seeds 0 to 2. KEEP baseline on these seeds is -154, -179, -195.
+
+| Arm | Behaviour | Mean | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|
+| O9r | Rank all owned clean hosts, ignore KEEP's proposal | -260.00 | 77.0 | 0.0 |
+| O9s | Keep KEEP's target unless it falls outside the top third | -813.67 | 77.0 | 15.0 |
+
+O9s agrees with KEEP on 15 of 77 restores. A ranking derived from KEEP's own
+aggregate target statistics predicts its per-decision choice roughly a fifth of
+the time.
+
+An earlier version used `-RIA + LWF`, inherited from O5, which inverts the
+ranking: all phase reward entries are penalties, so operational_zone_a in phase
+1 at `LWF -10, RIA -10` scored 0 while public_access_zone scored 2. Correcting
+to the summed exposure changed agreement from 12.3 to 15.0 and made both arms
+slightly worse. The sign was wrong and it was not the cause.
+
+**Aggregate skews describe the distribution of KEEP's targets without
+reconstructing the rule that produced them.** The features driving per-decision
+selection are not among those measured, and are not visible in the current
+trace schema.
+
+O9s intervening less and scoring worse than O9r repeats a pattern seen in O6
+and O8: partial intervention is consistently worse than full replacement. No
+explanation for this is established.
