@@ -1908,6 +1908,53 @@ from admin at 0.17x and public access at 0.48x. The published phase reward table
 explains this directly: Operational Zone A carries -10 for LocalWork failure and
 -10 for red impact in phase 2a, against -1 to -5 for the cheaper zones.
 
+### The evidence criterion does not explain the oracle failures either
+
+The natural reading of the 0.2 percent figure is that KEEP acts on observable
+evidence where the oracle rules acted on ground truth, and that the two criteria
+select different hosts. Tested and refuted.
+
+For every Restore KEEP issued, the first compromised host in the same zone was
+taken as the target a ground-truth rule would have chosen, and both targets were
+scored against both criteria. 20 episodes of `corpus_v1`.
+
+| | n | Ground-truth precision | Evidence precision |
+|---|---|---|---|
+| KEEP's target | 1583 | 0.2% | **69.8%** |
+| Ground-truth rule's target | 1101 | 100% by construction | **70.1%** |
+
+The two rules agree on the host in **2 of 1101 cases, 0.2 percent**. They select
+near-disjoint host sets, and both sets are flagged at the same rate.
+
+So a compromised host is almost always also a flagged host, and the evidence
+latch is not the discriminating variable. Criterion substitution does not
+explain why O1 loses 333 points per episode to KEEP. Both rules restore flagged
+hosts at 70 percent; one is worth 333 points more than the other.
+
+### Five explanations tested, five null
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| Restore is expensive; adding restores costs reward | Per-action step reward and 30-step lag around a Restore | Restore steps average -0.342 against -0.375 overall; reward improves after (-0.472 before, -0.399 after). No penalty exists |
+| Supervision rescues episodes the policy handled badly | Null arm correlation | Null arm shows -0.712, oracle O8 -0.272. Regression to the mean, and O8 is weaker than chance |
+| Episode difficulty drives when supervision helps | Early red aggression, partial correlation on baseline score | -0.057 raw, -0.113 partial |
+| Intervention volume drives outcome | Overrides per episode against delta, within O8 | -0.052 |
+| KEEP targets by host value: server role, zone weight, decoy load | O9r and O9s built from the measured skews | Agrees with KEEP on 15 of 77 restores; both arms worse than baseline |
+| KEEP acts on observable evidence rather than ground truth | Above | Both criteria flag at 70 percent; the rules agree on 0.2 percent of hosts |
+
+**No measured feature reconstructs KEEP's restore target selection.** The
+targeting difference is worth roughly 330 points per episode and is not
+explained by compromise state, observable evidence, host role, zone reward
+weight, accumulated decoy count, recency of compromise, or recorded damage.
+
+Resolving this would require KEEP's internals — graph-attention weights or
+feature ablation on the wrapper — rather than further trace analysis.
+
+**The metric finding does not depend on resolving it.** A published
+recovery-precision measure reports 0.2 percent for a policy that outperforms
+every rule scoring 100 percent on the same measure. That invalidates the measure
+regardless of what drives the policy's choices.
+
 ## The metric is not yet a metric
 
 Three published or implemented treatments of recovery precision in CAGE 4, with
