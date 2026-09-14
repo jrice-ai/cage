@@ -1700,3 +1700,106 @@ per-action override, is untested.
 The practical consequence is that the competence checkpoint pool moves from
 argued-for to required, with the stopping criterion established earlier: train
 until between-episode variance dominates within-episode variance.
+
+## Restore and Remove serve different functions
+
+Measured over 20 episodes of `corpus_v1`, comparing every eviction action
+against `truth.red_hosts` at the moment of action. Roughly 29 of 97 hosts are
+compromised at any time, so random targeting would hit about 30 percent.
+
+| Action | On compromised host | On clean host | Precision |
+|---|---|---|---|
+| Remove | 483 | 1605 | 23.1% |
+| Restore | 3 | 1580 | **0.2%** |
+
+Remove is approximately at chance. Restore is 150 times below it. That is not
+imprecision, it is avoidance: KEEP deliberately does not restore hosts red
+currently occupies.
+
+### Restore is post-eviction repair
+
+Of 814 clean-host restores over ten episodes, checked against a 20 step window
+in each direction
+
+```
+compromised within the next 20 steps      34   4.2%
+compromised within the prior 20 steps    353  43.4%
+neither                                  427  52.5%
+```
+
+The ordering is unambiguous. Red arrives, red is evicted or departs, then KEEP
+restores. Restores are ten times more likely to follow a compromise than to
+precede one.
+
+This matches what `Host.restore` does. It rebuilds files, processes, services
+and ephemeral ports from originals and clears events. Restoring an occupied
+host accomplishes little, because red is still present to re-dirty it, while
+still destroying every decoy on the host and locking the agent out for five
+steps.
+
+**The division of labour is Remove evicts, Restore repairs.** The 52.5 percent
+residual is consistent with hosts compromised more than 20 steps earlier, or
+degraded by `DegradeServices` without a session ever appearing in `red_hosts`.
+
+### Target selection is by host value, not by compromise
+
+Over the same 20 episodes, comparing KEEP's restore targets against the
+population of compromised hosts
+
+| Host kind | KEEP's restore targets | Compromised population |
+|---|---|---|
+| user | 60.7% | 86.7% |
+| server | 39.3% | 13.3% |
+
+Servers are three times overrepresented. This is consistent with the reward
+function, which scores green work failures and successful red Impacts rather
+than compromise. Servers host the services green agents access, so a degraded
+server threatens more green activity than a degraded user host.
+
+Decoy density on restore targets, same episodes
+
+```
+decoys on restored hosts   mean 1.36   n=1583
+decoys per host overall    mean 2.69   n=1204
+```
+
+KEEP restores hosts carrying **half** the average decoy load. Since Restore
+reimages and destroys decoys, the policy is measurably protecting its own
+deception investment. This cost is invisible to compromise ground truth.
+
+### This explains every oracle result
+
+All eight rules were built on the premise that Restore is an eviction action
+that should be aimed at currently compromised hosts. For this policy the
+premise is inverted.
+
+| Rule | What it did | Why it failed |
+|---|---|---|
+| O1, O2, O4 | Forced Restore onto compromised hosts | Precisely the hosts KEEP avoids. Red is still present, the reimage accomplishes nothing, decoys are destroyed and the agent is locked out five steps |
+| O6, O8 | Suppressed Restore on clean hosts as wasted | Deleted the repair function entirely, which was the only thing Restore was doing |
+| O3 | Forced Remove everywhere | At least the correct action type, which is why it degrades rather than collapses relative to the others |
+| O5 | Phase-aware and budgeted, still restoring compromised hosts | Same inverted premise, better targeting within it |
+| O7 | Randomized the target, kept the action type | Isolates the targeting term at roughly 325 points |
+
+Eight rules, one shared false premise. The budget sweep was not measuring
+supervision; it was measuring how quickly a policy degrades when the semantics
+of one action are inverted.
+
+### Consequence for the research design
+
+The earlier conclusion stands as stated: action-substitution supervision
+informed by red-location ground truth does not beat converged KEEP at any rate
+tested. The reason is now specific rather than mysterious, and it is a much
+weaker claim about supervision in general than it appeared.
+
+**Red location is not the information a supervisor needs.** KEEP has it,
+ignores it when restoring, and outperforms every rule that acts on it.
+
+The information a supervisor would need is **which hosts carry residual damage
+after red has departed**. The environment does not expose this directly. Any
+escalation signal, correctness metric, or legibility layer built on current
+compromise state is measuring the wrong quantity, which is a direct finding for
+the E4 metrics question and for C2's choice of escalation trigger.
+
+A rule ranking candidates by host role and accumulated decoy count, rather than
+by compromise, is the natural next test and is untried.
