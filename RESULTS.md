@@ -1716,90 +1716,95 @@ Remove is approximately at chance. Restore is 150 times below it. That is not
 imprecision, it is avoidance: KEEP deliberately does not restore hosts red
 currently occupies.
 
-### Restore is post-eviction repair
+### Restore targeting is driven by host value, not by red
 
-Of 814 clean-host restores over ten episodes, checked against a 20 step window
-in each direction
+Restores split into two populations. Of 814 clean-host restores over ten
+episodes, checked against a 20 step window in each direction
 
 ```
-compromised within the next 20 steps      34   4.2%
 compromised within the prior 20 steps    353  43.4%
+compromised within the next 20 steps      34   4.2%
 neither                                  427  52.5%
 ```
 
-The ordering is unambiguous. Red arrives, red is evicted or departs, then KEEP
-restores. Restores are ten times more likely to follow a compromise than to
-precede one.
+Restores are ten times more likely to follow a compromise than to precede one,
+so the 43.4 percent band is post-eviction repair. Widening the window does not
+change this: the prior-only share is 44.8 percent at W=5 and 37.1 percent at
+W=80, declining only because hosts reclassify into the forward window. The
+repair lag is under five steps, not twenty.
 
-This matches what `Host.restore` does. It rebuilds files, processes, services
-and ephemeral ports from originals and clears events. Restoring an occupied
-host accomplishes little, because red is still present to re-dirty it, while
-still destroying every decoy on the host and locking the agent out for five
-steps.
+The majority population is different. Of the 427 with no compromise in either
+direction, **97.7 percent also have no recorded `DegradeServices` or `Impact`
+on that host at any point in the episode.** Red has never touched them.
 
-**The division of labour is Remove evicts, Restore repairs.** The 52.5 percent
-residual is consistent with hosts compromised more than 20 steps earlier, or
-degraded by `DegradeServices` without a session ever appearing in `red_hosts`.
+### What separates the no-history targets
 
-### Target selection is by host value, not by compromise
+n=417, host universe 107, over ten episodes.
 
-Over the same 20 episodes, comparing KEEP's restore targets against the
-population of compromised hosts
+| Host kind | Share of restores | Share of universe | Ratio |
+|---|---|---|---|
+| server | 66.9% | 38.3% | **1.75x** |
+| user | 33.1% | 61.7% | 0.54x |
 
-| Host kind | KEEP's restore targets | Compromised population |
-|---|---|---|
-| user | 60.7% | 86.7% |
-| server | 39.3% | 13.3% |
+| Zone | Share of restores | Share of universe | Ratio |
+|---|---|---|---|
+| restricted_zone_a | 25.2% | 15.0% | 1.68x |
+| operational_zone_a | 20.1% | 15.0% | 1.35x |
+| operational_zone_b | 18.2% | 14.0% | 1.30x |
+| office_network | 15.6% | 15.0% | 1.04x |
+| restricted_zone_b | 11.8% | 15.0% | 0.79x |
+| public_access_zone | 7.2% | 15.0% | 0.48x |
+| admin_network | 1.9% | 11.2% | **0.17x** |
 
-Servers are three times overrepresented. This is consistent with the reward
-function, which scores green work failures and successful red Impacts rather
-than compromise. Servers host the services green agents access, so a degraded
-server threatens more green activity than a degraded user host.
+Every host in the top eight by restore count is a server, all in operational or
+restricted zones. The eight range from 12 to 24 restores each across ten
+episodes.
 
-Decoy density on restore targets, same episodes
+Mission phase is flat: 154, 146, 117 across three phases of roughly equal
+length. This is steady background behaviour, not phase-triggered preparation.
 
-```
-decoys on restored hosts   mean 1.36   n=1583
-decoys per host overall    mean 2.69   n=1204
-```
+Targets are spread across 85 of 107 hosts, so it is not a fixed small set, and
+they carry a mean of 3.75 prior blue actions, so they are not untouched hosts
+either.
 
-KEEP restores hosts carrying **half** the average decoy load. Since Restore
-reimages and destroys decoys, the policy is measurably protecting its own
-deception investment. This cost is invisible to compromise ground truth.
+The zones favoured are those the reward machine weights: operational and
+restricted carry the services green agents depend on. `admin_network` at 0.17x
+and `public_access_zone` at 0.48x are actively avoided.
 
-### This explains every oracle result
-
-All eight rules were built on the premise that Restore is an eviction action
-that should be aimed at currently compromised hosts. For this policy the
-premise is inverted.
-
-| Rule | What it did | Why it failed |
-|---|---|---|
-| O1, O2, O4 | Forced Restore onto compromised hosts | Precisely the hosts KEEP avoids. Red is still present, the reimage accomplishes nothing, decoys are destroyed and the agent is locked out five steps |
-| O6, O8 | Suppressed Restore on clean hosts as wasted | Deleted the repair function entirely, which was the only thing Restore was doing |
-| O3 | Forced Remove everywhere | At least the correct action type, which is why it degrades rather than collapses relative to the others |
-| O5 | Phase-aware and budgeted, still restoring compromised hosts | Same inverted premise, better targeting within it |
-| O7 | Randomized the target, kept the action type | Isolates the targeting term at roughly 325 points |
-
-Eight rules, one shared false premise. The budget sweep was not measuring
-supervision; it was measuring how quickly a policy degrades when the semantics
-of one action are inverted.
+Combined with the decoy finding, the behaviour KEEP appears to have learned is
+to **periodically reimage valuable servers carrying little deception
+investment, whether or not red is visible on them.** Red's damage is narrow and
+concentrated while its reconnaissance is broad — 709 `ExploitRemoteService` and
+251 `DiscoverDeception` against 148 `Impact` over two episodes — so a valuable
+host can accumulate red artifacts without ever showing a session in
+`truth.red_hosts`.
 
 ### Consequence for the research design
 
-The earlier conclusion stands as stated: action-substitution supervision
-informed by red-location ground truth does not beat converged KEEP at any rate
-tested. The reason is now specific rather than mysterious, and it is a much
-weaker claim about supervision in general than it appeared.
+This is the strongest form of the finding. **Compromise state is not merely an
+imperfect supervisory signal. It is close to orthogonal to what the best
+available policy optimises for its most expensive action.**
 
-**Red location is not the information a supervisor needs.** KEEP has it,
-ignores it when restoring, and outperforms every rule that acts on it.
+- An escalation gate keyed on "is this host compromised" would fire on 45
+  percent of restores and miss the majority entirely.
+- A per-decision correctness metric built on ground truth scores KEEP's
+  majority behaviour as error. That is exactly what the 0.2 percent precision
+  figure does.
+- A supervisor shown red's location would be shown a variable the policy
+  demonstrably ignores most of the time.
 
-The information a supervisor would need is **which hosts carry residual damage
-after red has departed**. The environment does not expose this directly. Any
-escalation signal, correctness metric, or legibility layer built on current
-compromise state is measuring the wrong quantity, which is a direct finding for
-the E4 metrics question and for C2's choice of escalation trigger.
+This is a property of CAGE 4 rather than of KEEP specifically, and it bears
+directly on E4's metrics question and on C2's choice of escalation trigger.
 
-A rule ranking candidates by host role and accumulated decoy count, rather than
-by compromise, is the natural next test and is untried.
+### O9, specified from measurement
+
+The natural confirmation test, and the first rule in this series derived from
+data rather than intuition.
+
+Rank Restore candidates by zone reward weight and server status, weighted
+inversely by accumulated decoy count on the host, excluding hosts currently
+showing a red session. Budget 77 to match KEEP's own rate.
+
+If O9 closes the gap, the oracle failures were targeting and the information
+gap is identified. If it still loses, targeting is not the whole story and the
+green-disruption channel becomes the next question.
