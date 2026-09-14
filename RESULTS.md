@@ -985,7 +985,7 @@ operator's priority differs from the coded reward.
 
 ### Consequence for the research design
 
-**Ground truth compromise is not a valid correctness criterion for blue actions
+**SUPERSEDED — see "Two criteria, two answers" below.** **Ground truth compromise is not a valid correctness criterion for blue actions
 in this environment.** This is the operationally important finding and it holds
 regardless of the unexplained mechanism.
 
@@ -1223,7 +1223,7 @@ episode score.
 
 ## Consolidated consequences for the research design
 
-**Compromise ground truth is not a valid correctness criterion.** Demonstrated
+**SUPERSEDED — see "Two criteria, two answers" below.** **Compromise ground truth is not a valid correctness criterion.** Demonstrated
 three ways. Precision against it is 13 percent. Perfect knowledge of it does not
 beat the policy. And the reward function does not score compromise at all, only
 successful Impact.
@@ -1781,6 +1781,10 @@ host can accumulate red artifacts without ever showing a session in
 
 ### Consequence for the research design
 
+**SUPERSEDED — see "Two criteria, two answers" below.** The claim in this
+section was measured against ground-truth sessions only. Rescored against
+observable evidence, the same restores are 69.8 percent precise.
+
 This is the strongest form of the finding. **Compromise state is not merely an
 imperfect supervisory signal. It is close to orthogonal to what the best
 available policy optimises for its most expensive action.**
@@ -1841,3 +1845,181 @@ trace schema.
 O9s intervening less and scoring worse than O9r repeats a pattern seen in O6
 and O8: partial intervention is consistently worse than full replacement. No
 explanation for this is established.
+
+## Two criteria, two answers
+
+The same restores scored against two different definitions of a correct
+recovery action, over 20 episodes of `corpus_v1`.
+
+**Ground truth.** A host is compromised if it holds a red session, read from
+`truth.red_hosts`. **Observable evidence.** A host is flagged if any substantive
+observation has named it since the last Restore or Remove on that host, read
+from the raw per-agent `obs` field. The second definition reconstructs the latch
+Team UC describe implementing in their own wrapper: malicious process,
+connection and file flags persist until Restore or Remove clears them.
+
+| Criterion | Restore | Remove |
+|---|---|---|
+| Ground-truth session at decision time | **0.2%** | 23.1% |
+| Observable evidence, latched | **69.8%** | 53.3% |
+
+Roughly 29 of 97 hosts hold a red session at any time, so chance is about 30
+percent. Against ground truth, Restore is 150 times below chance. Against
+observable evidence it is 69.8 percent precise.
+
+Restore's evidence-precision exceeds Remove's, reversing the ground-truth
+ordering. This is consistent with Team Punch's report that Analyse on a
+phishing-infected host surfaces only root-privilege artifacts, which Remove
+cannot clear, so Remove fires on weaker evidence and misses more often.
+
+### Why the two diverge
+
+CC4 generates observable evidence that is not red presence, and red presence
+that is not observable.
+
+- `EnterpriseGreenAgent.LocalWork` has four outcomes, one of which raises a
+  false-positive alert for blue. `AccessService` has a configurable chance of
+  producing a spurious network event resembling red gaining user access.
+- The environment emits events and forgets. Any persistence is built by the
+  agent, and every top CC4 team built one. A flag therefore records that
+  something was seen, not that red is present now.
+- Red's damage is narrow and its reconnaissance is broad: 34,455
+  `ExploitRemoteService` and 11,727 `DiscoverDeception` against 8,465 `Impact`
+  over 100 episodes.
+
+### Consequence
+
+The earlier claim that compromise state is orthogonal to what KEEP optimises is
+withdrawn. It was an artifact of scoring a policy against a variable no blue
+agent observes.
+
+The oracle series is explained by the same artifact. All nine rules substituted
+ground-truth targeting for evidence-based targeting, 77 to 400 times per
+episode, in a policy trained on the latter. The dose-response in the O5 budget
+sweep measures the cost of that substitution, not the ceiling on supervision.
+
+What survives is target selection **among** flagged hosts. Restores skew 1.75x
+toward servers and 1.3 to 1.7x toward operational and restricted zones, and away
+from admin at 0.17x and public access at 0.48x. The published phase reward table
+explains this directly: Operational Zone A carries -10 for LocalWork failure and
+-10 for red impact in phase 2a, against -1 to -5 for the cheaper zones.
+
+## The metric is not yet a metric
+
+Three published or implemented treatments of recovery precision in CAGE 4, with
+incompatible criteria.
+
+| Source | Correct recovery defined as |
+|---|---|
+| H-MARL `COMPUTE_METRICS` (Singh et al. 2024) | Action on a host with `has_session` at decision time, plus a false positive for Remove against a privileged session |
+| Silva (2026), safety contract | Restore **without** visible alert evidence counts against the false-positive budget |
+| This work | Both, measured on the same policy and episodes |
+
+Scored on KEEP's restores: **0.2 percent** under the first definition, **69.8
+percent** under the second. Same agent, same episodes, same construct name, two
+orders of magnitude apart.
+
+Silva's budget is a further case. `B_down = 50` Restore actions per episode.
+KEEP issues 77.1. Both of the strongest policies evaluated here exceed a
+published downtime contract, which is either a finding about the contract or
+about the policies and is untested either way.
+
+A recovery-precision measure that reports either number depending on an unstated
+choice of criterion is not a settled metric. This is the construct-validity
+problem directly, in a case where the two criteria disagree by 350x on the
+best-known MARL submission.
+
+## H-MARL Expert reference value
+
+Second baseline, `cage-hmarl:dev`, Ray 2.10.0, weights from
+`saved_policies/sub/iter_49`. The master policy is not trained: H-MARL Expert
+uses a stated rule, choose Recover if indicators of compromise are present in
+the local observation, otherwise Investigate.
+
+Their `evaluation.py` and `evaluation_metrics.py` carry the same unseeded
+sampling defect as KEEP's harness. `--seed` reaches `CybORG(sg, "sim",
+seed=seed)` and nothing else. **Two independent submissions sharing the defect
+points upstream to the challenge evaluation template rather than to either
+team.** Fix recorded in `build/hmarl-fixes.patch`; verified by running `--seed 0`
+twice and obtaining identical means, stdevs and action streams.
+
+Four seeds, 100 episodes each. Note `--seed` moves the environment as well as
+policy sampling, so this interval is over both, unlike KEEP's `--policy-seed`
+interval which holds environments fixed.
+
+| Seed | Mean | Stdev |
+|---|---|---|
+| 0 | -124.11 | 45.80 |
+| 1 | -138.31 | 40.97 |
+| 2 | -132.10 | 45.40 |
+| 3 | -130.86 | 47.45 |
+
+```
+grand mean  -131.35
+sd of means    5.87    se 2.94
+95% CI      -138.25 to -124.44   (t, 3 df)
+```
+
+The unseeded 100-episode run returned -131.99, near the centre of the interval.
+
+### Against the published leaderboard
+
+Kiely et al. 2025, 100 episodes of 500 steps each.
+
+| Team | Type | CC4 score |
+|---|---|---|
+| Team UC | Heuristic | -113 ± 35 |
+| Team Lancer | Heuristic | -118 ± 40 |
+| **H-MARL Expert (reproduced here)** | Hierarchical | **-131.35 [-138.25, -124.44]** |
+| Team Punch | Heuristic | -142 ± 44 |
+| Team Cybermonic (KEEP) | MARL | -193 ± 84 |
+
+Our KEEP reference of -191.34 [-199.66, -183.02] contains the published -193.
+H-MARL Expert was not a CC4 submission, so it displaces nobody, but it beats the
+best submitted MARL entry by about 60 points with lower variance and would rank
+third on this table.
+
+Caveat: leaderboard figures come from Codalabs under the organisers' protocol;
+ours come from each team's own harness after fixing the seeding. Same red agent
+and episode count, but the protocols are not verified identical.
+
+### Instrumented run
+
+`COMPUTE_METRICS = True`, 100 episodes, unseeded, 21 minutes.
+
+```
+True pos across subnets  6.02      False pos across subnets  1.94
+```
+
+Roughly 76 percent under their ground-truth definition, against KEEP's 13
+percent combined. False positives concentrate in the cheap zones —
+public_access 4.20, office_network 4.42, admin_network 4.25 — while operational
+and restricted run 0.12 to 0.21. KEEP's pattern is the inverse: it avoids acting
+in those zones at 0.17x and 0.48x.
+
+`contractor_network_subnet` shows 0.18 noninfection and no tp/fp entry. It is
+the only subnet with red presence and no blue agent, the supply-chain foothold
+where red begins, outside blue's control entirely.
+
+Rescoring H-MARL's restores against observable evidence is the natural next
+measurement and is not yet done. It requires capturing H-MARL traces through
+`capture.py`, which currently imports KEEP's `Submission` directly.
+
+## CC4 details recovered from the papers
+
+Sourced rather than re-derived.
+
+Action durations in steps: Sleep, Monitor, BlockTrafficZone, AllowTrafficZone 1;
+Analyse, DeployDecoy 2; Remove 3; **Restore 5**. This is the published source
+for the 39.3 percent blocked-agent-step rate measured earlier.
+
+`Remove` clears only non-privileged, user-level sessions; privileged sessions
+assume a persistence mechanism and require `Restore`. Team Punch report that
+adding Remove to their round-robin gave no measurable benefit, because Analyse
+on a phishing-infected host surfaces only root-privilege artifacts. Consistent
+with greedy KEEP's Remove count collapsing from 10,353 to 148.
+
+Phase reward table, AI Magazine Table 2. Operational Zone A in phase 2a and
+Operational Zone B in phase 2b carry -10 for LocalWork failure and -10 for red
+impact. All other entries range -1 to -5. Contractor network is 0 in phases 2a
+and 2b.

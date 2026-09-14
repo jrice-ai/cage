@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git build-essential vim && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir torch==2.2.0 \
-      --index-url https://download.pytorch.org/whl/cpu
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple
 RUN pip install --no-cache-dir "ray[rllib]==2.10.0"
 
 WORKDIR /opt/cage
@@ -15,6 +16,9 @@ COPY repos/cage-challenge-4/ /opt/cage/cage-challenge-4/
 RUN cd cage-challenge-4 && pip install --no-cache-dir -r Requirements.txt && pip install --no-cache-dir -e .
 
 COPY repos/Hierarchical-MARL/ /opt/cage/Hierarchical-MARL/
+
+# pyarrow last: Ray 2.10 calls pa.PyExtensionType.set_auto_load, removed later
+RUN pip install --no-cache-dir pyarrow==15.0.2
 
 VOLUME /data
 CMD ["/bin/bash"]
