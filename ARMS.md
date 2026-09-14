@@ -1,82 +1,6 @@
 # Trace arms
 
 Every arm is 100 episodes of 499 steps against `FiniteStateRedAgent`,
-environment seeds 0-99, unless noted. `policy_seed` is the `--policy-seed`
-value; unset means it tracks the environment seed.
-
-Schema A = `capture.py`: raw per-agent observation, `truth`, action, rewards.
-Schema B = oracle harness: `red_action`, `n_compromised_owned`, action, rewards.
-Neither is a superset. See RESULTS.md, "Schema divergence between capture paths".
-
-## Reference arms
-
-| Directory | Policy | policy_seed | Schema | n | Mean | Stdev | Notes |
-|---|---|---|---|---|---|---|---|
-| `corpus_v1` | KEEP sampled | unset | A | 100 | -187.32 | 61.24 | First corpus. One sampling draw, not canonical. |
-| `arm_keep` | KEEP sampled | unset | A | 100 | -187.32 | 61.24 | Byte-identical duplicate of `corpus_v1`. Delete or keep as a checksum. |
-| `keep_null` | KEEP sampled | 9000 | A | 100 | -196.09 | 51.96 | Placebo arm. Same envs, different sampling. |
-| `keep_null_9001` | KEEP sampled | 9001 | A | 100 | -198.44 | 83.33 | |
-| `keep_null_9002` | KEEP sampled | 9002 | A | 100 | -183.51 | 49.40 | |
-
-KEEP reference: grand mean **-191.34**, 95% CI [-199.66, -183.02], 4 seeds.
-
-## Baseline ladder
-
-| Directory | Policy | Schema | n | Mean | Stdev | Notes |
-|---|---|---|---|---|---|---|
-| `arm_keep_greedy` | KEEP argmax | A | 100 | -552.2 | 343.7 | Deterministic. All variance is situation. |
-| `arm_analyse` | Always Analyse | A | 100 | -6592.7 | 1340.5 | Acts without targeting logic. |
-| `arm_sleep` | Always Sleep | A | 100 | ? | ? | True do-nothing floor. **Reported -6592.68, same as arm_analyse — unresolved, see below.** |
-| `arm_monitor` | ? | ? | ? | ? | ? | **Undocumented — needs a line.** |
-
-A random-policy arm was attempted and abandoned: KEEP's action space is not
-uniformly samplable (`wrapper/graph_wrapper.py:40`, `IndexError` on
-`a_id // MAX_ACTIONS`).
-
-## Oracle variants
-
-Rule descriptions below are **incomplete**. Fill from the oracle script's git
-history or from memory before the details are lost.
-
-| Directory | Rule | Schema | n | Mean | Stdev | Overrides/ep | Notes |
-|---|---|---|---|---|---|---|---|
-| `o_smoke` | ? | B | 2 | -166.50 | 17.68 | | Smoke test |
-| `o_smoke_O1` | ? | B | 2 | -576.50 | 188.80 | | |
-| `o_smoke_O2` | ? | B | 2 | -541.50 | 140.71 | | |
-| `o_smoke_O3` | ? | B | 2 | -4963.00 | 431.34 | | |
-| `o_smoke_O4` | ? | B | 2 | -260.50 | 102.53 | | |
-| `o_smoke_O5` | ? | B | 2 | -237.00 | 62.23 | | |
-| `o5b` | ? | B | 2 | -223.50 | 81.32 | | |
-| `oracle_O5` | ? | B | 100 | -238.56 | 48.04 | | Stdev inside null range; not anomalous. |
-| `oracle_O5b` | ? | B | 100 | -187.32 | 61.24 | 0 | Rule never fired or always agreed. Valid k=0 control. |
-| `oracle_O5c` | ? | B | 100 | -246.05 | 65.56 | | |
-| `oracle_O6` | ? | B | 100 | -201.49 | 168.93 | | |
-| `oracle_O6b` | ? | B | 100 | -201.49 | 168.93 | | Rerun of O6; differs from it only in footer `wall_seconds`. |
-| `oracle_O7` | ? | B | 100 | -511.95 | 165.48 | | |
-| `oracle_O8` | ? | B | 100 | -253.27 | 197.27 | 154.0 | 35.6 agreements/ep. 81% override rate. |
-
-## Interpretation floor
-
-Identical policies differing only in sampling seed produce deltas up to 26
-points and win rates up to 66/100. An arm reporting less than roughly 25 points
-of mean delta, or under roughly 66 percent of episodes improved, has reported
-nothing.
-
-## Known issues
-
-- **Ownership.** All directories captured before `--user` was adopted are
-  root-owned. `sudo chown -R $(id -u):$(id -g) ~/cage/data/traces`.
-- **`arm_sleep` mean.** Reported -6592.68 both before and after the policy was
-  corrected from always-Analyse to true Sleep, though a 2-episode check gave
-  -7904 and an action counter confirmed all-Sleep. Unresolved.
-- **`arm_monitor`.** Present on disk, not documented anywhere.
-- **Episode id parsing.** Never use `f.split('ep_')[1]`; any directory name
-  containing `ep_` collapses all episodes to one key silently. Use
-  `os.path.basename(f)[3:-6]`.
-
-# Trace arms
-
-Every arm is 100 episodes of 499 steps against `FiniteStateRedAgent`,
 environment seeds 0-99, unless noted.
 
 `policy_seed` is `capture.py --policy-seed`; unset means policy sampling tracks
@@ -105,6 +29,8 @@ lacks `red_action`. Neither logs the counterfactual. See RESULTS.md,
 
 `arm_keep` is byte-identical to `corpus_v1` on all 100 footers. Redundant.
 
+`corpus_v1` exists on both machines and reproduces bit-identically.
+
 **KEEP reference value: -191.34, 95% CI [-199.66, -183.02]**, four sampling
 seeds. Published KEEP is -193.68, inside the interval.
 
@@ -124,9 +50,13 @@ episodes improved, has reported nothing.** Always report a null arm alongside.
 | Directory | Policy | Schema | Mean | Stdev | Notes |
 |---|---|---|---|---|---|
 | `arm_keep_greedy` | KEEP argmax | A | -552.2 | 343.7 | Deterministic. All variance is situation, none sampling. |
-| `arm_sleep` | Always Sleep | A | -6592.68 | 1340.47 | Verified all-Sleep, 2495/2495 |
-| `arm_monitor` | Always Monitor | A | -6592.68 | 1340.47 | Monitor is automatic each step; selecting it is a no-op |
+| `arm_sleep` | Always Sleep | A | -6592.68 | 1340.47 | Verified all-Sleep, 2495/2495 agent-steps |
+| `arm_monitor` | Always Monitor | A | -6592.68 | 1340.47 | Monitor executes automatically each step; selecting it is a no-op |
 | `arm_analyse` | Sleep/Analyse alternation | A | -6592.68 | 1340.47 | 1250 Sleep / 1245 Analyse per episode |
+
+The three degenerate arms are identical to two decimals despite byte-different
+action streams. None alters state, and CC4's reward is insensitive to blue
+actions that do not. See RESULTS.md, "The reward floor is action-insensitive".
 
 A random-policy arm was attempted and abandoned: KEEP's action space is not
 uniformly samplable (`wrapper/graph_wrapper.py:40`, `IndexError` on
@@ -175,40 +105,81 @@ exists in the agent's subnets:
 
 ## Oracle arms
 
-Smoke tests are n=2 and carry no information — `o_smoke_O5` at -237.00 agreeing
-with `oracle_O5` at -238.56 is coincidence, not validation.
-
 | Directory | Rule | n | Mean | Stdev | Overrides/ep |
 |---|---|---|---|---|---|
-| `o_smoke` | TBD | 2 | -166.50 | 17.68 | |
-| `o_smoke_O1` | O1 | 2 | -576.50 | 188.80 | |
-| `o_smoke_O2` | O2 | 2 | -541.50 | 140.71 | |
-| `o_smoke_O3` | O3 | 2 | -4963.00 | 431.34 | |
-| `o_smoke_O4` | O4 | 2 | -260.50 | 102.53 | |
-| `o_smoke_O5` | O5 | 2 | -237.00 | 62.23 | |
-| `o5b` | TBD | 2 | -223.50 | 81.32 | |
-| `oracle_O5` | O5 | 100 | -238.56 | 48.04 | |
 | `oracle_O5b` | none | 100 | -187.32 | 61.24 | 0 |
-| `oracle_O5c` | TBD | 100 | -246.05 | 65.56 | |
-| `oracle_O6` | O6 | 100 | -201.49 | 168.93 | |
-| `oracle_O6b` | O6 | 100 | -201.49 | 168.93 | |
-| `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
+| `oracle_O6` | O6 | 100 | -201.49 | 168.93 | 270.7 |
+| `oracle_O6b` | O6 | 100 | -201.49 | 168.93 | 270.7 |
+| `oracle_O5` | O5 | 100 | -238.56 | 48.04 | 77.0 |
+| `oracle_O5c` | TBD | 100 | -246.05 | 65.56 | 77.0 |
 | `oracle_O8` | O8 | 100 | -253.27 | 197.27 | 154.0 |
+| `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
+| `oracle_O1_n100` | O1 | 100 | -520.29 | 93.43 | 401.8 |
+| `oracle_O2_n100` | O2 | 100 | -523.19 | 97.98 | 403.2 |
+| `oracle_O3_n100` | O3 | 100 | -5803.89 | 1328.90 | 2255.1 |
 
-The `rule` field is in every header from `oracle.py`; TBD rows can be filled
-with `python3 -c "import json; print(json.loads(open('DIR/ep_00000.jsonl').readline()))"`.
-`budget` was added to the header after these captures, so O5 arms do not record
-which budget produced them.
+Against `corpus_v1`, O1 and O2 beat KEEP on 1 episode of 100 each; O3 on none.
+
+O1 and O2 converge despite different logic. O2's conditional never binds: with
+20 to 45 hosts compromised throughout an episode, "is any host compromised" is
+always true, so it agrees only 1.4 times per episode and degenerates into O1.
+
+O3 at -5803.89 sits near the do-nothing floor of -6592.68, with a comparable
+standard deviation (1328.90 vs 1340.47).
 
 `oracle_O6` and `oracle_O6b` differ only in footer `wall_seconds`; O6b is a
-rerun. `oracle_O5b` was captured with `--rule none` and is a valid zero-
-intervention control.
+rerun. `oracle_O5b` was captured with `--rule none` and is a valid
+zero-intervention control.
 
 `oracle_O5`'s stdev of 48.04 is inside the null range (49.40 to 83.33) and is
 not anomalous. Its percentiles are uniformly worse than `corpus_v1` above the
 minimum: min -478, p10 -288, med -238, max -155.
 
-### What is established about O8
+### Smoke arms
+
+Two episodes each, retained for provenance only. Directions were correct in
+every case; magnitudes were optimistic by 10 to 17 percent where n=100 values
+now exist.
+
+| Directory | Rule | Mean | Stdev | n=100 equivalent |
+|---|---|---|---|---|
+| `o_smoke` | TBD | -166.50 | 17.68 | |
+| `o_smoke_O1` | O1 | -576.50 | 188.80 | -520.29 |
+| `o_smoke_O2` | O2 | -541.50 | 140.71 | -523.19 |
+| `o_smoke_O3` | O3 | -4963.00 | 431.34 | -5803.89 |
+| `o_smoke_O4` | O4 | -260.50 | 102.53 | not run |
+| `o_smoke_O5` | O5 | -237.00 | 62.23 | -238.56 |
+| `o5b` | TBD | -223.50 | 81.32 | |
+
+`o_smoke_O5` agreeing with `oracle_O5` to 1.5 points is coincidence, not
+validation.
+
+---
+
+## O5 budget sweep
+
+`--rule O5 --budget N`, 100 episodes each, six workers. Captured on the second
+machine.
+
+| Directory | Budget | Mean | Stdev | Delta vs KEEP | Overrides/ep |
+|---|---|---|---|---|---|
+| `o5_b0` | 0 | -187.32 | 61.24 | reference | 0.0 |
+| `o5_b10` | 10 | -186.33 | 52.32 | +0.99 | 10.0 |
+| `o5_b20` | 20 | -200.44 | 65.00 | -13.12 | 20.0 |
+| `o5_b40` | 40 | -216.15 | 65.21 | -28.83 | 40.0 |
+| `o5_b77` | 77 | -246.05 | 65.56 | -58.73 | 77.0 |
+| `o5_b150` | 150 | -312.01 | 57.15 | -124.69 | 147.8 |
+| `o5_b300` | 300 | -368.92 | 72.59 | -181.60 | 206.2 |
+
+Monotonic decline, roughly -0.9 points per override from budget 20 onward. No
+interior peak. Only budgets 0 to 20 fall inside the null band.
+
+`o5_b0` reproduces `corpus_v1` and `o5_b77` reproduces `oracle_O5`, both from
+the reference machine at a different worker count.
+
+---
+
+## What is established about O8
 
 Four candidate explanations for its per-episode delta were tested and all
 returned null:
@@ -233,13 +204,17 @@ counting. It does not correlate with outcome.
 
 ## Known issues
 
+- **`oracle.py` segfaults above six workers** on 24-core Arrow Lake.
+  `{SIGSEGV(-11)}` at `--workers 12`, stable at 6. `capture.py` runs at 24 on
+  the same machine. Crashed runs leave partial directories that look complete:
+  assert the expected episode count before computing anything over an arm.
 - **Ownership.** Directories captured before `--user` was adopted are
   root-owned. `sudo chown -R $(id -u):$(id -g) ~/cage/data/traces`.
-- **`arm_sleep` mean.** Reported -6592.68 both before and after the policy was
-  corrected from always-Analyse to true Sleep, though a two-episode check gave
-  -7904 and an action counter confirmed all-Sleep. Unresolved.
-- **`arm_monitor`.** Present on disk, undocumented.
 - **Episode id parsing.** Never `f.split('ep_')[1]` — any directory whose name
   contains `ep_` collapses all episodes to one key silently. Use
   `os.path.basename(f)[3:-6]`.
-- **Budget provenance.** O5 arms predate the `budget` header field.
+- **Budget provenance.** `oracle_O5`, `O5b` and `O5c` predate the `budget`
+  header field. The `o5_b*` sweep arms record it.
+- **Machine provenance.** No arm records which machine captured it. The `o5_b*`
+  sweep and the `oracle_O*_n100` arms are from the Alienware; everything else
+  is from the Surface.
