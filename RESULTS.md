@@ -872,31 +872,35 @@ Source-accurate descriptions of all eight rules are in `ARMS.md`.
 The budget of 77 in O5 matches KEEP's own observed Restore rate, so the
 comparison is perfect targeting against learned targeting at equal action cost.
 
-### Results, seeds 0 to 99 except where noted
+### Results, 100 episodes each, seeds 0 to 99
 
-| Arm | n | Mean | Stdev | Overrides per episode |
-|---|---|---|---|---|
-| KEEP, control | 100 | -187.3 | 61.2 | 0 |
-| O5, budget limited | 100 | -238.6 | 48.0 | 77.0 |
-| O5 variant, alternative cost model | 100 | -246.1 | 65.6 | 77.0 |
-| O6, decline only | 100 | -201.5 | 168.9 | 270.7 |
-| O2 | **2** | -541.5 | 140.7 | 450.0 |
-| O1 | **2** | -576.5 | 188.8 | 484.0 |
-| O3 | **2** | -4963.0 | 431.3 | 2175.0 |
+| Arm | Mean | Stdev | Delta vs KEEP | Better | Overrides/ep |
+|---|---|---|---|---|---|
+| KEEP, control | -187.32 | 61.24 | reference | | 0 |
+| O6, decline only | -201.49 | 168.93 | -14.17 | | 270.7 |
+| O5, budget limited | -238.56 | 48.04 | -51.24 | | 77.0 |
+| O5c, alternative cost model | -246.05 | 65.56 | -58.73 | | 77.0 |
+| O1 | -520.29 | 93.43 | -332.97 | 1/100 | 401.8 |
+| O2 | -523.19 | 97.98 | -335.87 | 1/100 | 403.2 |
+| O3 | -5803.89 | 1328.90 | -5616.57 | 0/100 | 2255.1 |
 
-Every rule performs worse than the unmodified policy.
+Every rule performs worse than the unmodified policy. O1, O2 and O3 beat KEEP
+on at most one episode out of a hundred.
 
-The three blind-intervention rules were only ever run as two-episode smoke
-tests and are reported here at that n. Their magnitudes are large enough that
-more seeds are unlikely to change the direction, but any claim resting on them
-should say so, or they should be rerun at 100 episodes (roughly 15 minutes at
-six workers).
+O1 and O2 converge at -520 and -523 despite different logic. O2 was intended as
+the conditional rule, overriding only when KEEP is not already acting on a
+compromised host, but it agrees just 1.4 times per episode. With 20 to 45 hosts
+compromised throughout an episode the condition is always satisfied, so the
+conditional never binds and O2 degenerates into O1.
 
-O1, O2 and O3 fire on nearly every step, since compromise is near permanent at
-20 to 45 hosts held throughout an episode. They do not supervise, they replace
-the policy with a single rule. O3 in particular, using Remove rather than
-Restore, approaches the Sleep baseline of -6593, because red re-enters
-immediately and the agents spend the entire episode re-removing.
+O3 at -5803.89 sits close to the do-nothing floor of -6592.68, with a standard
+deviation of 1328.90 against the floor's 1340.47. Forcing Remove every step
+puts blue in the same performance regime as not playing.
+
+These three were initially reported from two-episode smoke tests at -576.50,
+-541.50 and -4963.00. The direction was correct in every case and the magnitude
+was optimistic by 10 to 17 percent. Smoke tests carried direction reliably and
+magnitude poorly.
 
 O5 is the fair comparison and the informative one. At equal action budget with
 correct phase aware zone weighting, perfect targeting loses to learned
@@ -1679,7 +1683,9 @@ substitution rather than review.
 Across eight rules spanning blind intervention (O1, O3, O4), correction (O2,
 O5), suppression (O6, O8) and a targeting control (O7), at rates from 10 to
 over 400 overrides per episode, no configuration beats KEEP. The dose-response
-establishes that the failure is directional rather than a matter of tuning.
+establishes that the failure is directional rather than a matter of tuning. All
+eight rules are now measured at 100 episodes; the three blind-intervention rules
+beat KEEP on at most one episode each.
 
 **Supervision experiments against converged KEEP are not viable.** The oracle
 ceiling condition was run to bound achievable gain before any participant saw
