@@ -60,17 +60,20 @@ def red_session_count(state):
             if a.startswith("red")}
 
 
-def capture_episode(ep, base_seed, out_dir, agents, policy="keep", policy_seed=None):
+def capture_episode(ep, base_seed, out_dir, agents, policy="keep", policy_seed=None, red_agent="FiniteStateRedAgent"):
     seed = base_seed + ep
     pseed = seed if policy_seed is None else policy_seed + ep
     torch.manual_seed(pseed)
     np.random.seed(seed)
     random.seed(seed)
 
+    import importlib
+    _rm = importlib.import_module(f"CybORG.Agents.SimpleAgents.{red_agent}")
+    _rc = getattr(_rm, red_agent)
     sg = EnterpriseScenarioGenerator(
         blue_agent_class=SleepAgent,
         green_agent_class=EnterpriseGreenAgent,
-        red_agent_class=FiniteStateRedAgent,
+        red_agent_class=_rc,
         steps=EPISODE_LENGTH,
     )
     cyborg = CybORG(sg, "sim", seed=seed)
@@ -108,6 +111,7 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep", policy_seed=N
             "episode": ep,
             "seed": seed,
             "policy_seed": pseed,
+            "red_agent": red_agent,
             "cyborg_version": CYBORG_VERSION,
             "scenario": "Scenario4",
             "episode_length": EPISODE_LENGTH,
@@ -202,6 +206,7 @@ def main():
     p.add_argument("--episodes", type=int, default=5)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--policy-seed", type=int, default=None)
+    p.add_argument("--red", default="FiniteStateRedAgent")
     p.add_argument("--out", default="/work/data/traces/pilot")
     p.add_argument("--policy", default="keep",
                    choices=["keep", "keep_greedy", "sleep", "analyse", "monitor", "random"])
@@ -220,7 +225,7 @@ def main():
     t_start = time.time()
 
     results = Parallel(n_jobs=args.workers, prefer="processes")(
-        delayed(capture_episode)(ep, args.base_seed, args.out, agents, args.policy, args.policy_seed)
+        delayed(capture_episode)(ep, args.base_seed, args.out, agents, args.policy, args.policy_seed, args.red)
         for ep in range(args.episodes)
     )
 
