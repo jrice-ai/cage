@@ -985,7 +985,7 @@ operator's priority differs from the coded reward.
 
 ### Consequence for the research design
 
-**SUPERSEDED — see "Two criteria, two answers" below.**
+**SUPERSEDED — see "Two criteria, two answers" and "The adversary determines whether supervision helps" below.**
 
 **Ground truth compromise is not a valid correctness criterion for blue actions
 in this environment.** This is the operationally important finding and it holds
@@ -1225,7 +1225,7 @@ episode score.
 
 ## Consolidated consequences for the research design
 
-**SUPERSEDED — see "Two criteria, two answers" below.**
+**SUPERSEDED — see "Two criteria, two answers" and "The adversary determines whether supervision helps" below.**
 
 **Compromise ground truth is not a valid correctness criterion.** Demonstrated
 three ways. Precision against it is 13 percent. Perfect knowledge of it does not
@@ -1691,6 +1691,11 @@ establishes that the failure is directional rather than a matter of tuning. All
 eight rules are now measured at 100 episodes; the three blind-intervention rules
 beat KEEP on at most one episode each.
 
+**SUPERSEDED — see "The adversary determines whether supervision helps" below.**
+The bound stated here holds against `FiniteStateRedAgent` and does not
+generalize. Against a damage-focused red agent the same rule family produces a
+monotonic gain over the same budget range.
+
 **Supervision experiments against converged KEEP are not viable.** The oracle
 ceiling condition was run to bound achievable gain before any participant saw
 anything, and the bound is at or below zero.
@@ -1785,7 +1790,7 @@ host can accumulate red artifacts without ever showing a session in
 
 ### Consequence for the research design
 
-**SUPERSEDED — see "Two criteria, two answers" below.** The claim in this
+**SUPERSEDED — see "Two criteria, two answers" and "The adversary determines whether supervision helps" below.** The claim in this
 section was measured against ground-truth sessions only. Rescored against
 observable evidence, the same restores are 69.8 percent precise.
 
@@ -2074,3 +2079,218 @@ Phase reward table, AI Magazine Table 2. Operational Zone A in phase 2a and
 Operational Zone B in phase 2b carry -10 for LocalWork failure and -10 for red
 impact. All other entries range -1 to -5. Contractor network is 0 in phases 2a
 and 2b.
+
+### Cross-paper comparison requires artifact identity, and Table 2 does not have it
+
+Trident (arXiv 2608.04317) evaluates adaptive red agents against four CAGE 4
+blue baselines. Two of those baselines are agents evaluated here.
+
+| Agent | Trident weights | Weights used here | Trident score | Score here |
+|---|---|---|---|---|
+| H-MARL 3-policy | shipped `saved_policies/sub/iter_49` | same | -132.63 +/- 0.87 | -131.35 [-138.25, -124.44] |
+| GNN / KEEP | `DR_cybermonic_Dec15_{0..4}`, 6,738,258 bytes each | published `gnn_ppo-{0..4}`, 3,536,882 bytes each | -202.34 +/- 1.42 | -191.34 [-199.66, -183.02] |
+
+Where the artifact is shared the two evaluations agree to within about one
+point. Where it is not, they differ by eleven, and the checkpoints differ in
+size by a factor of 1.9, so the models are not the same size let alone the same
+weights.
+
+The Trident table cites this column as "GNN (King et al. 2025)", which reads as
+the published submission. The repository shows otherwise. This is not an error
+in either score. It is an absence of artifact provenance in a benchmark table,
+and it is the same class of problem as the undeclared action-selection mode and
+the unseeded evaluation harness recorded above.
+
+Note also that Trident's reported standard deviations are across three runs of
+500 episodes, not across episodes, which is why they are so much tighter than
+the episode-level spreads reported elsewhere in this file.
+
+Checkpoint inspection, `torch.load` on `gnn_ppo-0.pt` and
+`DR_cybermonic_Dec15_0_checkpoint.pt`. Both carry keys `actor`, `critic`,
+`agent`, with 40 and 28 tensors respectively, so the architecture family is the
+same. The dimensions are not.
+
+| | KEEP published | Trident |
+|---|---|---|
+| hidden1 | 256 | 320 |
+| conv2 width | 128 | 280 |
+| actor parameters | 476,167 | 966,623 |
+| critic parameters | 401,537 | 711,689 |
+| PPO clip | 0.2 | 0.3 |
+| learning rate | 3e-4 | 3e-5 |
+
+The hyperparameters are stored in the checkpoint's `agent` tuple, so this is
+recorded rather than inferred. Trident evaluated a retrained model roughly twice
+the size of the published submission under a row cited as "GNN (King et al.
+2025)".
+
+## The adversary determines whether supervision helps
+
+Every oracle result recorded above was measured against `FiniteStateRedAgent`,
+the stock CC4 red agent that selects hosts at random. That condition was never
+stated as a scope limit. It should have been.
+
+### A hand-specified red agent, degrading the adversary rather than the defender
+
+Trident (arXiv 2608.04317) trains an LLM planner via RLVR to generate red
+policies. Reading `agentic/prompts/planner_prompts.py` shows the planner's
+entire output is a JSON object with `host_state_priority` (eight values over
+host states K, KD, S, SD, U, UD, R, RD, summing to 100) and `state_action_probs`
+(eight rows, each a distribution over that state's legal actions), plus one
+bugfix flag. The prompt states the constraint directly. The LLM and the GRPO
+loop are a search procedure over roughly thirty numbers, not the artifact.
+
+`red_agents/FSRedAgentWrecker.py` is one hand-specified point in that space. It
+puts 64 percent of host-state priority on R and RD, and reduces root-state
+rediscovery from the base 0.50 to 0.05 while raising Impact and DegradeServices
+from 0.50 combined to 0.95. Thirty lines, no LLM, no GPU, no search.
+
+| Agent | vs FiniteStateRedAgent | vs Wrecker | Factor |
+|---|---|---|---|
+| KEEP | -187.32 | -1115.65 | 5.95x |
+| H-MARL Expert | -124.11 | -863.86 | 6.96x |
+
+Trident's RLVR-trained agent reaches -849.85 against HMARL3. Their weights for
+that baseline are byte-identical to ours, verified by md5 across all fifteen
+policy files and `algorithm_state.pkl`, so the comparison is like for like.
+**A hand-specified point in their own published schema matches their trained
+optimum to within 1.6 percent on the one baseline where the artifact is shared.**
+
+Their GNN row is not comparable: 966,623 actor parameters against the published
+476,167, hidden1 320 against 256, under a different clip and learning rate.
+
+### The defender is not pushed off distribution
+
+KEEP's action mix under Wrecker, 20 episodes, against `corpus_v1`.
+
+| Action | corpus_v1 | Wrecker |
+|---|---|---|
+| Sleep | 38.49% | 37.65% |
+| AllowTrafficZone | 26.46% | 27.51% |
+| Analyse | 10.85% | 10.15% |
+| DeployDecoy | 6.50% | 6.50% |
+| BlockTrafficZone | 6.40% | 6.61% |
+| Remove | 4.18% | 4.36% |
+| Monitor | 3.94% | 4.20% |
+| Restore | 3.17% | 3.04% |
+
+Every action within one percentage point, same rank order. **The policy is
+executing its learned strategy unchanged and losing six times as badly.** It
+does not adapt.
+
+Wrecker also leaves *fewer* hosts compromised, 26.3 of 97 at step 400 against
+32.1 for the default. Territory is not the threat. What red does with what it
+holds is the threat, which is what the reward function counts.
+
+### Noise floor at the new difficulty
+
+Three sampling seeds, environments fixed.
+
+| Arm | Mean | Stdev |
+|---|---|---|
+| Wrecker, policy_seed unset | -1115.65 | 272.91 |
+| Wrecker, policy_seed 9000 | -1196.35 | 336.69 |
+| Wrecker, policy_seed 9001 | -1107.05 | 297.93 |
+
+```
+grand mean  -1139.68
+95% CI      -1262.07 to -1017.30   (t, 2 df)
+```
+
+Pairwise deltas between identical policies run -80.70 and +8.60, with win rates
+45/100 and 51/100. **The bar at this difficulty is roughly 81 points of mean
+delta and a win rate outside 45 to 51 of 100**, against 25 points and 66/100 at
+normal difficulty.
+
+Variance decomposition
+
+```
+within-episode sd (sampling luck)   256.41
+between-episode sd (difficulty)     185.56
+ratio 0.72
+```
+
+At normal difficulty the same figures were 44.50 and 36.39, ratio 0.82. Both
+terms scaled roughly fivefold and the ratio moved the wrong way. **Wrecker
+manufactures headroom but not legibility**, and it does not satisfy the
+stopping criterion recorded earlier.
+
+That criterion may be the wrong test. It was derived from a comparison against
+deterministic greedy KEEP, where within-episode variance is zero by
+construction, so any positive between-episode term wins automatically for
+reasons unrelated to supervisability. For a sampled policy the ratio may never
+exceed 1 at any difficulty.
+
+### Oracle rules under Wrecker
+
+100 episodes each, environment seeds 0-99, twelve workers.
+
+| Rule | Mean | Stdev | Delta | Better | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|---|---|
+| KEEP, control | -1115.65 | 272.91 | reference | | 0 | |
+| O8, suppression | -1396.42 | 534.72 | -280.77 | 32/100 | 186.8 | 34.9 |
+| O6, suppression | -1296.47 | 525.48 | -180.82 | 38/100 | 293.7 | 69.9 |
+| O5, budgeted phase-aware | -1013.89 | 373.83 | +101.76 | 61/100 | 77.0 | 0.1 |
+| **O2, conditional correction** | **-654.88** | **69.86** | **+460.77** | **100/100** | 403.8 | 1.1 |
+
+`--rule none --red FSRedAgentWrecker` reproduces the unsupervised arm exactly,
+confirming the harness is transparent at this difficulty.
+
+O2 beats KEEP on **every episode**. The distributions do not overlap: O2's worst
+episode is -848 against KEEP's best of -646. Standard deviation collapses from
+272.91 to 69.86, and the range narrows from 1,175 points to 340.
+
+At normal difficulty O2 scored -523.19 against KEEP's -187.32, losing by 336 and
+winning 1 episode in 100. **Same rule, opposite sign.**
+
+### O2 budget sweep under Wrecker
+
+| Budget | Mean | Delta | Stdev | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|---|
+| 0 (KEEP) | -1115.65 | reference | 272.91 | 0 | |
+| 10 | -1093.77 | +21.88 | 357.78 | 10.0 | 62.2 |
+| 20 | -1012.49 | +103.16 | 345.35 | 20.0 | 59.1 |
+| 40 | -958.31 | +157.34 | 315.42 | 40.0 | 55.3 |
+| **77** | **-874.27** | **+241.38** | 280.66 | 77.0 | 49.3 |
+| 150 | -767.85 | +347.80 | 211.17 | 150.0 | 34.6 |
+| 300 | -628.50 | +487.15 | 102.43 | 299.6 | 12.3 |
+| unbounded | -654.88 | +460.77 | 69.86 | 403.8 | 1.1 |
+
+Monotonic gain to budget 300, then a slight reversal. The final hundred
+overrides are net harmful, though the 26-point difference may be within noise
+at n=100. Every budget from 20 up clears the null band.
+
+**Budget 77 delivers 52 percent of the maximum gain at 19 percent of the
+intervention rate**, at the sustainable human decision rate established earlier
+in this file.
+
+### Consequences
+
+**The earlier bound was conditional and the condition was not stated.** Nine
+rules and a seven-point dose-response established that supervision through
+action substitution loses monotonically to a converged policy. That holds
+against `FiniteStateRedAgent` and reverses against a damage-focused adversary.
+The correct statement is that the same rule is worth -333 or +241 points
+depending on what red is doing.
+
+**Compromise ground truth is a valid correctness criterion under some
+adversaries and not others.** Against the default red agent, KEEP restores
+compromised hosts 0.2 percent of the time and the oracle agrees with it 1.1
+times per episode. Under Wrecker, with *fewer* hosts compromised, agreement rises
+to 62 per episode at low budget. The signal did not become available. It became
+valuable, and the policy's own targeting moved toward it.
+
+This is the finding C2 needs. The escalation-trigger question is not which
+signal is correct but which signal is correct under which threat model, and both
+halves are now measured on the same instrument.
+
+**The competence checkpoint pool is displaced for this purpose.** Roughly 25M
+environment steps per seed, weeks of training, and a reviewer asking why anyone
+would field a half-trained defender, replaced by a 30-line file and six minutes
+of compute, with the defender at full deployment competence and its action
+distribution unchanged to within one percentage point.
+
+**A supervisory condition now exists with the properties a study requires.**
+Converged defender, degraded adversary, intervention at 77 decisions per
+episode, effect size +241 against a noise floor of plus or minus 81. The oracle
+establishes the ceiling. A human at the same gate is the experiment.

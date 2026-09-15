@@ -240,6 +240,9 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
             if name in ("Restore", "Remove") and acting_on in dirty:
                 stats["agree"] += 1
                 return act
+            if stats["override"] >= budget:
+                stats["exhausted"] += 1
+                return act
             stats["override"] += 1
             return Restore(session=0, agent=agent_name, hostname=target)
         return act
@@ -247,14 +250,17 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent"):
     seed = base_seed + ep
     torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
 
+    import importlib
+    _rm = importlib.import_module(f"CybORG.Agents.SimpleAgents.{red_agent}")
+    _rc = getattr(_rm, red_agent)
     sg = EnterpriseScenarioGenerator(
         blue_agent_class=SleepAgent,
         green_agent_class=EnterpriseGreenAgent,
-        red_agent_class=FiniteStateRedAgent,
+        red_agent_class=_rc,
         steps=EPISODE_LENGTH)
     cyborg = CybORG(sg, "sim", seed=seed)
     env = Submission.wrap(cyborg)
@@ -276,7 +282,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77):
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "red_agent": red_agent, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -329,6 +335,7 @@ def main():
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--budget", type=int, default=77,
                    help="Max overrides per episode for O5")
+    p.add_argument("--red", default="FiniteStateRedAgent")
     p.add_argument("--out", default="/work/data/traces/oracle")
     a = p.parse_args()
 
@@ -336,7 +343,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]
