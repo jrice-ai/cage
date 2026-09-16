@@ -140,9 +140,7 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
     flagged = {}   # O2e: agent_name -> hosts named by a substantive obs since last Restore/Remove
     META = {"success", "action", "message"}
 
-    def patched(agent_name, a_id):
-        stats["calls"] += 1
-        act = original(agent_name, a_id)
+    def _decide(agent_name, act):
         if rule == "none":
             return act
 
@@ -312,6 +310,17 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
             return Restore(session=0, agent=agent_name, hostname=target)
         return act
 
+    def _fmt(a):
+        return f"{type(a).__name__}:{getattr(a, 'hostname', '')}"
+
+    def patched(agent_name, a_id):
+        stats["calls"] += 1
+        act = original(agent_name, a_id)
+        res = _decide(agent_name, act)
+        if res is not act:
+            stats.setdefault("ovr", []).append([agent_name, _fmt(act), _fmt(res)])
+        return res
+
     env.action_translator = patched
 
 
@@ -376,6 +385,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
                 "red_action": red_acts,
                 "step_reward": step_reward, "cumulative_reward": total,
                 "n_compromised_owned": n_comp,
+                "overrides": stats.pop("ovr", []),
             }) + "\n")
 
             if term.get("blue_agent_0") or trunc.get("blue_agent_0"):
