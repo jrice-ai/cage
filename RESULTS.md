@@ -2,18 +2,36 @@
 
 ## Overview
 
-Record of the first working session standing up CybORG CAGE Challenge 4 and
-reproducing the KEEP baseline, then extended across later sessions. Covers container build, dependency pins not
-declared by either repo, a clean reproduction of the published score, and three
-defects found in the KEEP evaluation harness that affect reproducibility. Five
-upstream defects and four local ones are recorded across this file.
+## Overview
 
-Scope was the go/no-go gate. Reproduce a published autonomous baseline in a
-container we control, so later human supervision work has something valid to
-compare against. Gate passed.
+Working record for CybORG CAGE Challenge 4 as a substrate for human supervision
+experiments. Sections are chronological; later sections supersede earlier ones
+where noted.
 
-Early sections come from a single machine and a single image. The cross-machine
-reproduction section supersedes that limitation.
+What the file establishes, in order of appearance:
+
+- A pinned container that reproduces the published KEEP score, then the
+  published H-MARL Expert score, bit-identically across two machines.
+- Nine defects in the evaluation tooling: five upstream (one traced to the
+  challenge's reference `evaluation.py`, present in two independent
+  submissions), four local. Each is recorded with its reproduction.
+- A trace logger and a 100-episode reference corpus, with the sampling-noise
+  floor and variance decomposition needed to read any arm comparison.
+- A programmatic oracle harness. Against the stock red agent, nine rules and a
+  seven-point budget sweep show action-substitution supervision loses to
+  converged KEEP at every intervention rate.
+- Two published recovery-precision criteria that disagree by 350x on the same
+  agent, and a ground-truth rule that scores 100 percent on one of them while
+  losing by 333 points.
+- A cross-paper provenance finding: a benchmark table that mixes a shared
+  artifact with a retrained one under the same citation format.
+- An impact-focused red agent, hand-specified from a published planner schema,
+  under which the same oracle rule that lost by 333 wins on every episode. The
+  supervisory condition the programme needs exists from that section on.
+
+All measurements before "The adversary determines whether supervision helps"
+are against `FiniteStateRedAgent`. Arm definitions and per-arm numbers live in
+ARMS.md; this file records what they mean.
 
 ## Environment
 
@@ -1344,6 +1362,9 @@ Any future arm comparison reports the null band alongside it.
 
 ## Oracle variant series
 
+Rule definitions for O1 through O9 are in ARMS.md, "Rules tested." This section
+records outcomes and interpretation only.
+
 Eight rule variants plus revisions, `oracle_O1` through `oracle_O8`, n=100
 where noted. None beat KEEP.
 
@@ -1441,6 +1462,16 @@ This is the third defect in this project that produced plausible output rather
 than an error, after the cached state reference that froze phase and ground
 truth across a corpus. Arms should be checked for episode count before any
 statistic is computed.
+
+### 3. Trace header does not record the harness revision
+
+The header records `rule` and `budget` but not the code revision that defined
+the rule. `oracle_O5` and `oracle_O5c` both ran rule O5 and differ by 7.5
+points; whether the O5 expression changed between them or only the sampling
+did is not recoverable from the traces. Fix: write `harness_sha` from
+`git rev-parse HEAD` into the header at run start. Applied from the next
+experiment section onward; earlier arms are identified by reproduction where
+possible and marked otherwise.
 
 ## Schema divergence between capture paths
 

@@ -1,7 +1,8 @@
 # Trace arms
 
 Every arm is 100 episodes of 499 steps against `FiniteStateRedAgent`,
-environment seeds 0-99, unless noted.
+environment seeds 0-99, unless noted. Arms against any other red agent are in
+"Red-agent arms" below and name their adversary per row.
 
 `policy_seed` is `capture.py --policy-seed`; unset means policy sampling tracks
 the environment seed. Oracle arms are produced by `scripts/oracle.py --rule`.
@@ -123,9 +124,8 @@ destroys them.
 | `O9r` | Reconstruction. Ignores KEEP's proposal and restores the top-ranked host, up to `--budget`. |
 | `O9s` | Supervision. Keeps KEEP's Restore target if it falls in the top third of the ranking; otherwise substitutes the top-ranked host, up to `--budget`. |
 
-Note that `O5`'s inline zone weight uses the earlier `-RIA + LWF` expression and
-is deliberately unchanged, so the O5 arms and the budget sweep remain valid
-against their original definition.
+The O5 budget sweep and `oracle_O5c` share a revision and seeding, and the sweep
+reproduces O5c exactly. `oracle_O5` predates that revision.
 
 ---
 
@@ -137,7 +137,7 @@ against their original definition.
 | `oracle_O6` | O6 | 100 | -201.49 | 168.93 | 270.7 |
 | `oracle_O6b` | O6 | 100 | -201.49 | 168.93 | 270.7 |
 | `oracle_O5` | O5 | 100 | -238.56 | 48.04 | 77.0 |
-| `oracle_O5c` | TBD | 100 | -246.05 | 65.56 | 77.0 |
+| `oracle_O5c` | O5 (rev. 2026-09-13) | 100 | -246.05 | 65.56 | 77.0 |
 | `oracle_O8` | O8 | 100 | -253.27 | 197.27 | 154.0 |
 | `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
 | `oracle_O1_n100` | O1 | 100 | -520.29 | 93.43 | 401.8 |
@@ -161,6 +161,13 @@ zero-intervention control.
 not anomalous. Its percentiles are uniformly worse than `corpus_v1` above the
 minimum: min -478, p10 -288, med -238, max -155.
 
+`oracle_O5` and `oracle_O5c` both ran rule O5 and differ by 7.5 points, inside
+the null band. RESULTS.md labels O5c "alternative cost model"; the header
+records rule and budget only, so whether the expression changed between them or
+only the sampling did is not recoverable from the traces. O5c is identified by
+reproduction: `o5_b77` regenerates it exactly on the other machine, so O5c is
+O5 at the sweep's revision and seeding, and `oracle_O5` predates that revision.
+
 ### Smoke arms
 
 Two episodes each, retained for provenance only. Directions were correct in
@@ -169,13 +176,13 @@ now exist.
 
 | Directory | Rule | Mean | Stdev | n=100 equivalent |
 |---|---|---|---|---|
-| `o_smoke` | TBD | -166.50 | 17.68 | |
+| `o_smoke` | not recorded | -166.50 | 17.68 | |
 | `o_smoke_O1` | O1 | -576.50 | 188.80 | -520.29 |
 | `o_smoke_O2` | O2 | -541.50 | 140.71 | -523.19 |
 | `o_smoke_O3` | O3 | -4963.00 | 431.34 | -5803.89 |
 | `o_smoke_O4` | O4 | -260.50 | 102.53 | not run |
 | `o_smoke_O5` | O5 | -237.00 | 62.23 | -238.56 |
-| `o5b` | TBD | -223.50 | 81.32 | |
+| `o5b` | not recorded | -223.50 | 81.32 | |
 | `smoke_O9r` | O9r | -260.00 | 32.05 | n/a |
 | `smoke_O9s` | O9s | -813.67 | 290.34 | n/a |
 
@@ -227,31 +234,98 @@ machine.
 Monotonic decline, roughly -0.9 points per override from budget 20 onward. No
 interior peak. Only budgets 0 to 20 fall inside the null band.
 
-`o5_b0` reproduces `corpus_v1` and `o5_b77` reproduces `oracle_O5`, both from
-the reference machine at a different worker count.
+`o5_b0` reproduces `corpus_v1` and `o5_b77` reproduces `oracle_O5c`, both from
+the reference machine at a different worker count. `o5_b77` does not reproduce
+`oracle_O5` (-238.56); see the O5/O5c note under Oracle arms.
 
 ---
 
-## What is established about O8
+## Red-agent arms
 
-Four candidate explanations for its per-episode delta were tested and all
-returned null:
+Adversary named per row. KEEP sampled, `policy_seed` unset, Schema A via
+`capture.py --red`, unless noted. Captured on the Alienware.
 
-```
-corr(delta, keep baseline score)      -0.272   (null arm shows -0.712)
-corr(delta, early red aggression)     -0.057
-partial corr(delta, agg | keep)       -0.113
-corr(delta, overrides per episode)    -0.052
-```
+### Heuristic red agents from Trident Appendix B
 
-Gains average +67.7 against a null floor of +57.5; losses average -205.1
-against a floor of -44.4. **Wins are inside the noise floor, losses are 4.6x
-outside it.** Nothing observable predicts which episodes go which way.
+| Directory | Red agent | Mean | Stdev | Min | Max |
+|---|---|---|---|---|---|
+| `red_FiniteStateRedAgent` | FiniteStateRedAgent | -187.32 | 61.24 | -527 | -113 |
+| `red_FSRedAgentTargetARestricted` | TargetARestricted | -98.52 | 48.61 | -228 | -22 |
+| `red_FSRedAgentTargetAOperational` | TargetAOperational | -99.89 | 55.40 | -415 | -22 |
+| `red_FSRedAgentTargetA` | TargetA | -104.18 | 55.60 | -315 | -22 |
+| `red_FSRedAgentTargetB` | TargetB | -116.25 | 54.19 | -262 | -22 |
+| `red_FSRedAgentTargetBRestricted` | TargetBRestricted | -117.93 | 63.29 | -488 | -22 |
+| `red_FSRedAgentTargetBOperational` | TargetBOperational | -127.31 | 88.17 | -607 | -22 |
+| `red_FSRedAgentCombined` | Combined | -165.87 | 84.76 | -523 | -22 |
+| `red_FSRedAgentFailureTracker` | FailureTracker | -205.66 | 90.26 | -755 | -99 |
+| `red_FSRedAgentImpacter` | Impacter | -228.73 | 129.53 | -608 | -70 |
+| `red_FSRedAgentDegrader` | Degrader | -268.80 | 122.38 | -852 | -120 |
 
-Override count ranges 72 to 408 per episode (median 146) against KEEP's 77.1
-executed `Restore`/ep. The excess is trajectory divergence — suppression
-changes the state, and KEEP subsequently proposes more restores — not double
-counting. It does not correlate with outcome.
+`red_FiniteStateRedAgent` reproduces `corpus_v1`: the `--red` path is
+transparent.
+
+`red_FSRedAgentTargetA` was captured serially after a segfault under parallel
+capture.
+
+Seven arms share a maximum of exactly -22. Treated as a reward ceiling,
+unconfirmed.
+
+Seven of the ten non-default agents make blue's task easier, five by 60 to 89
+points. Only the action-biased agents (Degrader, Impacter, FailureTracker) hurt
+blue. Concentrating red on one zone reduces exploration and narrows the problem
+the five blue agents face; the reward counts green work failures and successful
+impacts, so biasing toward those actions is what moves it.
+
+These agents carry a compounding bug in `_choose_host_and_action`
+(`host_action_options[opt] *= 4` inside a loop); numbers are as-shipped.
+
+### Wrecker
+
+`red_agents/FSRedAgentWrecker.py`. Hand-specified point in Trident's planner
+schema: 64 percent of host-state priority on R and RD, root-state rediscovery
+0.50 to 0.05, Impact and DegradeServices 0.50 combined to 0.95. Impact-focused
+adversary; the defender is unchanged and at deployment competence.
+
+| Directory | Policy | policy_seed | Rule | Budget | Mean | Stdev | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|---|---|---|---|
+| `[ ]` | KEEP sampled | unset | none | | -1115.65 | 272.91 | 0 | |
+| `[ ]` | KEEP sampled | 9000 | none | | -1196.35 | 336.69 | 0 | |
+| `[ ]` | KEEP sampled | 9001 | none | | -1107.05 | 297.93 | 0 | |
+| `[ ]` | H-MARL Expert | | none | | -863.86 | | | |
+| `[ ]` | KEEP sampled | unset | O8 | | -1396.42 | 534.72 | 186.8 | 34.9 |
+| `[ ]` | KEEP sampled | unset | O6 | | -1296.47 | 525.48 | 293.7 | 69.9 |
+| `wo_O5` | KEEP sampled | unset | O5 | 77 | -1013.89 | 373.83 | 77.0 | 0.1 |
+| `[ ]` | KEEP sampled | unset | O2 | unbounded | -654.88 | 69.86 | 403.8 | 1.1 |
+| `[ ]` | KEEP sampled | unset | O2 | 10 | -1093.77 | 357.78 | 10.0 | 62.2 |
+| `[ ]` | KEEP sampled | unset | O2 | 20 | -1012.49 | 345.35 | 20.0 | 59.1 |
+| `[ ]` | KEEP sampled | unset | O2 | 40 | -958.31 | 315.42 | 40.0 | 55.3 |
+| `wo_O2_b77` | KEEP sampled | unset | O2 | 77 | -874.27 | 280.66 | 77.0 | 49.3 |
+| `[ ]` | KEEP sampled | unset | O2 | 150 | -767.85 | 211.17 | 150.0 | 34.6 |
+| `[ ]` | KEEP sampled | unset | O2 | 300 | -628.50 | 102.43 | 299.6 | 12.3 |
+
+`--rule none --red FSRedAgentWrecker` reproduces the unsupervised arm exactly.
+
+**Wrecker noise floor**, three policy seeds: grand mean -1139.68, 95% CI
+[-1262.07, -1017.30]. Pairwise deltas between identical policies -80.70 and
++8.60; win rates 45/100 and 51/100. **The bar at this difficulty is roughly 81
+points of mean delta and a win rate outside 45 to 51 of 100**, against 25 points
+and 66/100 at normal difficulty.
+
+Variance decomposition under Wrecker: within-episode 256.41, between-episode
+185.56, ratio 0.72. At normal difficulty, 44.50 and 36.39, ratio 0.82.
+
+O2 unbounded beats KEEP on 100/100 episodes; distributions do not overlap (O2
+worst -848, KEEP best -646). At 403.8 overrides and 1.1 agreements it is a
+substitute policy, not a supervisory condition; the supervisory condition is
+budget 77.
+
+O2 under Wrecker shows the same signature as under the default red (403.8
+overrides, 1.1 agreements): the conditional does not bind and O2 is O1 in
+effect. O1 has not been run under Wrecker.
+
+KEEP's action mix under Wrecker is within one percentage point of `corpus_v1`
+on every action, same rank order. Wrecker leaves fewer hosts compromised (26.3
+of 97 at step 400, against 32.1).
 
 ---
 
@@ -271,3 +345,10 @@ counting. It does not correlate with outcome.
 - **Machine provenance.** No arm records which machine captured it. The `o5_b*`
   sweep and the `oracle_O*_n100` arms are from the Alienware; everything else
   is from the Surface.
+- **Header provenance.** No arm records the harness revision or the adversary.
+  `harness_sha` and `red_agent` header fields are added from the next
+  experiment section; earlier arms are identified by reproduction where
+  possible.
+- **H-MARL reference.** Three values exist for H-MARL Expert against the
+  default red (-131.99 unseeded, -131.35 seeded, -124.11 in the Wrecker
+  comparison) from runs with different seeding. Reconcile before citing.
