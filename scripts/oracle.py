@@ -236,7 +236,7 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                     if h in st["h"]:
                         st["h"][h][1] = t
                     else:
-                        st["h"][h] = [t, t]
+                        st["h"][h] = [t, t]; stats["flags_new"] = stats.get("flags_new", 0) + 1
             own = set(owned_hosts(cyborg, agent_name))
             live = {h: fl for h, fl in st["h"].items() if h in own}
             if rule == "O2ew":
@@ -468,6 +468,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "deferred": stats.get("deferred", 0),
             "analyses": stats.get("exec_Analyse", 0), "restores": stats.get("exec_Restore", 0),
             "removes": stats.get("exec_Remove", 0), "sleeps": stats.get("exec_Sleep", 0),
+            "flags_new": stats.get("flags_new", 0),
             "latch_tp": stats.get("tp", 0), "latch_fp": stats.get("fp", 0),
             "latch_fn": stats.get("fn", 0), "latch_own": stats.get("own", 0),
             "wall_seconds": round(time.time() - t0, 2),
