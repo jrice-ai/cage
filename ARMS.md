@@ -455,3 +455,6 @@ of 97 at step 400, against 32.1).
   string (e.g. `"O11"` in the source) rather than for the code they guard will
   skip silently once the token exists for another reason — this cost one
   launch on 2026-09-16. Test for the code (`rule == "O11"`).
+- **Worker count not recorded.** No arm records `--workers`. The Wrecker
+  oracle-rule arms (`wo_O8`, `wo_O6`, `wo_O5`, `wo_O2*` budget series) ran at
+  six or twelve; which is not recoverable. Header field pending.
