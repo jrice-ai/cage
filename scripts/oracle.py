@@ -8,6 +8,7 @@ Rules:
         substantive raw obs since their last Restore/Remove), not ground truth
   O2er  As O2e, most-recently-observed host first
   O2ew  As O2er, flags expire 30 steps after the last observation naming the host
+  O2s   As O2er, but a host is flagged only by a Files entry with Density >= 0.9 (Analyse-confirmed)
   O3    Remove instead of Restore
   O4    Restore only in zones expensive in the current phase
 
@@ -219,13 +220,17 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                     return Sleep()
                 stats["agree"] += 1
             return act
-        if rule in ("O2e", "O2er", "O2ew"):
+        if rule in ("O2e", "O2er", "O2ew", "O2s"):
             obs = cyborg.get_observation(agent_name) or {}
             st = flagged.setdefault(agent_name, {"t": 0, "h": {}})   # h: host -> [first_seen, last_seen]
             st["t"] += 1
             t = st["t"]
             for h, v in obs.items():
                 if h not in META and isinstance(v, dict):
+                    if rule == "O2s":
+                        _fl = v.get("Files") or []
+                        if not any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl):
+                            continue
                     if h in st["h"]:
                         st["h"][h][1] = t
                     else:
@@ -415,7 +420,7 @@ def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew"])
+                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s"])
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=1)
