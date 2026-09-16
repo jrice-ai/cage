@@ -222,14 +222,14 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                     return Sleep()
                 stats["agree"] += 1
             return act
-        if rule in ("O2e", "O2er", "O2ew", "O2s", "O10", "O12"):
+        if rule in ("O2e", "O2er", "O2ew", "O2s", "O10", "O12", "O13"):
             obs = cyborg.get_observation(agent_name) or {}
             st = flagged.setdefault(agent_name, {"t": 0, "h": {}})   # h: host -> [first_seen, last_seen]
             st["t"] += 1
             t = st["t"]
             for h, v in obs.items():
                 if h not in META and isinstance(v, dict):
-                    if rule in ("O2s", "O10", "O12"):
+                    if rule in ("O2s", "O10", "O12", "O13"):
                         _fl = v.get("Files") or []
                         if not any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl):
                             continue
@@ -255,6 +255,18 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                 stats["agree"] += 1
                 st["h"].pop(acting_on, None)
                 return act
+            if rule == "O13":
+                inv = st.setdefault("inv", {})            # host -> agent-step of last investigation
+                cands = [c[0] for c in comp if c[0] not in st["h"] and t - inv.get(c[0], -10**9) >= 50]
+                if not cands:
+                    return act
+                if stats["override"] >= budget:
+                    stats["exhausted"] += 1
+                    return act
+                cands.sort(key=lambda h: inv.get(h, -10**9))   # least recently investigated first
+                tgt = cands[0]; inv[tgt] = t
+                stats["override"] += 1
+                return Analyse(session=0, agent=agent_name, hostname=tgt)
             if rule in ("O10", "O12"):
                 if rule == "O12" and ecomp:
                     if stats["override"] >= budget:
@@ -481,7 +493,7 @@ def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s", "O11", "O10", "O12"])
+                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s", "O11", "O10", "O12", "O13"])
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=1)
