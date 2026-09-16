@@ -131,7 +131,7 @@ def _host_score(cyborg, hostname, decoys):
     return w / (1.0 + decoys.get(hostname, 0))
 
 
-def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
+def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
     """Wrap action_translator so overrides slot in before execution."""
     if decoys is None:
         decoys = {}
@@ -313,18 +313,25 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
     def _fmt(a):
         return f"{type(a).__name__}:{getattr(a, 'hostname', '')}"
 
+    _tick = {}; _last = {}
     def patched(agent_name, a_id):
         stats["calls"] += 1
+        _tick[agent_name] = _tick.get(agent_name, 0) + 1
         act = original(agent_name, a_id)
         res = _decide(agent_name, act)
         if res is not act:
+            if min_gap and _tick[agent_name] - _last.get(agent_name, -10**9) < min_gap:
+                stats["override"] -= 1
+                stats["deferred"] = stats.get("deferred", 0) + 1
+                return act
+            _last[agent_name] = _tick[agent_name]
             stats.setdefault("ovr", []).append([agent_name, _fmt(act), _fmt(res)])
         return res
 
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent"):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0):
     seed = base_seed + ep
     torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
 
@@ -342,7 +349,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 
     stats = Counter()
     decoys = {}
-    install_oracle(env, cyborg, rule, stats, budget, decoys)
+    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap)
 
     wrapped_obs, _ = env.reset()
     for a in agents.values():
@@ -356,7 +363,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "red_agent": _rc.__name__, "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "red_agent": red_agent, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "min_gap": min_gap, "red_agent": red_agent, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -395,6 +402,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "record": "footer", "episode": ep, "steps": step + 1,
             "total_reward": total, "overrides": stats["override"], "translator_calls": stats["calls"],
             "agreements": stats["agree"],
+            "deferred": stats.get("deferred", 0),
             "latch_tp": stats.get("tp", 0), "latch_fp": stats.get("fp", 0),
             "latch_fn": stats.get("fn", 0), "latch_own": stats.get("own", 0),
             "wall_seconds": round(time.time() - t0, 2),
@@ -405,6 +413,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 
 def main():
     p = argparse.ArgumentParser("Oracle arms")
+    p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--rule", default="O1",
                    choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew"])
     p.add_argument("--episodes", type=int, default=100)
@@ -420,7 +429,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]
