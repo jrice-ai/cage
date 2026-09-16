@@ -2206,6 +2206,14 @@ phase-transition penalties. Whether the 21 penalised steps fall at the same
 indices is unchecked. With the do-nothing floor at -6592.68, the reward span
 of the environment is bracketed at both ends.
 
+**The -22 optimum is seed-determined.** The ten episodes that reach it, across
+seven red agents, share two step-index templates exactly: 21 penalised steps
+under one environment seed, 22 under another, the same indices regardless of
+adversary. The cost is the green agents' scheduled activity under that seed,
+charged whether or not red acts, and no blue action avoids it. -22 is the
+floor of the penalty the environment levies on its own, not a ceiling blue
+reaches.
+
 ### An impact-focused adversary, with the defender held at deployment competence
 
 Trident (arXiv 2608.04317) trains an LLM planner via RLVR to generate red
@@ -2620,6 +2628,116 @@ the cost of routing through the agent's response; whether that cost is
 latency, incomplete follow-through, or re-compromise before response is
 recoverable from the step records and is the next analysis.
 
+### Why investigation is worth a third of substitution
+
+From `wo_O10_g32`'s step records, 6,125 executed investigations:
+
+- **Response is slow and incomplete.** KEEP recovers an investigated host at
+  roughly twice the background rate at every window (within 10 steps: 15.3
+  against 5.8 percent; within 50: 49.8 against 25.8) — but the median
+  response is 36 steps, the 90th percentile 133, and 22.4 percent are never
+  followed. Under Wrecker a rooted host converts within a handful of steps;
+  most of the response lands after the damage.
+- **Detection yield is 0.16.** Five of six investigations of a ground-truth-
+  compromised host produce no Analyse-confirmed file. A red session is not a
+  detectable artefact until red acts on the host. "Compromised" and
+  "detectable" are different sets, and investigate authority reaches only
+  their intersection.
+- **Half the budget was repeats.** 54.5 percent of investigations targeted a
+  host investigated within the previous 50 steps; the five most-investigated
+  hosts were each zone's `user_host_0`, first in the `comp` ordering. HQ's
+  `public_access_zone_subnet_user_host_0` alone took 714.
+- **Load equalised.** 1,562 / 1,192 / 1,179 / 1,099 / 1,093 across agents,
+  against 46 percent on agent_4 under substitution: the gap sets the rate
+  regardless of where the threat is.
+
+O13 rotates: least-recently-investigated compromised host first, none
+repeated within 50 steps.
+
+| Rule | Mean | Delta | Wins | Sign p | Executed/ep | Yield | Points/look |
+|---|---|---|---|---|---|---|---|
+| O10 | -988.35 | +127.30 | 66/100 | 1.8e-03 | 61.2 | 0.16 | 2.1 |
+| O13 | -960.57 | +155.08 | 71/100 | 3.2e-05 | 45.5 | 0.22 | 3.4 |
+
+Rotation raises the ceiling by 28 points with a quarter fewer looks. The
+remaining gap to substitution is attributed in order to detection yield,
+response latency, and non-response. **The investigate ceiling for a human
+condition is +155 at about 45 decisions per episode**, and the display must
+show what has been investigated and when, or a supervisor repeats O10's
+error.
+
+### The adversary axis is targeting, not conversion
+
+Two sweeps over hand-specified points in Trident's red schema, each with a
+KEEP control (`capture.py --red`) and O1 at gap 32, paired over seeds 0-99.
+
+**Conversion sweep.** Wrecker's host-state priority held fixed; the R-row
+split between rediscovery and damage varied from 0.10 to 0.95. P95 is
+Wrecker and reproduces `red_FSRedAgentWrecker` and `wo_O1_g32` to the digit.
+
+| R-row damage p | KEEP alone | O1 gap 32 | Delta | Wins | Sign p |
+|---|---|---|---|---|---|
+| 0.10 | -1061.55 | -643.17 | +418.38 | 91/100 | 3.3e-18 |
+| 0.30 | -1025.48 | -672.71 | +352.77 | 90/100 | 3.1e-17 |
+| 0.50 | -1069.08 | -640.65 | +428.43 | 90/100 | 3.1e-17 |
+| 0.70 | -1093.24 | -646.02 | +447.22 | 91/100 | 3.3e-18 |
+| 0.85 | -1081.40 | -656.84 | +424.56 | 91/100 | 3.3e-18 |
+| 0.95 (Wrecker) | -1115.65 | -663.38 | +452.27 | 95/100 | 1.2e-22 |
+
+Flat. Ninety points of variation in KEEP's score across a tenfold range of
+damage probability, and supervision worth +350 to +450 at every point. The
+RD row — root and discovered — admits only Impact, Degrade and Withdraw in
+this schema, and Wrecker never withdraws, so a host that reaches RD is
+damaged on every subsequent action regardless of the R-row split. Conversion
+is saturated by the schema; the R-row is not a lever.
+
+**The off-axis point.** `FSRedAgentConvOnly` keeps Wrecker's transitions and
+drops the priority list, so red chooses uniformly among reachable hosts as
+the stock agent does (`FiniteStateRedAgent._choose_host`, `None` branch).
+
+| Red | Targeting | KEEP alone | O1 gap 32 | Delta | Wins | Sign p |
+|---|---|---|---|---|---|---|
+| FiniteStateRedAgent | uniform | -187.32 | -203.42 | -16.10 | 39/100 | 0.035 |
+| ConvOnly | uniform, Wrecker transitions | -316.62 | -268.19 | +48.43 | 63/100 | 0.012 |
+| Wrecker | 64% on R/RD, Wrecker transitions | -1115.65 | -663.38 | +452.27 | 95/100 | 1.2e-22 |
+
+Removing the priority and keeping the transitions costs KEEP 130 points
+against the stock red, not 930, and reduces the supervisory gain from +452
+to +48. **Of Wrecker's effect, roughly six-sevenths is targeting — red
+returning its attention to hosts it has already rooted — and the supervisory
+value follows the targeting.** With a priority list, red chooses a host
+state with the listed weights renormalised over the states currently present,
+then a host within that state; without one, it picks uniformly, so its share
+of actions on rooted hosts is whatever fraction of its known hosts happen to
+be rooted.
+
+**Priority sweep.** Wrecker's transitions held fixed; R/RD priority mass at
+4, 16, 32, 48 and 64 of 100, the remainder in Wrecker's proportions over the
+other six states. Win rates climb monotonically 63, 71, 80, 81, 93, 95.
+
+| R/RD mass | KEEP alone | O1 gap 32 | Delta | Wins | Sign p | Delta / excess |
+|---|---|---|---|---|---|---|
+| uniform (ConvOnly) | -316.62 | -268.19 | +48.43 | 63/100 | 0.012 | 0.37 |
+| 4 | -325.11 | -250.60 | +74.51 | 71/100 | 3.2e-05 | 0.54 |
+| 16 | -539.17 | -376.15 | +163.02 | 80/100 | 1.1e-09 | 0.46 |
+| 32 | -773.08 | -510.80 | +262.28 | 81/100 | 2.7e-10 | 0.45 |
+| 48 | -928.16 | -579.43 | +348.73 | 93/100 | 2.7e-20 | 0.47 |
+| 64 (Wrecker) | -1115.65 | -663.38 | +452.27 | 95/100 | 1.2e-22 | 0.49 |
+
+KEEP's score and the supervisory gain are both close to linear in the
+priority mass red places on rooted hosts: about -13 points of KEEP score and
++6 points of gain per point of mass. Expressed against KEEP's excess loss
+over the stock red, substitution at gap 32 recovers 45 to 54 percent of what
+the adversary's targeting costs at every point from 4 to 64. There is no
+threshold. **The value of a supervisor is continuous in how much attention
+the adversary pays to what it already holds, and it is near zero only where
+that attention is near zero.** ConvOnly's null seed (-301.66 against
+-316.62, +14.96, 51 wins of 100) puts the band at that difficulty near +/-15, so its +48 is the
+bottom of the curve, not off it.
+
+This is the adversary axis for the human study: the stock red is the origin,
+Wrecker is the far end, and the intermediate points are one line each.
+
 ### Consequences
 
 **The earlier bound was conditional, and the condition was the adversary.**
@@ -2644,10 +2762,19 @@ host-steps. The signal is truth-grade and starved, because nothing points the
 sensor.
 
 **Authority orders as targeting does.** Naming the target, +452; naming where
-to look, +127; naming only the verb, +28 and inside noise. Investigation
-succeeds without any recovery authority because the agent acts on evidence it
-did not request. That is the deployable supervisory role, and it has a
-measured ceiling.
+to look, +155 with rotation (+127 without); naming only the verb, +28 and
+inside noise. Investigation succeeds without any recovery authority because
+the agent acts on evidence it did not request — slowly (median 36 steps),
+incompletely (22 percent never), and only where Analyse can find something
+(detection yield 0.16 to 0.22). That is the deployable supervisory role, and
+it has a measured ceiling.
+
+**The adversary axis is targeting.** Conversion is saturated by the schema
+and its sweep is flat. Supervisory value is linear in the priority mass red
+places on hosts it has already rooted, from +48 at uniform targeting to +452
+at Wrecker, recovering about half of the targeting-induced loss at every
+point. There is no threshold; the stock red is the origin of the axis, not
+an exception to it.
 
 **Both published recovery-precision criteria are non-measures.** Ground truth
 punishes a good policy; evidence is 1.2x chance.
@@ -2658,7 +2785,7 @@ objection.
 
 **The study is specified.** Converged defender, impact-focused adversary,
 spread intervention, two authority conditions with oracle ceilings (+452
-substitute, +127 investigate, both near 55 to 60 decisions per episode), a
-noise band of +/-81, paired design over fixed seeds, and a decision type —
+substitute at 52 decisions per episode, +155 investigate at 45), a noise
+band of +/-81, paired design over fixed seeds, and a decision type —
 prompt an idle agent — that is vigilance rather than diagnosis. A human at
 that gate is the experiment.

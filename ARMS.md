@@ -13,8 +13,11 @@ per-agent and step rewards, cumulative reward.
 rewards, and footer `overrides` / `agreements` / `translator_calls`. From
 2026-09-15 the header also carries `harness_sha`, `machine`, `red_agent` and
 `min_gap`; the step record carries `overrides` as `[[agent, from, to], ...]`;
-and the footer carries `latch_tp/fp/fn/own` (evidence rules), `deferred`
-(gap), and `analyses` / `restores` (O10/O12, attempts not executions).
+and the footer carries `latch_tp/fp/fn/own` and `flags_new` (evidence rules),
+`deferred` (gap), and executed-override counts by type `analyses` /
+`restores` / `removes` / `sleeps`. From commit `d974f69` the header also
+carries `workers`. Arms between `dd22fff` and `d974f69` report `analyses` /
+`restores` as attempts; see Known issues.
 
 Neither is a superset of the other. Schema B lacks Tier-3 ground truth; Schema A
 lacks `red_action`. Neither logs the counterfactual. See RESULTS.md,
@@ -169,6 +172,7 @@ used only where stated:
 | `O10` | Investigate. `Analyse` a ground-truth-compromised host that is not strictly flagged. Never issues a recovery action; KEEP does the recovering. |
 | `O11` | Constrain. When a compromised host exists, force `Restore`/`Remove` but take the host from the argmax of KEEP's own action distribution over those two verbs (cached from `agent.actor(*state).probs`). Truth decides whether, KEEP decides where. |
 | `O12` | O2s restore if a strictly-flagged host exists, else O10 investigate. |
+| `O13` | As O10, rotating: least-recently-investigated compromised host first, none repeated within 50 steps. |
 
 **Scheduling** — `--min-gap N` (any rule): an override is discarded, and
 booked as `deferred`, if the same agent overrode within its last N steps.
@@ -329,9 +333,10 @@ transparent.
 `red_FSRedAgentTargetA` was captured serially after a segfault under parallel
 capture.
 
-Seven arms share a maximum of exactly -22, reached by one or two episodes
-each, always with the same step-reward composition (478 x 0, 20 x -1, 1 x -2).
-A fixed penalty structure no blue action avoids; step indices unchecked.
+Seven arms share a maximum of exactly -22. It is reached only by environment
+seeds 90 (seven arms) and 92 (three arms), each with fixed penalised step
+indices regardless of adversary (21 and 22 steps; composition 478 x 0,
+20 x -1, 1 x -2). A seed-fixed green-activity cost no blue action avoids.
 
 Seven of the ten non-default agents make blue's task easier, five by 60 to 89
 points. Only the action-biased agents (Degrader, Impacter, FailureTracker) hurt
@@ -341,6 +346,14 @@ impacts, so biasing toward those actions is what moves it.
 
 These agents carry a compounding bug in `_choose_host_and_action`
 (`host_action_options[opt] *= 4` inside a loop); numbers are as-shipped.
+
+**The -22 optimum is seed-determined.** The ten episodes that reach it, across
+seven red agents, share two step-index templates exactly: 21 penalised steps
+under one environment seed, 22 under another, the same indices regardless of
+adversary. The cost is the green agents' scheduled activity under that seed,
+charged whether or not red acts, and no blue action avoids it. -22 is the
+floor of the penalty the environment levies on its own, not a ceiling blue
+reaches.
 
 ### Wrecker
 
@@ -385,6 +398,11 @@ adversary; the defender is unchanged and at deployment competence.
 | `wo_O10_g32` | KEEP sampled | unset | O10, gap 32 | 99999 | -988.35 | 276.10 | 61.2 | 9.6 |
 | `wo_O11_g32` | KEEP sampled | unset | O11, gap 32 | 99999 | -1087.58 | 328.71 | 58.7 | 51.0 |
 | `wo_O12_g32` | KEEP sampled | unset | O12, gap 32 | 99999 | -989.90 | 289.54 | 61.5 | 3.8 |
+| `wo_O13_g32` | KEEP sampled | unset | O13, gap 32 | 99999 | -960.57 | 261.47 | 45.5 | 9.5 |
+| `wo_O10_g32y` | KEEP sampled | unset | O10, gap 32 | 99999 | -988.35 | 276.10 | 61.2 | 9.6 |
+
+`wo_O10_g32y` reproduces `wo_O10_g32` on all 100 footers and adds the
+`flags_new` field (detection yield 0.16 per investigation; O13, 0.22).
 
 `wo_O2` is byte-identical to `wo_O2_b99999` and `wo_O2_b77_g32` to
 `wo_O2_g32` (the gap never lets the count reach 77); both redundant.
@@ -419,6 +437,35 @@ KEEP's action mix under Wrecker is within one percentage point of `corpus_v1`
 on every action, same rank order. Wrecker leaves fewer hosts compromised (26.3
 of 97 at step 400, against 32.1).
 
+### Conversion and priority sweeps
+
+Generated from `FSRedAgentWrecker` by `tools_gen_conversion_sweep.py` (P:
+Wrecker priority, R-row damage probability varied; `ConvOnly`: Wrecker
+transitions, no priority list) and `tools_gen_priority_sweep.py` (Q: Wrecker
+transitions, R/RD priority mass varied, remainder in Wrecker's proportions).
+Each point has a KEEP control (`capture.py --red`, Schema A, 12 workers) and
+an O1 arm at gap 32 (`oracle.py`, Schema B, 6 workers). P95 reproduces
+`red_FSRedAgentWrecker` and `wo_O1_g32` to the digit.
+
+| Control directory | Oracle directory | Red agent | KEEP | O1 gap 32 | Delta | Wins |
+|---|---|---|---|---|---|---|
+| `red_FSRedAgentWreckerP10` | `o1_g32_FSRedAgentWreckerP10` | P10 | -1061.55 | -643.17 | +418.38 | 91/100 |
+| `red_FSRedAgentWreckerP30` | `o1_g32_FSRedAgentWreckerP30` | P30 | -1025.48 | -672.71 | +352.77 | 90/100 |
+| `red_FSRedAgentWreckerP50` | `o1_g32_FSRedAgentWreckerP50` | P50 | -1069.08 | -640.65 | +428.43 | 90/100 |
+| `red_FSRedAgentWreckerP70` | `o1_g32_FSRedAgentWreckerP70` | P70 | -1093.24 | -646.02 | +447.22 | 91/100 |
+| `red_FSRedAgentWreckerP85` | `o1_g32_FSRedAgentWreckerP85` | P85 | -1081.40 | -656.84 | +424.56 | 91/100 |
+| `red_FSRedAgentWreckerP95` | `o1_g32_FSRedAgentWreckerP95` | P95 (= Wrecker) | -1115.65 | -663.38 | +452.27 | 95/100 |
+| `red_FSRedAgentConvOnly` | `o1_g32_FSRedAgentConvOnly` | ConvOnly | -316.62 | -268.19 | +48.43 | 63/100 |
+| `red_FSRedAgentConvOnly_null9000` | | ConvOnly, policy_seed 9000 | -301.66 | | +14.96 vs control | 51/100 |
+| `red_FSRedAgentWreckerQ04` | `o1_g32_FSRedAgentWreckerQ04` | Q04 | -325.11 | -250.60 | +74.51 | 71/100 |
+| `red_FSRedAgentWreckerQ16` | `o1_g32_FSRedAgentWreckerQ16` | Q16 | -539.17 | -376.15 | +163.02 | 80/100 |
+| `red_FSRedAgentWreckerQ32` | `o1_g32_FSRedAgentWreckerQ32` | Q32 | -773.08 | -510.80 | +262.28 | 81/100 |
+| `red_FSRedAgentWreckerQ48` | `o1_g32_FSRedAgentWreckerQ48` | Q48 | -928.16 | -579.43 | +348.73 | 93/100 |
+
+Q64 is Wrecker. Stdevs for the control arms are in the footers; the O1 arms:
+P10 155.12, P30 199.10, P50 147.04, P70 165.91, P85 203.96, ConvOnly 81.52,
+Q04 75.73, Q16 102.11, Q32 128.44, Q48 148.02.
+
 ---
 
 ## Known issues
@@ -444,17 +491,18 @@ of 97 at step 400, against 32.1).
   (`hmarl_expert_output`); -131.35 is the four-seed grand mean (`hmarl_s0`-`s3`);
   -124.11 is seed 0 alone, used in the Wrecker comparison because that run is
   seed 0. Cite the grand mean.
-- **Attempts versus executions.** Footer `analyses` and `restores` (O10/O12)
-  count rule attempts before the gap wrapper decides; executed counts are
-  `overrides`, and per-type executed counts come from the step records'
-  `overrides` field. Fix pending: move the increments into the wrapper.
-- **Duplicate header key.** The header literal names `red_agent` twice
-  (`_rc.__name__` and the `red_agent` string); Python keeps the last, both are
-  the same value. Harmless; remove one.
+- **Attempts versus executions — resolved at `d974f69`.** Before that commit,
+  footer `analyses` / `restores` (O10/O12) counted rule attempts; `wo_O10_g32`
+  and `wo_O12_g32` carry attempt counts (1,726 and 1,751 per episode) and the
+  executed figures are `overrides`. From `d974f69` the footer counts executed
+  overrides by type.
+- **Duplicate header key — resolved at `d974f69`.**
 - **Token-based idempotency checks.** `tools_add_*.py` scripts that test for a
   string (e.g. `"O11"` in the source) rather than for the code they guard will
   skip silently once the token exists for another reason — this cost one
   launch on 2026-09-16. Test for the code (`rule == "O11"`).
-- **Worker count not recorded.** No arm records `--workers`. The Wrecker
-  oracle-rule arms (`wo_O8`, `wo_O6`, `wo_O5`, `wo_O2*` budget series) ran at
+- **Worker count not recorded before `d974f69`.** The Wrecker oracle-rule
+  arms (`wo_O8`, `wo_O6`, `wo_O5`, the `wo_O2*` budget series) ran at six or
+  twelve; which is not recoverable. The header carries `workers` from
+  `d974f69`.
   six or twelve; which is not recoverable. Header field pending.
