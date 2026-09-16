@@ -128,6 +128,11 @@ and is harmless.
 
 ## Results
 
+**Adversary scope.** Every measurement in this file up to the section "The
+adversary determines whether supervision helps" is against
+`FiniteStateRedAgent`, the stock CC4 red agent, which selects hosts at random.
+Sections from that point on name their adversary explicitly.
+
 Published KEEP score is -193.68, fifth on the final CAGE 4 leaderboard. The
 paper does not state which action selection mode produced it.
 
@@ -2125,6 +2130,7 @@ the size of the published submission under a row cited as "GNN (King et al.
 2025)".
 
 ## The adversary determines whether supervision helps
+From this section on, the adversary is stated per table.
 
 Every oracle result recorded above was measured against `FiniteStateRedAgent`,
 the stock CC4 red agent that selects hosts at random. That condition was never
