@@ -240,6 +240,11 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
                 ecomp = sorted(live, key=lambda h: live[h][0])       # oldest flag first
             else:
                 ecomp = sorted(live, key=lambda h: -live[h][1])      # most recently seen first
+            _gt = {c[0] for c in comp}; _ev = set(ecomp)
+            stats["tp"] = stats.get("tp", 0) + len(_gt & _ev)
+            stats["fp"] = stats.get("fp", 0) + len(_ev - _gt)
+            stats["fn"] = stats.get("fn", 0) + len(_gt - _ev)
+            stats["own"] = stats.get("own", 0) + len(own)
             acting_on = getattr(act, "hostname", None)
             if type(act).__name__ in ("Restore", "Remove") and acting_on in ecomp:
                 stats["agree"] += 1
@@ -380,6 +385,8 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "record": "footer", "episode": ep, "steps": step + 1,
             "total_reward": total, "overrides": stats["override"], "translator_calls": stats["calls"],
             "agreements": stats["agree"],
+            "latch_tp": stats.get("tp", 0), "latch_fp": stats.get("fp", 0),
+            "latch_fn": stats.get("fn", 0), "latch_own": stats.get("own", 0),
             "wall_seconds": round(time.time() - t0, 2),
         }) + "\n")
 
