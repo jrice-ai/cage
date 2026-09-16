@@ -2167,6 +2167,45 @@ Every oracle result recorded above was measured against `FiniteStateRedAgent`,
 the stock CC4 red agent that selects hosts at random. That condition was never
 stated as a scope limit. It should have been.
 
+### Twelve heuristic red agents
+
+Trident's Appendix B ships twelve heuristic red agents used only to generate
+training trajectories; none has a published score. Captured with
+`capture.py --red`, 100 episodes each, KEEP sampled, seeds 0-99.
+
+| Red agent | Mean | Stdev | Min | Max |
+|---|---|---|---|---|
+| FiniteStateRedAgent (control) | -187.32 | 61.24 | -527 | -113 |
+| TargetARestricted | -98.52 | 48.61 | -228 | -22 |
+| TargetAOperational | -99.89 | 55.40 | -415 | -22 |
+| TargetA | -104.18 | 55.60 | -315 | -22 |
+| TargetB | -116.25 | 54.19 | -262 | -22 |
+| TargetBRestricted | -117.93 | 63.29 | -488 | -22 |
+| TargetBOperational | -127.31 | 88.17 | -607 | -22 |
+| Combined | -165.87 | 84.76 | -523 | -22 |
+| FailureTracker | -205.66 | 90.26 | -755 | -99 |
+| Impacter | -228.73 | 129.53 | -608 | -70 |
+| Degrader | -268.80 | 122.38 | -852 | -120 |
+
+Seven of ten make blue's task easier, five by 60 to 89 points: focusing red
+on one zone stops it exploring. Only the action-biased agents hurt, and
+Impacter doubles between-episode variance for 41 points. Red holding sessions
+costs nothing; only Impact and DegradeServices move the reward. That is the
+reward-function reading confirmed from the other side of the board, and it is
+what Wrecker is built on. `red_FiniteStateRedAgent` reproduces `corpus_v1`
+exactly, so the `--red` path is transparent. The agents carry a compounding
+bug in `_choose_host_and_action` (`host_action_options[opt] *= 4` inside a
+loop); numbers are as-shipped.
+
+**The -22 optimum is a fixed penalty structure.** Seven arms share a maximum
+of exactly -22. It is reached by one or two episodes per arm, never more, and
+every such episode has the same step-reward composition: 478 steps at 0,
+twenty at -1, one at -2. Identical structure across six different red agents
+means a cost no blue action avoids, most likely the seeded initial foothold or
+phase-transition penalties. Whether the 21 penalised steps fall at the same
+indices is unchecked. With the do-nothing floor at -6592.68, the reward span
+of the environment is bracketed at both ends.
+
 ### An impact-focused adversary, with the defender held at deployment competence
 
 Trident (arXiv 2608.04317) trains an LLM planner via RLVR to generate red
@@ -2305,56 +2344,321 @@ person could sustain and agrees with KEEP more often than it overrides.
 
 ### O2 budget sweep under Wrecker
 
-| Budget | Mean | Delta | Stdev | Overrides/ep | Agreements/ep |
+`--budget k` stops the rule after its k-th override in each episode. Wins are
+paired over environment seeds 0-99; sign test two-sided exact binomial.
+
+| Budget | Mean | Delta | Stdev | Wins | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|---|---|
+| 0 (KEEP) | -1115.65 | reference | 272.91 | | 0 | |
+| 10 | -1093.77 | +21.88 | 357.78 | 55/100 | 10.0 | 62.2 |
+| 20 | -1012.49 | +103.16 | 345.35 | 64/100 | 20.0 | 59.1 |
+| 40 | -958.31 | +157.34 | 315.42 | 68/100 | 40.0 | 55.3 |
+| 77 | -874.27 | +241.38 | 280.66 | 74/100 | 77.0 | 49.3 |
+| 150 | -767.85 | +347.80 | 211.17 | 86/100 | 150.0 | 34.6 |
+| 300 | -628.50 | +487.15 | 102.43 | 97/100 | 299.6 | 12.3 |
+| unbounded | -654.88 | +460.77 | 69.86 | 100/100 | 403.8 | 1.1 |
+
+Budget 10 is inside the null band (55 wins, p 0.37); budget 20 is the first
+to clear it (p 0.007). Gain is monotonic to budget 300, then reverses slightly.
+
+**A budget is not a rate.** Logging each override's proposed and executed
+action showed that 7,690 of the 7,700 overrides at budget 77 fall in mission
+phase 0, and 99 percent before step 150. The rule spends its budget on the
+first k eligible steps, so every row above is a burst at the start of the
+episode followed by silence. The sweep confounds how many interventions with
+when they happen, and the earlier claim that budget 77 was "the sustainable
+human decision rate" described a rate of one intervention every two steps for
+the opening fifth of the episode and none thereafter.
+
+### What the override replaces
+
+Every override at budget 77 under Wrecker, logged as (proposed, executed)
+after the step record gained an `overrides` field. `wo_O2_b77x` reproduces
+`wo_O2_b77` on all 100 footers; the field changes nothing.
+
+| KEEP proposed | Oracle executed | Count | Share |
+|---|---|---|---|
+| Monitor (idle) | Restore | 6,357 | 82.6% |
+| AllowTrafficZone | Restore | 563 | 7.3% |
+| Analyse | Restore | 197 | 2.6% |
+| DeployDecoy | Restore | 178 | 2.3% |
+| Remove | Restore | 151 | 2.0% |
+| BlockTrafficZone | Restore | 129 | 1.7% |
+| Restore (other host) | Restore | 125 | 1.6% |
+
+Same host, different action: 27 of 7,700 (0.4 percent). blue_agent_4, the HQ
+network and red's entry point, receives 3,559 of 7,700 (46 percent); the other
+four split the rest evenly. By step: 20 percent in steps 0-24, 25 percent in
+25-49, 26 percent in 50-74, 18 percent in 75-99, and 7 percent in 100-124;
+nothing after step 199.
+
+The gate decision is not "wrong target" but "act now": the agent is idle while
+a compromised host sits in its subnet. The supervisory task is vigilance, not
+diagnosis. Load is not uniform across agents, which any fan-out design has to
+reflect. And the budget-77 condition as run is a phase-0 burst, which the
+spread sweep below separates from count.
+
+### Rate, not count: the spread sweep
+
+`--min-gap N` enforces at least N steps between overrides by the same agent,
+budget released, so intervention rate is set by the gap alone and spread over
+the whole episode.
+
+| Gap | Overrides/ep | Mean | Delta | Stdev | Wins | Sign p | Points/override | Agreements/ep |
+|---|---|---|---|---|---|---|---|---|
+| 2 | 277.4 | -539.45 | +576.20 | 69.55 | 100/100 | 1.6e-30 | 2.1 | 3.0 |
+| 4 | 187.9 | -466.01 | +649.64 | 62.37 | 100/100 | 1.6e-30 | 3.5 | 6.0 |
+| 8 | 110.1 | -457.77 | +657.88 | 97.61 | 100/100 | 1.6e-30 | 6.0 | 11.6 |
+| 16 | 80.6 | -572.78 | +542.87 | 137.12 | 99/100 | 1.6e-28 | 6.7 | 25.4 |
+| 32 | 52.7 | -680.42 | +435.23 | 158.46 | 93/100 | 2.7e-20 | 8.3 | 37.7 |
+| 64 | 32.0 | -797.25 | +318.40 | 229.27 | 82/100 | 6.2e-11 | 9.9 | 47.3 |
+| 128 | 18.1 | -889.95 | +225.70 | 255.82 | 73/100 | 4.7e-06 | 12.5 | 55.3 |
+| unbounded | 403.8 | -654.88 | +460.77 | 69.86 | 100/100 | 1.6e-30 | 1.1 | 1.1 |
+
+Three things the budget sweep could not show.
+
+**Timing is worth more than count.** Eighteen interventions spread across the
+episode (gap 128) match seventy-seven concentrated in its opening (budget 77):
+-889.95 against -874.27. Fifty-three spread (gap 32) beat the burst by 194
+points with a third fewer interventions, and halve its standard deviation.
+The burst restored hosts that Wrecker re-rooted within the phase and then
+left the defender alone for 350 steps.
+
+**The rate-return curve has an interior maximum.** Spread intervention at 110
+per episode (gap 8) exceeds the unbounded rule at 404 per episode by 197
+points. The maximum is a plateau: gaps 4 and 8 (188 and 110 per episode)
+differ by 8 points, within noise, and the decline from there is monotonic —
++576 at 277 per episode, +461 at 404. Constant substitution displaces the
+policy's own actions and restores hosts before they have converted; periodic
+substitution does not. This is the inverted-U that the budget sweep did not
+produce, in the variable — rate — where the supervision literature predicts
+it.
+
+**Scheduling does not create value where there is none.** O2 at gap 32 under
+the default red scores -203.42 against KEEP's -187.32: delta -16, 39 wins of
+100, sign p 0.035. The mean sits at the edge of the default-red null band (-11
+to +15) and the win rate inside its null range (35 to 66 of 100). Spreading
+removes nearly all of the harm the burst rules did there (unbounded O2: -336,
+1 win of 100) and produces no gain. Schedule changes how much supervision
+helps where the adversary makes it helpful; it does not change whether. The
+adversary finding stands with schedule controlled.
+
+**Marginal value per decision falls with rate**, from 12.5 points at 18 per
+episode to 6.0 at 110. The fewer decisions a supervisor makes, the more each
+is worth, provided they are spread.
+
+**Consequence for the human condition.** The ceiling is a curve indexed by
+sustainable rate, not a single number. A participant who can hold 32 decisions
+per episode — one every sixteen steps across five agents — is scored against
++318; one who holds 18 is scored against +226; the noise band is ±81 in both
+cases. Realized fraction is reported against the ceiling at the participant's
+own rate.
+
+### Paired test over fixed environments
+
+Every Wrecker arm shares environment seeds 0-99 with the control, so each
+episode is a paired comparison. Wins are episodes where the arm scored higher
+than KEEP alone; the sign test is two-sided exact binomial.
+
+| Arm | Delta | Wins | Sign p | Paired t |
+|---|---|---|---|---|
+| null, policy_seed 9000 | -80.70 | 45/100 | 0.37 | -2.05 |
+| null, policy_seed 9001 | +8.60 | 51/100 | 0.92 | +0.21 |
+| O2, budget 10 | +21.88 | 55/100 | 0.37 | +0.55 |
+| O2, budget 20 | +103.16 | 64/100 | 0.0066 | +2.38 |
+| O2, budget 40 | +157.34 | 68/100 | 0.00041 | +4.11 |
+| **O2, budget 77** | **+241.38** | **74/100** | **1.7e-06** | **+6.09** |
+| O2, budget 150 | +347.80 | 86/100 | 8.3e-14 | +10.16 |
+| O2, budget 300 | +487.15 | 97/100 | 2.6e-25 | +17.18 |
+| O2, unbounded | +460.77 | 100/100 | 1.6e-30 | +17.03 |
+| O5, budget 77 | +101.76 | 61/100 | 0.035 | +2.40 |
+| O6 | -180.82 | 38/100 | 0.021 | -3.11 |
+| O8 | -280.77 | 32/100 | 0.00041 | -4.69 |
+| O2e, budget 77 | -54.40 | 45/100 | 0.37 | -1.25 |
+| O2er, budget 77 | -86.37 | 48/100 | 0.76 | -1.89 |
+| O2ew, budget 77 | -69.28 | 52/100 | 0.76 | -1.48 |
+| O2e, unbounded | -80.25 | 40/100 | 0.057 | -2.18 |
+
+An identical policy reaches |t| = 2.05 by sampling seed alone, so the paired
+t overstates; the sign test is the statistic reported. Win rate is monotonic
+in budget. Budget 10 is inside the null; budget 20 is the first to clear it,
+which sets the minimum detectable intervention rate near 20 decisions per
+episode. All three evidence rules at budget 77 are indistinguishable from the
+null arms.
+
+### Observable evidence does not recover the ground-truth gain
+
+O2e is O2 with the compromised set replaced by the latched evidence criterion
+from "Two criteria, two answers": a host is a candidate if a substantive raw
+observation has named it since its last Restore or Remove. Two further
+variants rule out ordering as the cause: O2er takes the most recently observed
+host first; O2ew additionally expires a flag 30 steps after the last
+observation naming the host.
+
+| Rule | Criterion | Ordering | Budget | Mean | Stdev | Delta | Overrides/ep | Agreements/ep |
+|---|---|---|---|---|---|---|---|---|
+| O2 | ground truth | first compromised | 77 | -874.27 | 280.66 | +241.38 | 77.0 | 49.3 |
+| O2e | evidence | oldest flag | 77 | -1170.05 | 341.22 | -54.40 | 77.0 | 106.4 |
+| O2er | evidence | most recent | 77 | -1202.02 | 335.55 | -86.37 | 77.0 | 106.4 |
+| O2ew | evidence | most recent, 30-step window | 77 | -1184.93 | 348.62 | -69.28 | 77.0 | 63.9 |
+| O2 | ground truth | first compromised | unbounded | -654.88 | 69.86 | +460.77 | 403.8 | 1.1 |
+| O2e | evidence | oldest flag | unbounded | -1195.90 | 228.23 | -80.25 | 347.4 | 9.3 |
+
+All evidence arms are inside the noise band on the wrong side, within 32
+points of one another. Ordering and expiry do not matter. The evidence rule
+agrees with KEEP twice as often as the ground-truth rule does at the same
+budget: the policy already acts on the observable signal, and an oracle
+limited to that signal has nothing to add.
+
+Under the default red, `o2e_b77` scores -256.48 against ground-truth O5 at the
+same budget at -246.05. Where no criterion helps, both cost the same.
+
+**A supervisor reading the observation stream cannot beat KEEP under Wrecker,
+however the stream is ordered or aged. The ground-truth gain is carried by the
+difference between the compromised set and the flagged set.** Whether that
+difference is a recall gap (compromised hosts unflagged) or a precision gap
+(flagged set too broad) is not yet measured, and the two have opposite
+consequences: the first calls for an investigate authority that generates
+evidence; the second for a representation that discriminates within it.
+
+### The evidence latch is uninformative
+
+Confusion between the latched evidence set and ground truth, per agent-host-
+step, 20 episodes of O2e at budget 77 under each adversary:
+
+| Adversary | Precision | Recall | Flagged/step | Compromised/step | Lift |
 |---|---|---|---|---|---|
-| 0 (KEEP) | -1115.65 | reference | 272.91 | 0 | |
-| 10 | -1093.77 | +21.88 | 357.78 | 10.0 | 62.2 |
-| 20 | -1012.49 | +103.16 | 345.35 | 20.0 | 59.1 |
-| 40 | -958.31 | +157.34 | 315.42 | 40.0 | 55.3 |
-| **77** | **-874.27** | **+241.38** | 280.66 | 77.0 | 49.3 |
-| 150 | -767.85 | +347.80 | 211.17 | 150.0 | 34.6 |
-| 300 | -628.50 | +487.15 | 102.43 | 299.6 | 12.3 |
-| unbounded | -654.88 | +460.77 | 69.86 | 403.8 | 1.1 |
+| Wrecker | 0.245 | 0.584 | 48.5% | 20.4% | 1.2x |
+| FiniteStateRedAgent | 0.237 | 0.611 | 52.3% | 20.3% | 1.2x |
 
-Monotonic gain to budget 300, then a slight reversal. The final hundred
-overrides are net harmful, though the 26-point difference may be within noise
-at n=100. Every budget from 20 up clears the null band.
+The latch marks half the network and is 1.2x better than chance at
+identifying the compromised fifth. Forty percent of compromised hosts are never
+flagged. The adversary does not change any of this to within a few points:
+Wrecker changes what compromise costs, not what it looks like.
 
-**Budget 77 delivers 52 percent of the maximum gain at 19 percent of the
-intervention rate**, at the sustainable human decision rate established earlier
-in this file.
+This retires the evidence criterion as a recovery-quality metric. KEEP's 69.8
+percent evidence-precision, reported above, is a 1.4x lift over a 50 percent
+flag rate. Neither published criterion measures what it claims to.
+
+It also locates the supervisory problem. The observation stream is alert-
+shaped and half the alerts are noise; the ground-truth oracle's +241 is the
+value of triage done perfectly. A supervisor reading the same stream as the
+agents cannot do that triage, because the stream does not support it. Whatever
+the interface supplies has to come from outside the per-agent observation:
+the view across agents, a stricter reading of indicators, or the authority to
+generate evidence by directing investigation. Each is one arm.
+
+### The active stream is precise and starved
+
+Feature-level precision against ground truth over 20 `corpus_v1` episodes:
+Monitor-type host entries (97 percent of all entries) 0.23, chance;
+Analyse-produced Files entries 0.84; Files with Density 0.9, 0.88.
+
+O2s flags a host only on an Analyse-confirmed file (Density >= 0.9), most
+recent first, spread at gap 32.
+
+| Adversary | Mean | Delta | Overrides/ep | Latch precision | Latch recall | Points/override |
+|---|---|---|---|---|---|---|
+| Wrecker | -1059.73 | +55.92 | 4.5 | 0.967 | 0.001 | 12.4 |
+| FiniteStateRedAgent | -186.79 | +0.53 | 5.1 | 0.926 | 0.001 | - |
+
+The strict signal is as good as ground truth where it exists and exists
+almost nowhere. Each strict-evidence intervention under Wrecker is worth what
+a ground-truth intervention is worth at the same low rate (12.5 at gap 128);
+the gain is bounded by supply, not quality. The observation stream can
+support supervision; the defender does not generate the observations that
+would let it. Whether directing investigation closes that gap is the next arm.
+
+### The authority ladder
+
+Five supervisory authorities, each a rule on the same harness, all spread at
+gap 32 under Wrecker on environment seeds 0-99. Ground truth is used only
+where stated.
+
+| Authority | Rule | Truth used for | Mean | Delta | Wins | Sign p | Executed/ep |
+|---|---|---|---|---|---|---|---|
+| Substitute | O1 | the target host | -663.38 | +452.27 | 95/100 | 1.2e-22 | 52.3 |
+| Investigate | O10 | where to look | -988.35 | +127.30 | 66/100 | 1.8e-03 | 61.2 |
+| Investigate, then restore on confirmation | O12 | where to look | -989.90 | +125.75 | 67/100 | 8.7e-04 | 61.5 |
+| Constrain the verb, KEEP picks the host | O11 | whether to act | -1087.58 | +28.07 | 53/100 | 0.62 | 58.7 |
+| Read strict evidence | O2s | nothing | -1059.73 | +55.92 | 53/100 | 0.62 | 4.5 |
+| Read passive evidence | O2e | nothing | -1170.05 | -54.40 | 45/100 | 0.37 | 77.0 |
+
+O1 is reported rather than O2 because the two are indistinguishable under
+Wrecker: paired directly at gap 32, O1 - O2 is +17.04 with O1 winning 49 of
+100 (sign p 0.92). O2's conditional preserves 37.7 of KEEP's own recovery
+actions per episode and changes nothing measurable.
+
+**Naming the target is worth +452. Naming where to look is worth +127.
+Naming only the verb is worth nothing.** The three tiers order the
+supervisory authorities by how much of the targeting problem the supervisor
+takes on. A constraint that leaves targeting to the agent fails because the
+agent's targeting is the deficit (Restore precision against compromise, 0.2
+percent). An investigation that generates evidence on the right host
+succeeds without any recovery authority: KEEP acts on Analyse-confirmed
+files it did not request, and adding an explicit restore-on-confirmation
+step (O12) changes nothing, because the agent has already acted by the time
+the confirmation exists.
+
+The strict latch's recall rises from 0.001 (O2s) to 0.019 under O10. The
+figure is low because a Restore clears the flag; low recall under
+investigation is evidence of follow-through, not of failure.
+
+The footer's `analyses` and `restores` counts for O10 and O12 record
+attempts (1,726 and 1,751 per episode), not executions, because the rule
+increments them before the gap wrapper decides; executed counts (61.2 and
+61.5) are the `overrides` figure and the step records' `overrides` field.
+
+Against the default red, O10 scores -179.75 (+7.6), inside the null band.
+No authority helps there.
+
+**Consequence.** The investigate authority is the deployable supervisory
+role: it needs no ground truth at the point of action, never overrides a
+recovery decision, and has a measured ceiling of +127 at 61 decisions per
+episode against a noise band of +/-81. The 325-point gap to substitution is
+the cost of routing through the agent's response; whether that cost is
+latency, incomplete follow-through, or re-compromise before response is
+recoverable from the step records and is the next analysis.
 
 ### Consequences
 
-**The earlier bound was conditional and the condition was not stated.** Nine
-rules and a seven-point dose-response established that supervision through
-action substitution loses monotonically to a converged policy. That holds
-against `FiniteStateRedAgent` and reverses against a damage-focused adversary.
-The correct statement is that the same rule is worth -333 or +241 points
-depending on what red is doing.
+**The earlier bound was conditional, and the condition was the adversary.**
+Nine rules and a budget sweep established that action substitution loses to a
+converged policy against `FiniteStateRedAgent` at every rate and schedule. The
+same rule wins on 95 to 100 of 100 paired episodes against an impact-focused
+adversary. Nothing tried — information, schedule, authority — creates value
+against the default red; the adversary's conversion of compromise to damage is
+the variable that sets the sign.
 
-**Compromise ground truth is a valid correctness criterion under some
-adversaries and not others.** Against the default red agent, KEEP restores
-compromised hosts 0.2 percent of the time. Under Wrecker, with *fewer* hosts
-compromised, the budget-10 rule and KEEP coincide 62 times per episode. The
-default-red figure at the same budget is unmeasured, so whether KEEP's own
-targeting shifts toward compromise under Wrecker, or the low-intervention
-trajectory simply stays in states where the two agree, is not yet separable.
-Agreements fall from 62 to 1 across the Wrecker sweep, which is consistent with
-either reading. What is established: the signal did not become available under
-Wrecker. It became valuable.
+**Schedule sets the magnitude.** Interventions spread across the episode are
+worth up to four times as much per decision as the same count concentrated in
+its opening, the rate-return curve has an interior plateau at 110 to 190
+interventions per episode, and marginal value per decision falls
+monotonically with rate. The ceiling for any human condition is a curve
+indexed by sustainable rate.
 
-This is the finding C2 needs. The escalation-trigger question is not which
-signal is correct but which signal is correct under which threat model, and both
-halves are now measured on the same instrument.
+**The value is not in what the agents see.** The passive observation stream
+flags half the network at chance precision under both adversaries. Analyse-
+confirmed files are 97 percent precise and cover 0.1 percent of compromised
+host-steps. The signal is truth-grade and starved, because nothing points the
+sensor.
 
-**The competence checkpoint pool is displaced for this purpose.** Roughly 25M
-environment steps per seed, weeks of training, and a reviewer asking why anyone
-would field a half-trained defender, replaced by a 30-line file and six minutes
-of compute, with the defender at full deployment competence and its action
-distribution unchanged to within one percentage point.
+**Authority orders as targeting does.** Naming the target, +452; naming where
+to look, +127; naming only the verb, +28 and inside noise. Investigation
+succeeds without any recovery authority because the agent acts on evidence it
+did not request. That is the deployable supervisory role, and it has a
+measured ceiling.
 
-**A supervisory condition now exists with the properties a study requires.**
-Converged defender, degraded adversary, intervention at 77 decisions per
-episode, effect size +241 against a noise floor of plus or minus 81. The oracle
-establishes the ceiling. A human at the same gate is the experiment.
+**Both published recovery-precision criteria are non-measures.** Ground truth
+punishes a good policy; evidence is 1.2x chance.
+
+**The competence checkpoint pool is displaced.** A thirty-line adversary with
+the defender at full competence replaced weeks of training and a reviewer
+objection.
+
+**The study is specified.** Converged defender, impact-focused adversary,
+spread intervention, two authority conditions with oracle ceilings (+452
+substitute, +127 investigate, both near 55 to 60 decisions per episode), a
+noise band of +/-81, paired design over fixed seeds, and a decision type —
+prompt an idle agent — that is vigilance rather than diagnosis. A human at
+that gate is the experiment.

@@ -10,7 +10,11 @@ the environment seed. Oracle arms are produced by `scripts/oracle.py --rule`.
 **Schema A** (`capture.py`): raw per-agent observation, `truth`, action,
 per-agent and step rewards, cumulative reward.
 **Schema B** (`oracle.py`): `red_action`, `n_compromised_owned`, action,
-rewards, and footer `overrides` / `agreements` / `translator_calls`.
+rewards, and footer `overrides` / `agreements` / `translator_calls`. From
+2026-09-15 the header also carries `harness_sha`, `machine`, `red_agent` and
+`min_gap`; the step record carries `overrides` as `[[agent, from, to], ...]`;
+and the footer carries `latch_tp/fp/fn/own` (evidence rules), `deferred`
+(gap), and `analyses` / `restores` (O10/O12, attempts not executions).
 
 Neither is a superset of the other. Schema B lacks Tier-3 ground truth; Schema A
 lacks `red_action`. Neither logs the counterfactual. See RESULTS.md,
@@ -43,6 +47,27 @@ Identical policies differing only in sampling seed produce mean deltas from
 
 **An arm reporting under ~25 points of mean delta, or under ~66 percent of
 episodes improved, has reported nothing.** Always report a null arm alongside.
+
+### H-MARL Expert
+
+Directories under `data/`, not `data/traces`; produced by the H-MARL
+`evaluation.py` (with the seeding fix) or `capture_hmarl.py`, not `capture.py`.
+
+| Directory | Seeding | Adversary | Mean | Stdev |
+|---|---|---|---|---|
+| `hmarl_expert_output` | unseeded | FiniteStateRedAgent | -131.99 | 48.51 |
+| `hmarl_s0` | seed 0 | FiniteStateRedAgent | -124.11 | 45.80 |
+| `hmarl_s1` | seed 1 | FiniteStateRedAgent | -138.31 | 40.97 |
+| `hmarl_s2` | seed 2 | FiniteStateRedAgent | -132.10 | 45.40 |
+| `hmarl_s3` | seed 3 | FiniteStateRedAgent | -130.86 | 47.45 |
+| `hmarl_red_FiniteStateRedAgent` | seed 0 | FiniteStateRedAgent | -124.11 | [ ] |
+| `hmarl_red_FSRedAgentWrecker` | seed 0 | FSRedAgentWrecker | -863.86 | [ ] |
+
+**H-MARL Expert reference value: -131.35, 95% CI [-138.25, -124.44]**, four
+seeds (`hmarl_s0`–`s3`). Published is -132.63 ± 0.87 (Trident, three-run
+spread). The Wrecker comparison in RESULTS.md uses seed 0 (-124.11) because
+the Wrecker run is seed 0; the factor is 6.96x on seed 0, 6.58x on the
+four-seed mean.
 
 ---
 
@@ -124,6 +149,31 @@ destroys them.
 | `O9r` | Reconstruction. Ignores KEEP's proposal and restores the top-ranked host, up to `--budget`. |
 | `O9s` | Supervision. Keeps KEEP's Restore target if it falls in the top third of the ranking; otherwise substitutes the top-ranked host, up to `--budget`. |
 
+**Evidence-criterion** — as O2, but the compromised set is replaced by a latch
+over the acting agent's raw observation (`cyborg.get_observation`). A host
+enters the latch when named by a substantive observation and leaves it on
+Restore or Remove. Footer reports the latch's confusion against ground truth.
+
+| Rule | Behaviour |
+|---|---|
+| `O2e` | Any substantive entry naming the host; oldest flag first |
+| `O2er` | As O2e, most recently observed host first |
+| `O2ew` | As O2er, flags expire 30 steps after the last observation naming the host |
+| `O2s` | Flag only on a `Files` entry with `Density >= 0.9` (Analyse-confirmed); most recent first |
+
+**Authority** — vary what the supervisor is allowed to decide, ground truth
+used only where stated:
+
+| Rule | Behaviour |
+|---|---|
+| `O10` | Investigate. `Analyse` a ground-truth-compromised host that is not strictly flagged. Never issues a recovery action; KEEP does the recovering. |
+| `O11` | Constrain. When a compromised host exists, force `Restore`/`Remove` but take the host from the argmax of KEEP's own action distribution over those two verbs (cached from `agent.actor(*state).probs`). Truth decides whether, KEEP decides where. |
+| `O12` | O2s restore if a strictly-flagged host exists, else O10 investigate. |
+
+**Scheduling** — `--min-gap N` (any rule): an override is discarded, and
+booked as `deferred`, if the same agent overrode within its last N steps.
+Gap 0 is a no-op. `--budget` still applies; `99999` releases it.
+
 The O5 budget sweep and `oracle_O5c` share a revision and seeding, and the sweep
 reproduces O5c exactly. `oracle_O5` predates that revision.
 
@@ -138,11 +188,23 @@ reproduces O5c exactly. `oracle_O5` predates that revision.
 | `oracle_O6b` | O6 | 100 | -201.49 | 168.93 | 270.7 |
 | `oracle_O5` | O5 | 100 | -238.56 | 48.04 | 77.0 |
 | `oracle_O5c` | O5 (rev. 2026-09-13) | 100 | -246.05 | 65.56 | 77.0 |
+| `o2e_b77` | O2e, budget 77 | 100 | -256.48 | 53.46 | 77.0 |
 | `oracle_O8` | O8 | 100 | -253.27 | 197.27 | 154.0 |
 | `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
 | `oracle_O1_n100` | O1 | 100 | -520.29 | 93.43 | 401.8 |
 | `oracle_O2_n100` | O2 | 100 | -523.19 | 97.98 | 403.2 |
 | `oracle_O3_n100` | O3 | 100 | -5803.89 | 1328.90 | 2255.1 |
+| `o10_g32` | O10, gap 32 | 100 | -179.75 | 53.82 | 60.9 |
+| `o2s_g32` | O2s, gap 32 | 100 | -186.79 | 52.86 | 5.1 |
+| `o2_g32` | O2, gap 32 | 100 | -203.42 | 63.60 | 52.9 |
+
+`o2e_b77` is the evidence-criterion rule at the human budget under the default
+red. It costs about what ground-truth O5 costs at the same budget (-69 against
+-59): where no criterion helps, both cost the same.
+
+`o2_g32`, `o2s_g32` and `o10_g32` are the spread-schedule controls under the
+default red: -16 (39/100, sign p 0.035, edge of the null band), +0.5 and +7.6.
+Scheduling and authority do not create value against the default red.
 
 Against `corpus_v1`, O1 and O2 beat KEEP on 1 episode of 100 each; O3 on none.
 
@@ -267,8 +329,9 @@ transparent.
 `red_FSRedAgentTargetA` was captured serially after a segfault under parallel
 capture.
 
-Seven arms share a maximum of exactly -22. Treated as a reward ceiling,
-unconfirmed.
+Seven arms share a maximum of exactly -22, reached by one or two episodes
+each, always with the same step-reward composition (478 x 0, 20 x -1, 1 x -2).
+A fixed penalty structure no blue action avoids; step indices unchecked.
 
 Seven of the ten non-default agents make blue's task easier, five by 60 to 89
 points. Only the action-biased agents (Degrader, Impacter, FailureTracker) hurt
@@ -288,21 +351,47 @@ adversary; the defender is unchanged and at deployment competence.
 
 | Directory | Policy | policy_seed | Rule | Budget | Mean | Stdev | Overrides/ep | Agreements/ep |
 |---|---|---|---|---|---|---|---|---|
-| `[ ]` | KEEP sampled | unset | none | | -1115.65 | 272.91 | 0 | |
-| `[ ]` | KEEP sampled | 9000 | none | | -1196.35 | 336.69 | 0 | |
-| `[ ]` | KEEP sampled | 9001 | none | | -1107.05 | 297.93 | 0 | |
-| `[ ]` | H-MARL Expert | | none | | -863.86 | | | |
-| `[ ]` | KEEP sampled | unset | O8 | | -1396.42 | 534.72 | 186.8 | 34.9 |
-| `[ ]` | KEEP sampled | unset | O6 | | -1296.47 | 525.48 | 293.7 | 69.9 |
+| `red_FSRedAgentWrecker` | KEEP sampled | unset | none | | -1115.65 | 272.91 | 0 | |
+| `wrecker_null_9000` | KEEP sampled | 9000 | none | | -1196.35 | 336.69 | 0 | |
+| `wrecker_null_9001` | KEEP sampled | 9001 | none | | -1107.05 | 297.93 | 0 | |
+| `data/hmarl_red_FSRedAgentWrecker` | H-MARL Expert | seed 0 | none | | -863.86 | | | |
+| `wo_O8` | KEEP sampled | unset | O8 | | -1396.42 | 534.72 | 186.8 | 34.9 |
+| `wo_O6` | KEEP sampled | unset | O6 | | -1296.47 | 525.48 | 293.7 | 69.9 |
 | `wo_O5` | KEEP sampled | unset | O5 | 77 | -1013.89 | 373.83 | 77.0 | 0.1 |
-| `[ ]` | KEEP sampled | unset | O2 | unbounded | -654.88 | 69.86 | 403.8 | 1.1 |
-| `[ ]` | KEEP sampled | unset | O2 | 10 | -1093.77 | 357.78 | 10.0 | 62.2 |
-| `[ ]` | KEEP sampled | unset | O2 | 20 | -1012.49 | 345.35 | 20.0 | 59.1 |
-| `[ ]` | KEEP sampled | unset | O2 | 40 | -958.31 | 315.42 | 40.0 | 55.3 |
+| `wo_O2_b10` | KEEP sampled | unset | O2 | 10 | -1093.77 | 357.78 | 10.0 | 62.2 |
+| `wo_O2_b20` | KEEP sampled | unset | O2 | 20 | -1012.49 | 345.35 | 20.0 | 59.1 |
+| `wo_O2_b40` | KEEP sampled | unset | O2 | 40 | -958.31 | 315.42 | 40.0 | 55.3 |
 | `wo_O2_b77` | KEEP sampled | unset | O2 | 77 | -874.27 | 280.66 | 77.0 | 49.3 |
-| `[ ]` | KEEP sampled | unset | O2 | 150 | -767.85 | 211.17 | 150.0 | 34.6 |
-| `[ ]` | KEEP sampled | unset | O2 | 300 | -628.50 | 102.43 | 299.6 | 12.3 |
+| `wo_O2_b77x` | KEEP sampled | unset | O2 | 77 | -874.27 | 280.66 | 77.0 | 49.3 |
+| `wo_O2_b150` | KEEP sampled | unset | O2 | 150 | -767.85 | 211.17 | 150.0 | 34.6 |
+| `wo_O2_b300` | KEEP sampled | unset | O2 | 300 | -628.50 | 102.43 | 299.6 | 12.3 |
+| `wo_O2_b99999` | KEEP sampled | unset | O2 | 99999 | -654.88 | 69.86 | 403.8 | 1.1 |
+| `wo_O2` | KEEP sampled | unset | O2 | 99999 | -654.88 | 69.86 | 403.8 | 1.1 |
+| `wo_O2_g2` | KEEP sampled | unset | O2, gap 2 | 99999 | -539.45 | 69.55 | 277.4 | 3.0 |
+| `wo_O2_g4` | KEEP sampled | unset | O2, gap 4 | 99999 | -466.01 | 62.37 | 187.9 | 6.0 |
+| `wo_O2_g8` | KEEP sampled | unset | O2, gap 8 | 99999 | -457.77 | 97.61 | 110.1 | 11.6 |
+| `wo_O2_g16` | KEEP sampled | unset | O2, gap 16 | 99999 | -572.78 | 137.12 | 80.6 | 25.4 |
+| `wo_O2_g32` | KEEP sampled | unset | O2, gap 32 | 99999 | -680.42 | 158.46 | 52.7 | 37.7 |
+| `wo_O2_b77_g32` | KEEP sampled | unset | O2, gap 32 | 77 | -680.42 | 158.46 | 52.7 | 37.7 |
+| `wo_O2_g64` | KEEP sampled | unset | O2, gap 64 | 99999 | -797.25 | 229.27 | 32.0 | 47.3 |
+| `wo_O2_g128` | KEEP sampled | unset | O2, gap 128 | 99999 | -889.95 | 255.82 | 18.1 | 55.3 |
+| `wo_O2e_b77` | KEEP sampled | unset | O2e | 77 | -1170.05 | 341.22 | 77.0 | 106.4 |
+| `wo_O2e_bmax` | KEEP sampled | unset | O2e | 100000 | -1195.90 | 228.23 | 347.4 | 9.3 |
+| `wo_O2er_b77` | KEEP sampled | unset | O2er | 77 | -1202.02 | 335.55 | 77.0 | 106.4 |
+| `wo_O2ew_b77` | KEEP sampled | unset | O2ew | 77 | -1184.93 | 348.62 | 77.0 | 63.9 |
+| `latch_wrecker` | KEEP sampled | unset | O2e | 77 | -1178.65 | 326.33 | 77.0 | 108.6 |
+| `wo_O1_g32` | KEEP sampled | unset | O1, gap 32 | 99999 | -663.38 | 174.23 | 52.3 | 0.0 |
+| `wo_O2s_g32` | KEEP sampled | unset | O2s, gap 32 | 99999 | -1059.73 | 290.19 | 4.5 | 2.7 |
+| `wo_O10_g32` | KEEP sampled | unset | O10, gap 32 | 99999 | -988.35 | 276.10 | 61.2 | 9.6 |
+| `wo_O11_g32` | KEEP sampled | unset | O11, gap 32 | 99999 | -1087.58 | 328.71 | 58.7 | 51.0 |
+| `wo_O12_g32` | KEEP sampled | unset | O12, gap 32 | 99999 | -989.90 | 289.54 | 61.5 | 3.8 |
 
+`wo_O2` is byte-identical to `wo_O2_b99999` and `wo_O2_b77_g32` to
+`wo_O2_g32` (the gap never lets the count reach 77); both redundant.
+`wo_O2_b77x` reproduces `wo_O2_b77` on all 100 footers and adds the
+per-step `overrides` field; it supersedes it for analysis. `latch_wrecker` is
+20 episodes, captured for the confusion counts. Gap arms carry `min_gap` in
+the header; earlier arms do not (gap 0).
 `--rule none --red FSRedAgentWrecker` reproduces the unsupervised arm exactly.
 
 **Wrecker noise floor**, three policy seeds: grand mean -1139.68, 95% CI
@@ -316,12 +405,15 @@ Variance decomposition under Wrecker: within-episode 256.41, between-episode
 
 O2 unbounded beats KEEP on 100/100 episodes; distributions do not overlap (O2
 worst -848, KEEP best -646). At 403.8 overrides and 1.1 agreements it is a
-substitute policy, not a supervisory condition; the supervisory condition is
-budget 77.
+substitute policy, not a supervisory condition. Supervisory conditions are the
+spread arms: O1/O2 at gap 32 (+452 / +435, 95 and 93 of 100) and O10 at gap 32
+(+127, 66 of 100).
 
-O2 under Wrecker shows the same signature as under the default red (403.8
-overrides, 1.1 agreements): the conditional does not bind and O2 is O1 in
-effect. O1 has not been run under Wrecker.
+O1 and O2 are indistinguishable under Wrecker: paired at gap 32, O1 - O2 is
++17.04, 49/100, sign p 0.92. O1 is the rule reported.
+
+Paired wins against `red_FSRedAgentWrecker`, spread arms: O1 95, O2 93, O12
+67, O10 66, O11 53, O2s 53 (of 100); O11 and O2s are inside the null.
 
 KEEP's action mix under Wrecker is within one percentage point of `corpus_v1`
 on every action, same rank order. Wrecker leaves fewer hosts compromised (26.3
@@ -342,13 +434,24 @@ of 97 at step 400, against 32.1).
   `os.path.basename(f)[3:-6]`.
 - **Budget provenance.** `oracle_O5`, `O5b` and `O5c` predate the `budget`
   header field. The `o5_b*` sweep arms record it.
-- **Machine provenance.** No arm records which machine captured it. The `o5_b*`
-  sweep and the `oracle_O*_n100` arms are from the Alienware; everything else
-  is from the Surface.
-- **Header provenance.** No arm records the harness revision or the adversary.
-  `harness_sha` and `red_agent` header fields are added from the next
-  experiment section; earlier arms are identified by reproduction where
-  possible.
-- **H-MARL reference.** Three values exist for H-MARL Expert against the
-  default red (-131.99 unseeded, -131.35 seeded, -124.11 in the Wrecker
-  comparison) from runs with different seeding. Reconcile before citing.
+- **Provenance before 2026-09-15.** Arms captured before commit `dd22fff`
+  record neither harness revision, machine, nor adversary. The `o5_b*` sweep,
+  `oracle_O*_n100`, all `red_*`, `wrecker_*` and `wo_*` arms are from the
+  Alienware; everything earlier is from the Surface. From `dd22fff` the
+  header carries `harness_sha`, `machine`, `red_agent`, `min_gap`; run
+  through `bin/run` so the SHA and hostname are passed in.
+- **H-MARL reference — resolved.** -131.99 is the unseeded run
+  (`hmarl_expert_output`); -131.35 is the four-seed grand mean (`hmarl_s0`-`s3`);
+  -124.11 is seed 0 alone, used in the Wrecker comparison because that run is
+  seed 0. Cite the grand mean.
+- **Attempts versus executions.** Footer `analyses` and `restores` (O10/O12)
+  count rule attempts before the gap wrapper decides; executed counts are
+  `overrides`, and per-type executed counts come from the step records'
+  `overrides` field. Fix pending: move the increments into the wrapper.
+- **Duplicate header key.** The header literal names `red_agent` twice
+  (`_rc.__name__` and the `red_agent` string); Python keeps the last, both are
+  the same value. Harmless; remove one.
+- **Token-based idempotency checks.** `tools_add_*.py` scripts that test for a
+  string (e.g. `"O11"` in the source) rather than for the code they guard will
+  skip silently once the token exists for another reason — this cost one
+  launch on 2026-09-16. Test for the code (`rule == "O11"`).
