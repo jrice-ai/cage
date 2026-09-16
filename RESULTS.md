@@ -2130,7 +2130,7 @@ Every oracle result recorded above was measured against `FiniteStateRedAgent`,
 the stock CC4 red agent that selects hosts at random. That condition was never
 stated as a scope limit. It should have been.
 
-### A hand-specified red agent, degrading the adversary rather than the defender
+### An impact-focused adversary, with the defender held at deployment competence
 
 Trident (arXiv 2608.04317) trains an LLM planner via RLVR to generate red
 policies. Reading `agentic/prompts/planner_prompts.py` shows the planner's
@@ -2141,20 +2141,29 @@ bugfix flag. The prompt states the constraint directly. The LLM and the GRPO
 loop are a search procedure over roughly thirty numbers, not the artifact.
 
 `red_agents/FSRedAgentWrecker.py` is one hand-specified point in that space. It
-puts 64 percent of host-state priority on R and RD, and reduces root-state
-rediscovery from the base 0.50 to 0.05 while raising Impact and DegradeServices
-from 0.50 combined to 0.95. Thirty lines, no LLM, no GPU, no search.
+raises the adversary's damage conversion rather than weakening the defender: 64
+percent of host-state priority on R and RD, root-state rediscovery reduced from
+the base 0.50 to 0.05, Impact and DegradeServices raised from 0.50 combined to
+0.95. The default red is persistence-heavy and converts little of what it holds;
+Wrecker is impact-heavy and converts nearly all of it. This is a threat-model
+axis, not a difficulty setting. Thirty lines, no LLM, no GPU, no search.
 
 | Agent | vs FiniteStateRedAgent | vs Wrecker | Factor |
 |---|---|---|---|
 | KEEP | -187.32 | -1115.65 | 5.95x |
 | H-MARL Expert | -124.11 | -863.86 | 6.96x |
 
-Trident's RLVR-trained agent reaches -849.85 against HMARL3. Their weights for
-that baseline are byte-identical to ours, verified by md5 across all fifteen
-policy files and `algorithm_state.pkl`, so the comparison is like for like.
-**A hand-specified point in their own published schema matches their trained
-optimum to within 1.6 percent on the one baseline where the artifact is shared.**
+Trident's RLVR-trained agent reaches -849.85 against HMARL3. Their Table 2
+reports mean and standard deviation across three independent runs, each the
+mean of 500 randomized 500-step episodes, so their ±6.46 is the spread of three
+run-means and is not comparable to a per-episode standard deviation. Their red
+policy for that row was trained by GRPO specifically against HMARL3. Their
+HMARL3 weights are byte-identical to ours, verified by md5 across all fifteen
+policy files and `algorithm_state.pkl`, so the comparison is like for like on
+the artifact and differs only in episode count (100 here) and seeding.
+**A hand-specified point in their own published schema, tuned against nothing,
+matches their trained and target-specific optimum to within 1.6 percent on the
+one baseline where the artifact is shared.**
 
 Their GNN row is not comparable: 966,623 actor parameters against the published
 476,167, hidden1 320 against 256, under a different clip and learning rate.
@@ -2215,11 +2224,19 @@ terms scaled roughly fivefold and the ratio moved the wrong way. **Wrecker
 manufactures headroom but not legibility**, and it does not satisfy the
 stopping criterion recorded earlier.
 
-That criterion may be the wrong test. It was derived from a comparison against
+That criterion is withdrawn. It was derived from a comparison against
 deterministic greedy KEEP, where within-episode variance is zero by
-construction, so any positive between-episode term wins automatically for
-reasons unrelated to supervisability. For a sampled policy the ratio may never
-exceed 1 at any difficulty.
+construction, so any positive between-episode term satisfies it for reasons
+unrelated to supervisability. For a sampled policy the ratio may never exceed 1
+at any difficulty, and the quantity it was standing in for is now measured
+directly.
+
+The replacement criterion: a supervisory condition is viable when the oracle
+effect at a human-sustainable budget exceeds the identical-policy noise band.
+Under Wrecker at budget 77 that is +241 against a band of roughly ±81, a ratio
+near 3. Under the default red no rule at any budget clears the band. The
+variance decomposition is retained as a description of the condition, not as a
+test of it.
 
 ### Oracle rules under Wrecker
 
@@ -2242,6 +2259,12 @@ episode is -848 against KEEP's best of -646. Standard deviation collapses from
 
 At normal difficulty O2 scored -523.19 against KEEP's -187.32, losing by 336 and
 winning 1 episode in 100. **Same rule, opposite sign.**
+
+Unbounded O2 is not a supervisory condition. At 404 overrides and 1.1
+agreements per episode it is a different policy that consults KEEP, and its
+score is the ceiling of the rule rather than of supervision. The supervisory
+condition is the budgeted version below, where the rule intervenes at a rate a
+person could sustain and agrees with KEEP more often than it overrides.
 
 ### O2 budget sweep under Wrecker
 
@@ -2275,10 +2298,14 @@ depending on what red is doing.
 
 **Compromise ground truth is a valid correctness criterion under some
 adversaries and not others.** Against the default red agent, KEEP restores
-compromised hosts 0.2 percent of the time and the oracle agrees with it 1.1
-times per episode. Under Wrecker, with *fewer* hosts compromised, agreement rises
-to 62 per episode at low budget. The signal did not become available. It became
-valuable, and the policy's own targeting moved toward it.
+compromised hosts 0.2 percent of the time. Under Wrecker, with *fewer* hosts
+compromised, the budget-10 rule and KEEP coincide 62 times per episode. The
+default-red figure at the same budget is unmeasured, so whether KEEP's own
+targeting shifts toward compromise under Wrecker, or the low-intervention
+trajectory simply stays in states where the two agree, is not yet separable.
+Agreements fall from 62 to 1 across the Wrecker sweep, which is consistent with
+either reading. What is established: the signal did not become available under
+Wrecker. It became valuable.
 
 This is the finding C2 needs. The escalation-trigger question is not which
 signal is correct but which signal is correct under which threat model, and both
