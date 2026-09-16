@@ -29,7 +29,7 @@ from joblib import Parallel, delayed
 from CybORG import CybORG, CYBORG_VERSION
 from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
-from CybORG.Simulator.Actions import Restore, Remove, Monitor, Sleep
+from CybORG.Simulator.Actions import Restore, Remove, Monitor, Sleep, Analyse
 from submission import Submission
 from wrapper.globals import MY_SUBNETS
 
@@ -220,14 +220,14 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                     return Sleep()
                 stats["agree"] += 1
             return act
-        if rule in ("O2e", "O2er", "O2ew", "O2s"):
+        if rule in ("O2e", "O2er", "O2ew", "O2s", "O10", "O12"):
             obs = cyborg.get_observation(agent_name) or {}
             st = flagged.setdefault(agent_name, {"t": 0, "h": {}})   # h: host -> [first_seen, last_seen]
             st["t"] += 1
             t = st["t"]
             for h, v in obs.items():
                 if h not in META and isinstance(v, dict):
-                    if rule == "O2s":
+                    if rule in ("O2s", "O10", "O12"):
                         _fl = v.get("Files") or []
                         if not any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl):
                             continue
@@ -253,6 +253,22 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                 stats["agree"] += 1
                 st["h"].pop(acting_on, None)
                 return act
+            if rule in ("O10", "O12"):
+                if rule == "O12" and ecomp:
+                    if stats["override"] >= budget:
+                        stats["exhausted"] += 1
+                        return act
+                    stats["override"] += 1; stats["restores"] = stats.get("restores", 0) + 1
+                    tgt = ecomp[0]; st["h"].pop(tgt, None)
+                    return Restore(session=0, agent=agent_name, hostname=tgt)
+                unflagged = [c[0] for c in comp if c[0] not in st["h"]]
+                if not unflagged:
+                    return act
+                if stats["override"] >= budget:
+                    stats["exhausted"] += 1
+                    return act
+                stats["override"] += 1; stats["analyses"] = stats.get("analyses", 0) + 1
+                return Analyse(session=0, agent=agent_name, hostname=unflagged[0])
             if not ecomp:
                 return act
             if stats["override"] >= budget:
@@ -408,6 +424,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "total_reward": total, "overrides": stats["override"], "translator_calls": stats["calls"],
             "agreements": stats["agree"],
             "deferred": stats.get("deferred", 0),
+            "analyses": stats.get("analyses", 0), "restores": stats.get("restores", 0),
             "latch_tp": stats.get("tp", 0), "latch_fp": stats.get("fp", 0),
             "latch_fn": stats.get("fn", 0), "latch_own": stats.get("own", 0),
             "wall_seconds": round(time.time() - t0, 2),
