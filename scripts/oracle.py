@@ -9,6 +9,8 @@ Rules:
   O2er  As O2e, most-recently-observed host first
   O2ew  As O2er, flags expire 30 steps after the last observation naming the host
   O2s   As O2er, but a host is flagged only by a Files entry with Density >= 0.9 (Analyse-confirmed)
+  O11   Constrain: when a compromised host exists, force Restore/Remove but take the host from
+        the argmax of KEEP's own action distribution over those two verbs
   O3    Remove instead of Restore
   O4    Restore only in zones expensive in the current phase
 
@@ -31,7 +33,7 @@ from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
 from CybORG.Simulator.Actions import Restore, Remove, Monitor, Sleep, Analyse
 from submission import Submission
-from wrapper.globals import MY_SUBNETS
+from wrapper.globals import MY_SUBNETS, MAX_HOSTS, MAX_ACTIONS, NODE_ACTIONS
 
 # --- provenance (added 2026-09-15) ---
 import os as _os, platform as _platform, subprocess as _subprocess
@@ -291,6 +293,32 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
         if rule == "O1":
             stats["override"] += 1
             return Restore(session=0, agent=agent_name, hostname=target)
+        if rule == "O11":
+            if name in ("Restore", "Remove") and getattr(act, "hostname", None) in dirty:
+                stats["agree"] += 1
+                return act
+            if stats["override"] >= budget:
+                stats["exhausted"] += 1
+                return act
+            pr = stats["probs"].get(agent_name) if isinstance(stats.get("probs"), dict) else None
+            if pr is None:
+                return act
+            aid = int(agent_name[-1]); nslots = len(MY_SUBNETS[aid])
+            best, bestp = None, 0.0
+            for s in range(nslots):
+                for k in (1, 2):                      # NODE_ACTIONS: 1 = Remove, 2 = Restore
+                    base = s * MAX_ACTIONS + k * MAX_HOSTS
+                    for t in range(MAX_HOSTS):
+                        p_ = float(pr[base + t])
+                        if p_ > bestp:
+                            bestp, best = p_, (s, k, t)
+            if best is None:
+                return act
+            s, k, t = best
+            sn = MY_SUBNETS[aid][s]
+            host = f"{sn}_user_host_{t-6}" if t > 5 else f"{sn}_server_host_{t}"
+            stats["override"] += 1
+            return NODE_ACTIONS[k](session=0, agent=agent_name, hostname=host)
         if rule == "O3":
             stats["override"] += 1
             return Remove(session=0, agent=agent_name, hostname=target)
@@ -371,6 +399,18 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     stats = Counter()
     decoys = {}
     install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap)
+    if rule == "O11":
+        stats["probs"] = {}
+        for _n, _ag in agents.items():
+            def _wrap(obs, *a, _orig=_ag.get_action, _ag=_ag, _n=_n):
+                state, is_blocked = obs
+                if is_blocked:
+                    stats["probs"][_n] = None
+                else:
+                    with torch.no_grad():
+                        stats["probs"][_n] = _ag.actor(*state).probs.detach().flatten()
+                return _orig(obs, *a)
+            _ag.get_action = _wrap
 
     wrapped_obs, _ = env.reset()
     for a in agents.values():
@@ -437,7 +477,7 @@ def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s"])
+                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s", "O11", "O10", "O12"])
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=1)
