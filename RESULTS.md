@@ -2316,7 +2316,7 @@ test of it.
 
 ### Oracle rules under Wrecker
 
-100 episodes each, environment seeds 0-99, twelve workers.
+100 episodes each, environment seeds 0-99; worker count not recorded.
 
 | Rule | Mean | Stdev | Delta | Better | Overrides/ep | Agreements/ep |
 |---|---|---|---|---|---|---|
