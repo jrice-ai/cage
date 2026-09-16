@@ -260,7 +260,7 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                     if stats["override"] >= budget:
                         stats["exhausted"] += 1
                         return act
-                    stats["override"] += 1; stats["restores"] = stats.get("restores", 0) + 1
+                    stats["override"] += 1
                     tgt = ecomp[0]; st["h"].pop(tgt, None)
                     return Restore(session=0, agent=agent_name, hostname=tgt)
                 unflagged = [c[0] for c in comp if c[0] not in st["h"]]
@@ -269,7 +269,7 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                 if stats["override"] >= budget:
                     stats["exhausted"] += 1
                     return act
-                stats["override"] += 1; stats["analyses"] = stats.get("analyses", 0) + 1
+                stats["override"] += 1
                 return Analyse(session=0, agent=agent_name, hostname=unflagged[0])
             if not ecomp:
                 return act
@@ -374,13 +374,15 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                 stats["deferred"] = stats.get("deferred", 0) + 1
                 return act
             _last[agent_name] = _tick[agent_name]
+            _k = "exec_" + type(res).__name__
+            stats[_k] = stats.get(_k, 0) + 1
             stats.setdefault("ovr", []).append([agent_name, _fmt(act), _fmt(res)])
         return res
 
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0):
     seed = base_seed + ep
     torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
 
@@ -424,7 +426,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "red_agent": _rc.__name__, "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "min_gap": min_gap, "red_agent": red_agent, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -464,7 +466,8 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "total_reward": total, "overrides": stats["override"], "translator_calls": stats["calls"],
             "agreements": stats["agree"],
             "deferred": stats.get("deferred", 0),
-            "analyses": stats.get("analyses", 0), "restores": stats.get("restores", 0),
+            "analyses": stats.get("exec_Analyse", 0), "restores": stats.get("exec_Restore", 0),
+            "removes": stats.get("exec_Remove", 0), "sleeps": stats.get("exec_Sleep", 0),
             "latch_tp": stats.get("tp", 0), "latch_fp": stats.get("fp", 0),
             "latch_fn": stats.get("fn", 0), "latch_own": stats.get("own", 0),
             "wall_seconds": round(time.time() - t0, 2),
@@ -491,7 +494,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]
