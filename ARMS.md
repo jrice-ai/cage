@@ -176,7 +176,7 @@ now exist.
 
 | Directory | Rule | Mean | Stdev | n=100 equivalent |
 |---|---|---|---|---|
-| `o_smoke` | not recorded | -166.50 | 17.68 | |
+| `o_smoke` | none (identified by reproduction, 2026-09-15) | -166.50 | 17.68 | |
 | `o_smoke_O1` | O1 | -576.50 | 188.80 | -520.29 |
 | `o_smoke_O2` | O2 | -541.50 | 140.71 | -523.19 |
 | `o_smoke_O3` | O3 | -4963.00 | 431.34 | -5803.89 |

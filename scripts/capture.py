@@ -22,6 +22,25 @@ from CybORG.Simulator.Actions import Sleep as SleepAction
 from CybORG.Simulator.Actions import Monitor as MonitorAction
 from submission import Submission
 
+# --- provenance (added 2026-09-15) ---
+import os as _os, platform as _platform, subprocess as _subprocess
+
+def _harness_sha():
+    sha = _os.environ.get("HARNESS_SHA")
+    if sha:
+        return sha
+    try:
+        here = _os.path.dirname(_os.path.abspath(__file__))
+        return _subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=here,
+                                        stderr=_subprocess.DEVNULL).decode().strip()
+    except Exception:
+        return "unknown"
+
+HARNESS_SHA = _harness_sha()
+MACHINE = _platform.node()
+RED_AGENT_NAME = "FiniteStateRedAgent"   # overwritten where --red is resolved
+# --- end provenance ---
+
 EPISODE_LENGTH = 500
 BLUE = [f"blue_agent_{i}" for i in range(5)]
 RED = [f"red_agent_{i}" for i in range(6)]
@@ -107,7 +126,7 @@ def capture_episode(ep, base_seed, out_dir, agents, policy="keep", policy_seed=N
 
     with open(path, "w") as f:
         f.write(json.dumps({
-            "record": "header",
+            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "red_agent": _rc.__name__,
             "episode": ep,
             "seed": seed,
             "policy_seed": pseed,
