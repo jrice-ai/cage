@@ -4,6 +4,10 @@ Rules:
   none  KEEP unmodified, control
   O1    Restore any compromised host in the agent's subnets
   O2    Override only when KEEP's choice is wrong given ground truth
+  O2e   As O2, but 'compromised' is the latched observable-evidence set (hosts named by a
+        substantive raw obs since their last Restore/Remove), not ground truth
+  O2er  As O2e, most-recently-observed host first
+  O2ew  As O2er, flags expire 30 steps after the last observation naming the host
   O3    Remove instead of Restore
   O4    Restore only in zones expensive in the current phase
 
@@ -133,6 +137,9 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
         decoys = {}
     original = env.action_translator
 
+    flagged = {}   # O2e: agent_name -> hosts named by a substantive obs since last Restore/Remove
+    META = {"success", "action", "message"}
+
     def patched(agent_name, a_id):
         stats["calls"] += 1
         act = original(agent_name, a_id)
@@ -214,6 +221,40 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None):
                     return Sleep()
                 stats["agree"] += 1
             return act
+        if rule in ("O2e", "O2er", "O2ew"):
+            obs = cyborg.get_observation(agent_name) or {}
+            st = flagged.setdefault(agent_name, {"t": 0, "h": {}})   # h: host -> [first_seen, last_seen]
+            st["t"] += 1
+            t = st["t"]
+            for h, v in obs.items():
+                if h not in META and isinstance(v, dict):
+                    if h in st["h"]:
+                        st["h"][h][1] = t
+                    else:
+                        st["h"][h] = [t, t]
+            own = set(owned_hosts(cyborg, agent_name))
+            live = {h: fl for h, fl in st["h"].items() if h in own}
+            if rule == "O2ew":
+                live = {h: fl for h, fl in live.items() if t - fl[1] <= 30}
+            if rule == "O2e":
+                ecomp = sorted(live, key=lambda h: live[h][0])       # oldest flag first
+            else:
+                ecomp = sorted(live, key=lambda h: -live[h][1])      # most recently seen first
+            acting_on = getattr(act, "hostname", None)
+            if type(act).__name__ in ("Restore", "Remove") and acting_on in ecomp:
+                stats["agree"] += 1
+                st["h"].pop(acting_on, None)
+                return act
+            if not ecomp:
+                return act
+            if stats["override"] >= budget:
+                stats["exhausted"] += 1
+                return act
+            stats["override"] += 1
+            tgt = ecomp[0]
+            st["h"].pop(tgt, None)
+            return Restore(session=0, agent=agent_name, hostname=tgt)
+
         if rule == "O4":
             comp = [c for c in comp if c[1] in EXPENSIVE]
         if not comp:
@@ -348,7 +389,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s"])
+                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew"])
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=1)
