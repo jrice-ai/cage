@@ -19,6 +19,13 @@ and the footer carries `latch_tp/fp/fn/own` and `flags_new` (evidence rules),
 carries `workers`. Arms between `dd22fff` and `d974f69` report `analyses` /
 `restores` as attempts; see Known issues.
 
+**Schema B-H** (`capture_hmarl.py`, H-MARL Expert): Schema B plus per-step
+`mode` (the sub-policy each agent executed, `investigate` or `recover`) and
+`expert_mode` (the gate's own choice before any rule), and footer
+`env_steps`, `mode_overrides`, `recover_agent_steps`; header `harness`,
+`defender`, `seed_mode` (`episode` or `compat`), `policy_seed`, `workers`.
+Every simulator step is recorded, so these arms are 500 steps, not 499.
+
 Neither is a superset of the other. Schema B lacks Tier-3 ground truth; Schema A
 lacks `red_action`. Neither logs the counterfactual. See RESULTS.md,
 "Schema divergence between capture paths".
@@ -54,7 +61,9 @@ episodes improved, has reported nothing.** Always report a null arm alongside.
 ### H-MARL Expert
 
 Directories under `data/`, not `data/traces`; produced by the H-MARL
-`evaluation.py` (with the seeding fix) or `capture_hmarl.py`, not `capture.py`.
+`evaluation.py` with the seeding fix (`build/hmarl-fixes.patch`). Ladder arms
+from `capture_hmarl.py` are under `data/traces` and listed in "H-MARL Expert
+ladder".
 
 | Directory | Seeding | Adversary | Mean | Stdev |
 |---|---|---|---|---|
@@ -63,14 +72,22 @@ Directories under `data/`, not `data/traces`; produced by the H-MARL
 | `hmarl_s1` | seed 1 | FiniteStateRedAgent | -138.31 | 40.97 |
 | `hmarl_s2` | seed 2 | FiniteStateRedAgent | -132.10 | 45.40 |
 | `hmarl_s3` | seed 3 | FiniteStateRedAgent | -130.86 | 47.45 |
-| `hmarl_red_FiniteStateRedAgent` | seed 0 | FiniteStateRedAgent | -124.11 | [ ] |
-| `hmarl_red_FSRedAgentWrecker` | seed 0 | FSRedAgentWrecker | -863.86 | [ ] |
+| `hmarl_red_FiniteStateRedAgent` | seed 0 | FiniteStateRedAgent | -124.11 | 45.80 |
+| `hmarl_red_FSRedAgentWrecker` | seed 0 | FSRedAgentWrecker | -863.86 | 365.65 |
 
 **H-MARL Expert reference value: -131.35, 95% CI [-138.25, -124.44]**, four
 seeds (`hmarl_s0`–`s3`). Published is -132.63 ± 0.87 (Trident, three-run
 spread). The Wrecker comparison in RESULTS.md uses seed 0 (-124.11) because
 the Wrecker run is seed 0; the factor is 6.96x on seed 0, 6.58x on the
 four-seed mean.
+
+`evaluation.py --seed` reseeds sampling once and resets one CybORG per
+episode, so its episode k is not environment seed k. `capture_hmarl.py
+--compat` mirrors that order and reproduces both seed-0 rows to the digit
+(`data/traces/hm_compat_FiniteStateRedAgent`, `hm_compat_FSRedAgentWrecker`,
+100 episodes each; the three-episode running means and standard deviation also
+match, -931.00 / -1119.50 / -902.67, sd 420.22). Those two directories are the
+harness gate, not arms, and must not be paired against default-mode arms.
 
 ---
 
@@ -98,9 +115,13 @@ p75 -293, max -125. Smooth, not bimodal.
 
 ## Oracle rules
 
-All rules wrap `env.action_translator`, intercepting each agent's action before
-execution. `translator_calls == 2495` per episode confirms exactly one
-interception per agent-step.
+All rules live in `scripts/oracle_rules.py` (`make_oracle`) and are installed
+by `oracle.py` as a wrapper on KEEP's `env.action_translator`, or by
+`capture_hmarl.py` as a wrapper on the H-MARL wrapper's `env_step`, in both
+cases intercepting each agent's action after translation and before execution.
+`translator_calls == 2495` (KEEP, 499 steps) or `2500` (H-MARL, 500 steps) per
+episode confirms exactly one interception per agent-step. O11 needs KEEP's
+actor and is a no-op on H-MARL; O14 exists only on H-MARL.
 
 `comp` is the list of `(hostname, subnet)` pairs currently compromised within
 the acting agent's own subnets, derived from simulator ground truth.
@@ -173,6 +194,7 @@ used only where stated:
 | `O11` | Constrain. When a compromised host exists, force `Restore`/`Remove` but take the host from the argmax of KEEP's own action distribution over those two verbs (cached from `agent.actor(*state).probs`). Truth decides whether, KEEP decides where. |
 | `O12` | O2s restore if a strictly-flagged host exists, else O10 investigate. |
 | `O13` | As O10, rotating: least-recently-investigated compromised host first, none repeated within 50 steps. |
+| `O14` | Mode authority (H-MARL only). When a ground-truth-compromised host exists in the agent's subnets and the expert gate says Investigate, the gate is flipped to Recover before the master acts, exactly as an observed IoC would flip it (mask, `high_actionmask`, `return_agent` set together); the recover sub-policy picks the host. Counted as an override, subject to `--min-gap`; agreement when the gate already said Recover. |
 
 **Scheduling** — `--min-gap N` (any rule): an override is discarded, and
 booked as `deferred`, if the same agent overrode within its last N steps.
@@ -367,7 +389,7 @@ adversary; the defender is unchanged and at deployment competence.
 | `red_FSRedAgentWrecker` | KEEP sampled | unset | none | | -1115.65 | 272.91 | 0 | |
 | `wrecker_null_9000` | KEEP sampled | 9000 | none | | -1196.35 | 336.69 | 0 | |
 | `wrecker_null_9001` | KEEP sampled | 9001 | none | | -1107.05 | 297.93 | 0 | |
-| `data/hmarl_red_FSRedAgentWrecker` | H-MARL Expert | seed 0 | none | | -863.86 | | | |
+| `data/hmarl_red_FSRedAgentWrecker` | H-MARL Expert | seed 0 | none | | -863.86 | 365.65 | 0 | |
 | `wo_O8` | KEEP sampled | unset | O8 | | -1396.42 | 534.72 | 186.8 | 34.9 |
 | `wo_O6` | KEEP sampled | unset | O6 | | -1296.47 | 525.48 | 293.7 | 69.9 |
 | `wo_O5` | KEEP sampled | unset | O5 | 77 | -1013.89 | 373.83 | 77.0 | 0.1 |
@@ -466,6 +488,55 @@ Q64 is Wrecker. Stdevs for the control arms are in the footers; the O1 arms:
 P10 155.12, P30 199.10, P50 147.04, P70 165.91, P85 203.96, ConvOnly 81.52,
 Q04 75.73, Q16 102.11, Q32 128.44, Q48 148.02.
 
+### H-MARL Expert ladder
+
+Produced by `scripts/capture_hmarl.py` in `cage-hmarl:dev`, Schema B-H.
+Default seeding is the oracle convention: fresh `CybORG(seed=ep)` per episode,
+sampling reseeded per episode (`--policy-seed P` uses `P+ep`), environment
+seeds 0-99, six spawn workers, twelve seconds an episode. All arms gap 32
+unless noted. Delta, wins and sign p are paired against the control on the
+same environment seeds, from `tools_paired.py`.
+
+| Directory | Adversary | Rule | policy_seed | Mean | Stdev | Delta | Wins | Sign p | Executed/ep | Agreements/ep |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `hm_w_none` | FSRedAgentWrecker | none | ep | -842.76 | 312.94 | control | | | 0 | |
+| `hm_w_none_p9000` | FSRedAgentWrecker | none | 9000+ep | -915.97 | 354.28 | -73.2 | 43/100 | 0.19 | 0 | |
+| `hm_w_none_p9001` | FSRedAgentWrecker | none | 9001+ep | -898.46 | 354.60 | -55.7 | 47/100 | 0.62 | 0 | |
+| `hm_wo_O1_g32` | FSRedAgentWrecker | O1 | ep | -744.22 | 330.34 | +98.5 | 65/100 | 0.004 | 54.0 restores | 0.0 |
+| `hm_wo_O10_g32` | FSRedAgentWrecker | O10 | ep | -741.90 | 239.51 | +100.9 | 55/100 | 0.37 | 59.4 analyses | 10.6 |
+| `hm_wo_O13_g32` | FSRedAgentWrecker | O13 | ep | -804.14 | 252.39 | +38.6 | 55/100 | 0.37 | 44.7 analyses | 10.3 |
+| `hm_wo_O14_g32` | FSRedAgentWrecker | O14 | ep | -880.27 | 298.60 | -37.5 | 43/100 | 0.23 | 57.8 gate flips | 293.1 |
+| `hm_wo_O2e_g32` | FSRedAgentWrecker | O2e | ep | -993.01 | 307.02 | -150.2 | 36/100 | 0.007 | 72.3 restores | 9.6 |
+| `hm_s_none` | FiniteStateRedAgent | none | ep | -136.43 | 49.60 | control | | | 0 | |
+| `hm_s_none_p9000` | FiniteStateRedAgent | none | 9000+ep | -136.36 | 48.56 | +0.1 | 51/100 | 0.92 | 0 | |
+| `hm_so_O1_g32` | FiniteStateRedAgent | O1 | ep | -160.69 | 38.29 | -24.3 | 22/100 | 1.6e-08 | 53.1 restores | 0.0 |
+| `hm_so_O10_g32` | FiniteStateRedAgent | O10 | ep | -129.23 | 46.26 | +7.2 | 54/100 | 0.36 | 57.7 analyses | 7.9 |
+
+Recover agent-steps per episode, of 2,500: `hm_w_none` 263.1, `hm_s_none`
+247.3; under Wrecker O1 200.5, O10 281.0, O13 264.3, O14 350.4, O2e 236.7.
+
+`hm_s_none` (-136.43) sits inside the four-seed interval [-138.25, -124.44].
+`hm_w_none` (-842.76) is the per-episode-seeded counterpart of the compat
+-863.86; they are different seedings and are not expected to agree.
+
+**H-MARL noise floor under Wrecker**, two policy seeds against the control:
+deltas -73.2 and -55.7, wins 43 and 47 of 100. **The bar is roughly 75 points
+of mean delta and a win rate outside 43 to 47 of 100**, the same width as
+KEEP's under Wrecker. Against the stock red the single null is +0.1 and
+51/100: this defender's sampling barely moves its score there.
+
+`hm_wo_O14_g32` was first launched with a version of the rule that overrode
+the master's output and patched `return_agent` by hand; the wrapper's HITL
+consistency check tripped mid-run and the directory was deleted. The reported
+arm is the gate-flip form described under Oracle rules. `hm_compat_gate3b`
+and `hm_compat_wrecker_3` are three-episode harness gates, not arms;
+`data/hm_gate3` is the matching three-episode `evaluation.py` run.
+
+`wo_O2e_b77_r` (under Wrecker, above) is `wo_O2e_b77` rerun after the
+`owned_hosts` cache fix: identical on every shared footer key across all 100
+episodes, and it adds the latch and executed-count fields the original
+predates.
+
 ---
 
 ## Known issues
@@ -504,5 +575,31 @@ Q04 75.73, Q16 102.11, Q32 128.44, Q48 148.02.
 - **Worker count not recorded before `d974f69`.** The Wrecker oracle-rule
   arms (`wo_O8`, `wo_O6`, `wo_O5`, the `wo_O2*` budget series) ran at six or
   twelve; which is not recoverable. The header carries `workers` from
-  `d974f69`.
-  six or twelve; which is not recoverable. Header field pending.
+  `d974f69`, and every `capture_hmarl.py` trace records it.
+- **`id(cyborg)`-keyed caches — resolved.** `owned_hosts` cached the host
+  list under `(id(cyborg), agent)` and `_IMPACT_SEEN` under `id(cyborg)`. A
+  freed CybORG's address can be recycled by the next one a worker builds, and
+  CC4 redraws host counts per episode, so a stale list could in principle
+  have reached the evidence latch (O2e family, O10, O12, O13) and O7/O9; a
+  `reset()` of one CybORG (`capture_hmarl --compat`) has the same exposure.
+  Fixed by `tools_fix_owned_cache.py`: the cache is per agent, validated
+  against the live `State` object and its host-name tuple, and the impact
+  memory is cleared at step 0. `wo_O2e_b77` reproduced footer-for-footer
+  under the fix (`wo_O2e_b77_r`), so no reported arm was affected.
+- **Footer comparison.** Use `tools_compare_footers.py DIR_A DIR_B`: it
+  compares shared keys only, reports per-key differences, and exits non-zero
+  on a core-key difference or an empty intersection. An ad hoc comparison
+  once reported "identical" on zero footers (wrong path), and whole-dict
+  comparison flags schema growth (fields added at `d974f69`) as behaviour.
+  Core keys: `total_reward`, `overrides`, `agreements`, `deferred`,
+  `translator_calls`.
+- **H-MARL seeding is not KEEP's.** `evaluation.py --seed` reseeds once and
+  resets one CybORG per episode. `capture_hmarl.py --compat` reproduces it
+  exactly; the default mode is the oracle convention (fresh CybORG per
+  episode, seed = episode). Never pair a compat run against a default-mode
+  arm, and never compare a compat mean with a KEEP arm as if seeds matched.
+- **O14's first form.** Overriding the master's output after it acts leaves
+  the wrapper's `high_actionmask`/`return_agent` bookkeeping in a state no
+  genuine step produces, and `BlueFlatWrapper.step` calls `exit()` under
+  `HITL`. Edit the gate before the master acts (mask, `high_actionmask`,
+  `return_agent` together), which is also the honest definition of the rule.

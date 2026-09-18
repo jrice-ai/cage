@@ -2,8 +2,6 @@
 
 ## Overview
 
-## Overview
-
 Working record for CybORG CAGE Challenge 4 as a substrate for human supervision
 experiments. Sections are chronological; later sections supersede earlier ones
 where noted.
@@ -28,6 +26,11 @@ What the file establishes, in order of appearance:
 - An impact-focused red agent, hand-specified from a published planner schema,
   under which the same oracle rule that lost by 333 wins on every episode. The
   supervisory condition the programme needs exists from that section on.
+- A second defender, H-MARL Expert, through the same ladder under both
+  adversaries, in a harness that reproduces its authors' evaluation to the
+  digit. The adversary result and the verb result hold across two
+  architectures; the investigate result changes, and the architecture explains
+  it.
 
 All measurements before "The adversary determines whether supervision helps"
 are against `FiniteStateRedAgent`. Arm definitions and per-arm numbers live in
@@ -62,7 +65,7 @@ Cloned to `~/cage/repos`
 |---|---|
 | `cage-challenge/cage-challenge-4` | CybORG environment |
 | `cybermonic/cage-4-submission` | KEEP agent, weights included |
-| `adityavs14/Hierarchical-MARL` | H-MARL, not yet built |
+| `adityavs14/Hierarchical-MARL` | H-MARL Expert; built later as `cage-hmarl:dev` (Ray 2.10), weights md5-identical to Trident's copy |
 
 CybORG commit recorded automatically by the editable install
 
@@ -2054,6 +2057,10 @@ sd of means    5.87    se 2.94
 
 The unseeded 100-episode run returned -131.99, near the centre of the interval.
 
+`capture_hmarl.py --compat` reproduces the seed-0 run to the digit (-124.11,
+sd 45.80) and the seed-0 Wrecker run (-863.86, sd 365.65); see "H-MARL Expert
+through the ladder".
+
 ### Against the published leaderboard
 
 Kiely et al. 2025, 100 episodes of 500 steps each.
@@ -2093,9 +2100,10 @@ in those zones at 0.17x and 0.48x.
 the only subnet with red presence and no blue agent, the supply-chain foothold
 where red begins, outside blue's control entirely.
 
-Rescoring H-MARL's restores against observable evidence is the natural next
-measurement and is not yet done. It requires capturing H-MARL traces through
-`capture.py`, which currently imports KEEP's `Submission` directly.
+Rescoring H-MARL's restores against observable evidence became possible once
+`capture_hmarl.py` existed (see "H-MARL Expert through the ladder"). The
+footers of `hm_wo_O2e_g32` carry the latch confusion counts for this
+defender; the precision has not yet been read out of them.
 
 ## CC4 details recovered from the papers
 
@@ -2769,6 +2777,18 @@ incompletely (22 percent never), and only where Analyse can find something
 (detection yield 0.16 to 0.22). That is the deployable supervisory role, and
 it has a measured ceiling.
 
+**Two architectures, one sign.** H-MARL Expert, a hierarchical defender with
+a hand-written Investigate/Recover gate, loses to a perfect-information
+substitute against the stock red (-24, 22/100) and gains from it under
+Wrecker (+98, 65/100). Its gain is a fifth of KEEP's because its own loss is
+smaller; the supervised endpoints are within a null band of each other.
+Authority over the verb is worth nothing in either architecture (O11 on
+KEEP, O14 on H-MARL). Directed investigation matches substitution in
+expectation for H-MARL and not per episode, and rotation removes the repeat
+looks its gate depends on. The adversary result and the verb result are
+about the class; the investigate result is about the architecture, and the
+architecture explains it.
+
 **The adversary axis is targeting.** Conversion is saturated by the schema
 and its sweep is flat. Supervisory value is linear in the priority mass red
 places on hosts it has already rooted, from +48 at uniform targeting to +452
@@ -2788,4 +2808,171 @@ spread intervention, two authority conditions with oracle ceilings (+452
 substitute at 52 decisions per episode, +155 investigate at 45), a noise
 band of +/-81, paired design over fixed seeds, and a decision type —
 prompt an idle agent — that is vigilance rather than diagnosis. A human at
-that gate is the experiment.
+that gate is the experiment. The defender is KEEP; H-MARL Expert is the
+generalization arm, with too little headroom under Wrecker (+98 against a
++/-75 band) for a human fraction to be estimated at any affordable study
+size.
+
+## H-MARL Expert through the ladder
+
+The second defender through the same rules, the same schedule and the same
+paired design, so that the adversary and authority findings are about a class
+of converged defenders rather than about KEEP. H-MARL Expert (Singh et al.)
+is architecturally unlike KEEP: five masters each choose Investigate or
+Recover per step through a hand-written IoC gate, and a PPO sub-policy for
+the chosen mode picks the action. The gate is the action mask the master
+sees, `[1,0]` Investigate or `[0,1]` Recover, set by `observation_change`
+from whether an indicator of compromise is present in the agent's own
+observation.
+
+### Harness
+
+`scripts/capture_hmarl.py` installs `oracle_rules.make_oracle` (the rules
+shared with `oracle.py`, moved verbatim into a module) on the H-MARL wrapper
+by wrapping `env_step`: the sub-policy's action index becomes a CybORG action
+object, the rule sees it and may replace it, and a replacement goes back as
+an index so the stock path executes it. The master phase (mode choice, no
+simulator step) is untouched, so `overrides`, `agreements`,
+`translator_calls` and gap ticks count per simulator step exactly as for
+KEEP. Step records carry each agent's executed mode and the expert gate's own
+choice.
+
+Two seeding modes, because H-MARL's `evaluation.py` and the oracle harness
+seed differently. `--compat` mirrors `evaluation.py` with the seeding fix
+(seed once, load policies, one `CybORG(seed)` reset per episode, sequential)
+and reproduces the reference runs to the digit: seed 0, 100 episodes,
+`FiniteStateRedAgent` -124.11 sd 45.80, `FSRedAgentWrecker` -863.86 sd
+365.65, and the three-episode running means and standard deviation match
+their harness exactly (-931.00, -1119.50, -902.67, sd 420.22). The default
+mode is a fresh `CybORG(seed=ep)` per episode with sampling reseeded per
+episode, run in parallel, so arms pair seed by seed as the KEEP arms do. Its
+controls are -842.76 sd 312.94 under Wrecker (against -863.86 for one seed
+reset a hundred times) and -136.43 sd 49.60 against the stock red, inside the
+four-seed interval [-138.25, -124.44].
+
+Twelve seconds an episode: a 100-episode arm takes four minutes at six
+workers, against the better part of an hour for KEEP.
+
+### Noise band
+
+Two policy-seed nulls under Wrecker and one against the stock red, paired
+against the control on the same environment seeds.
+
+| Adversary | Null | Mean | Delta | Wins | Sign p |
+|---|---|---|---|---|---|
+| Wrecker | `hm_w_none_p9000` | -915.97 | -73.2 | 43/100 | 0.19 |
+| Wrecker | `hm_w_none_p9001` | -898.46 | -55.7 | 47/100 | 0.62 |
+| stock | `hm_s_none_p9000` | -136.36 | +0.1 | 51/100 | 0.92 |
+
+Under Wrecker the band is about +/-75 on the mean and 43 to 47 wins, the
+same width as KEEP's. Against the stock red it is nearly zero: the expert
+gate is deterministic given the observation, and against an adversary that
+converts little, the sub-policies' sampling barely moves the score.
+
+### The adversary sets the sign for both defenders
+
+Substitution at gap 32, paired over seeds 0-99, both defenders, both
+adversaries.
+
+| Defender | Adversary | Control | O1 gap 32 | Delta | Wins | Sign p |
+|---|---|---|---|---|---|---|
+| KEEP | stock | -187.32 | -203 | -16 | 39/100 | inside band |
+| KEEP | Wrecker | -1115.65 | -663.38 | +452.27 | 95/100 | 1.2e-22 |
+| H-MARL Expert | stock | -136.43 | -160.69 | -24.3 | 22/100 | 2e-08 |
+| H-MARL Expert | Wrecker | -842.76 | -744.22 | +98.5 | 65/100 | 0.004 |
+
+Same sign pattern on a second architecture. Against the stock red a
+perfect-information substitute costs H-MARL 24 points and loses 78 of 100
+episodes; under Wrecker it gains 98 and wins 65. Directed investigation
+against the stock red is +7.2 (54/100, p 0.36) for H-MARL and +7.6 for
+KEEP, both inside their bands.
+
+**The magnitude is the defender's own deficit.** H-MARL loses -843 to
+Wrecker where KEEP loses -1116, and its unsupervised gate already spends 263
+agent-steps per episode in Recover mode. The supervised endpoints are -744
+and -663, within one Wrecker null band of each other. A supervisor with
+ground truth brings both defenders to about the same place; how far each
+travels is how far it was from there.
+
+### The ladder under Wrecker
+
+All arms gap 32, seeds 0-99, paired against `hm_w_none`.
+
+| Authority | Rule | Truth used for | Mean | Delta | Wins | Sign p | Executed/ep |
+|---|---|---|---|---|---|---|---|
+| Substitute | O1 | the target host | -744.22 | +98.5 | 65/100 | 0.004 | 54.0 restores |
+| Investigate | O10 | where to look | -741.90 | +100.9 | 55/100 | 0.37 | 59.4 analyses |
+| Investigate, rotating | O13 | where to look | -804.14 | +38.6 | 55/100 | 0.37 | 44.7 analyses |
+| Mode, force Recover | O14 | whether to recover | -880.27 | -37.5 | 43/100 | 0.23 | 57.8 gate flips |
+| Read passive evidence | O2e | nothing | -993.01 | -150.2 | 36/100 | 0.007 | 72.3 restores |
+| null | | | -916, -898 | -73, -56 | 43, 47 | | |
+
+O14 is the rule KEEP cannot express: when ground truth says the agent's
+subnets hold a compromised host and the gate says Investigate, the gate is
+flipped to Recover before the master acts, exactly as an observed IoC would
+flip it, and the recover sub-policy picks the host. It counts 293 agreements
+per episode (truth said compromised and the gate already said Recover), 58
+flips, and 87 more Recover agent-steps than the control, for nothing.
+
+Reading the ladder against KEEP's:
+
+- **Naming the target is worth +98 (65/100) here and +452 (95/100) for
+  KEEP.** Same authority, same rule, a fifth of the gain, for the reason
+  above.
+- **Naming where to look is worth as much as naming the target in
+  expectation, +101 against +98, and is not a reliable per-episode gain
+  (55/100, inside the band on wins).** For KEEP investigation was a third of
+  substitution and won 66 of 100. The difference is where the response
+  lives. KEEP's response to an investigation is learned and slow (median 36
+  steps, 22 percent never). H-MARL's is architectural: an Analyse that
+  finds a file puts an IoC in the agent's observation and the gate flips to
+  Recover at the next step. So when a directed look lands, the recovery
+  follows at once, and when it does not land, nothing happens. The gain
+  concentrates in the episodes where looks land. This is a hypothesis with
+  a cheap test on the step records: latency from executed Analyse to
+  Recover mode, and yield by first look against repeat look.
+- **Rotation hurts this defender.** O13 removes repeat looks within 50
+  steps and raised KEEP's ceiling from +127 to +155; here it lowers it from
+  +101 to +39. The repeats KEEP wasted are, for a gate that needs an IoC in
+  its own observation, the mechanism: a look that finds nothing has to be
+  repeated until it does.
+- **Authority over the verb is worth nothing in either architecture.** O11
+  on KEEP (+28, 53/100) and O14 on H-MARL (-37, 43/100). The recover
+  sub-policy without an IoC pointing at the host does not find it, as KEEP
+  did not. The target is the deficit, not the decision to act.
+- **Passive evidence is harmful here and inert for KEEP.** -150 (36/100,
+  p 0.007) against -54 inside the band. This defender already acts on its
+  observation stream through the gate; the latch adds about 72 restores per
+  episode on hosts it has flagged at close to chance, and restores cost
+  green availability. One caveat on the comparison: KEEP's O2e arms were
+  budget-77 bursts, this one is spread at gap 32. A KEEP O2e at gap 32 is a
+  40-minute arm if the like-for-like number is wanted.
+
+### What this does to the study
+
+KEEP stays the study defender. Its ceilings, +452 substitute and +155
+investigate, leave room for a human fraction to be estimated; H-MARL's +98
+and +101 against a +/-75 band do not, at any study size the protocol can
+afford. H-MARL's role is the generalization arm: the adversary result and the
+verb result hold across two architectures, and the investigate result
+changes in a way the architecture explains.
+
+The O14 result is also a design finding. A hierarchical agent offers a human
+exactly one natural seat, the mode gate, approve or force Recover, and that
+seat is worth nothing with perfect information. The leverage is in naming
+the host, or where to look, which the hierarchy does not expose. An interface
+built on the agent's own decision structure would put the person at the
+wrong gate.
+
+### Bookkeeping
+
+`owned_hosts` in `oracle_rules.py` cached the host list under
+`(id(cyborg), agent)`. A freed CybORG's address can be recycled by the next
+one a worker builds, and CC4 redraws host counts per episode, so a stale list
+could in principle have reached the evidence latch and O7/O9. The cache is
+now per agent, validated against the live `State` object and its host-name
+tuple, and `_IMPACT_SEEN` is cleared at step 0. `wo_O2e_b77`, the arm most
+exposed, reproduced footer-for-footer under the fix (100 episodes, every
+shared key identical), so the hazard never fired in a reported number. The
+`--compat` mode, which resets one CybORG per episode, needed the fix
+regardless.
