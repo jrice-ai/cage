@@ -1,0 +1,1 @@
+{"0": ["restricted_zone_a_subnet"], "1": ["operational_zone_a_subnet"], "2": ["restricted_zone_b_subnet"], "3": ["operational_zone_b_subnet"], "4": ["admin_network_subnet", "office_network_subnet", "public_access_zone_subnet"]}
