@@ -3,4 +3,5 @@
 img="$1"; shift
 exec docker run --rm --hostname "$(hostname)" \
   -e HARNESS_SHA="$(git -C ~/cage rev-parse HEAD)" \
-  -v ~/cage:/work "$img" "$@"
+  -v ~/cage:/work "$img" \
+  bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && exec "$@"' _ "$@"
