@@ -29,8 +29,8 @@ What the file establishes, in order of appearance:
 - A second defender, H-MARL Expert, through the same ladder under both
   adversaries, in a harness that reproduces its authors' evaluation to the
   digit. The adversary result and the verb result hold across two
-  architectures; the investigate result changes, and the architecture explains
-  it.
+  architectures; the investigate result is smaller, takes the form of tail
+  compression, and the step records rule out the obvious explanation for it.
 
 All measurements before "The adversary determines whether supervision helps"
 are against `FiniteStateRedAgent`. Arm definitions and per-arm numbers live in
@@ -2100,10 +2100,10 @@ in those zones at 0.17x and 0.48x.
 the only subnet with red presence and no blue agent, the supply-chain foothold
 where red begins, outside blue's control entirely.
 
-Rescoring H-MARL's restores against observable evidence became possible once
-`capture_hmarl.py` existed (see "H-MARL Expert through the ladder"). The
-footers of `hm_wo_O2e_g32` carry the latch confusion counts for this
-defender; the precision has not yet been read out of them.
+Rescoring against observable evidence on H-MARL is now measured (see "H-MARL
+Expert through the ladder"): the passive latch is 0.087 precise and 0.019
+complete on that defender, against 0.24 and 0.58 on KEEP, because the
+criterion is a function of the defender's own action mix.
 
 ## CC4 details recovered from the papers
 
@@ -2783,11 +2783,13 @@ substitute against the stock red (-24, 22/100) and gains from it under
 Wrecker (+98, 65/100). Its gain is a fifth of KEEP's because its own loss is
 smaller; the supervised endpoints are within a null band of each other.
 Authority over the verb is worth nothing in either architecture (O11 on
-KEEP, O14 on H-MARL). Directed investigation matches substitution in
-expectation for H-MARL and not per episode, and rotation removes the repeat
-looks its gate depends on. The adversary result and the verb result are
-about the class; the investigate result is about the architecture, and the
-architecture explains it.
+KEEP, O14 on H-MARL). Directed investigation on H-MARL is at the edge of the
+band (+101 and +39, 55 wins each, indistinguishable from each other), trims
+the lower tail rather than lifting the median, and is answered no faster
+than on KEEP. The passive-evidence criterion collapses on H-MARL (precision
+0.087) because its Analyse-heavy action mix floods the latch. The adversary
+result and the verb result are about the class; the evidence criterion is
+about the defender.
 
 **The adversary axis is targeting.** Conversion is saturated by the schema
 and its sweep is flat. Supervisory value is linear in the priority mass red
@@ -2919,34 +2921,81 @@ Reading the ladder against KEEP's:
 - **Naming the target is worth +98 (65/100) here and +452 (95/100) for
   KEEP.** Same authority, same rule, a fifth of the gain, for the reason
   above.
-- **Naming where to look is worth as much as naming the target in
-  expectation, +101 against +98, and is not a reliable per-episode gain
-  (55/100, inside the band on wins).** For KEEP investigation was a third of
-  substitution and won 66 of 100. The difference is where the response
-  lives. KEEP's response to an investigation is learned and slow (median 36
-  steps, 22 percent never). H-MARL's is architectural: an Analyse that
-  finds a file puts an IoC in the agent's observation and the gate flips to
-  Recover at the next step. So when a directed look lands, the recovery
-  follows at once, and when it does not land, nothing happens. The gain
-  concentrates in the episodes where looks land. This is a hypothesis with
-  a cheap test on the step records: latency from executed Analyse to
-  Recover mode, and yield by first look against repeat look.
-- **Rotation hurts this defender.** O13 removes repeat looks within 50
-  steps and raised KEEP's ceiling from +127 to +155; here it lowers it from
-  +101 to +39. The repeats KEEP wasted are, for a gate that needs an IoC in
-  its own observation, the mechanism: a look that finds nothing has to be
-  repeated until it does.
+- **Naming where to look is at the edge of the band, and O10 and O13 are
+  not distinguishable.** +101 and +39 in mean, 55 wins each, against a band
+  of −73 to −56 and 43 to 47 wins. The 62-point gap between them is inside
+  the band, and on every step-record measure below they are the same arm.
+  What investigation does on this defender is compress the lower tail (see
+  "Investigation on H-MARL, from the step records"), which is why O10 has
+  O1's mean and not O1's wins.
 - **Authority over the verb is worth nothing in either architecture.** O11
   on KEEP (+28, 53/100) and O14 on H-MARL (-37, 43/100). The recover
   sub-policy without an IoC pointing at the host does not find it, as KEEP
   did not. The target is the deficit, not the decision to act.
-- **Passive evidence is harmful here and inert for KEEP.** -150 (36/100,
-  p 0.007) against -54 inside the band. This defender already acts on its
-  observation stream through the gate; the latch adds about 72 restores per
-  episode on hosts it has flagged at close to chance, and restores cost
-  green availability. One caveat on the comparison: KEEP's O2e arms were
-  budget-77 bursts, this one is spread at gap 32. A KEEP O2e at gap 32 is a
-  40-minute arm if the like-for-like number is wanted.
+- **Passive evidence is harmful here and inert for KEEP, because the
+  criterion depends on the defender.** -150 (36/100, p 0.007) against -54
+  inside the band. The passive latch is 0.087 precise on H-MARL against 0.24
+  on KEEP: H-MARL spends most of its steps in Investigate mode running
+  Analyse, and every Analyse that returns ordinary files names a host, so
+  "any substantive observation" floods with clean hosts. O2e's 72 restores
+  per episode are then 91 percent wasted, and restores cost green
+  availability. One caveat on the comparison: KEEP's O2e arms were budget-77
+  bursts, this one is spread at gap 32.
+
+### Investigation on H-MARL, from the step records
+
+`tools_investigate.py` on both defenders' O10 and O13 arms. "Response" is
+the acting agent's next Restore or Remove on the investigated host; "gate
+flip" is H-MARL's expert gate going from Investigate at the look to Recover
+at the next step, the event that would mean the look put an IoC in the
+agent's own observation.
+
+| Measure | KEEP O10 | KEEP O13 | H-MARL O10 | H-MARL O13 |
+|---|---|---|---|---|
+| Executed investigations / ep | 61.2 | 45.5 | 59.4 | 44.7 |
+| Strict-latch yield (flags_new / analyses) | 0.163 | 0.216 | 0.181 | 0.233 |
+| Repeat share (host already looked at this episode) | 66.3% | 46.8% | 66.1% | 48.0% |
+| Gate already Recover at the look | | | 13.1% | 10.8% |
+| Gate flip at next step (first / repeat looks) | | | 2.6% (3.8 / 2.0) | 1.9% (2.2 / 1.6) |
+| Response median / p90 | 36 / 133 | 36 / 135 | 31 / 139 | 32 / 145 |
+| Response within 10 / within 50 | 15.3% / 49.8% | 14.2% / 45.8% | 16.1% / 44.5% | 14.2% / 42.0% |
+| Never responds | 22.4% | 23.7% | 32.8% | 33.3% |
+| Host recovered within 50, look landed / missed | | | 80.1% / 42.8% | 67.5% / 41.7% |
+
+Three things follow. The sensor is the same on both defenders: yield 0.16 to
+0.23, rotation raising it by the same third. The response is the same: H-MARL
+answers a directed look at KEEP's tempo and less completely (a third never
+against a fifth). And the gate almost never flips on a directed look, 2.6
+percent, against a sensor yield of 18 percent: whatever H-MARL's IoC gate
+counts, it is not what a strict-latch file is. When the gate does flip the
+host is recovered within 50 steps 80 percent of the time, so the mechanism
+exists and the directed look does not trigger it. The "architectural
+response" explanation proposed when the ladder first ran is withdrawn.
+
+What investigation does do on H-MARL is visible in the paired delta
+distribution against the control, with the two nulls as calibration.
+
+| Arm | Median delta | p10 | p90 | Arm stdev |
+|---|---|---|---|---|
+| null 9000 | -88 | -727 | +468 | 354 |
+| null 9001 | -35 | -654 | +441 | 355 |
+| O1 gap 32 | +137 | -519 | +581 | 330 |
+| O10 gap 32 | +60 | -266 | +562 | 240 |
+| O13 gap 32 | +48 | -422 | +525 | 252 |
+
+Substitution moves the median by about 200 points relative to a null and
+keeps a null's lower tail. Investigation moves the median by about 100 and
+cuts the lower tail by about 400 points, and its own standard deviation is a
+quarter below the control's (240 against 313). It prevents the worst
+episodes and does little to typical ones, which is a different supervisory
+product from KEEP's and one that a per-episode sign test undercounts. (A
+delta conditioned on the control's own worst quartile is not usable for
+this: the nulls show +238 and +317 there by regression to the mean.)
+
+The strict latch is truth-grade on both defenders (precision 1.000 on
+H-MARL under O10, 6,322 true against 2 false; 0.94 on KEEP) and half as
+complete (recall 0.010 against 0.019), because this defender clears flags
+faster by restoring.
 
 ### What this does to the study
 
@@ -2954,8 +3003,10 @@ KEEP stays the study defender. Its ceilings, +452 substitute and +155
 investigate, leave room for a human fraction to be estimated; H-MARL's +98
 and +101 against a +/-75 band do not, at any study size the protocol can
 afford. H-MARL's role is the generalization arm: the adversary result and the
-verb result hold across two architectures, and the investigate result
-changes in a way the architecture explains.
+verb result hold across two architectures; the investigate result is smaller
+and takes the form of tail compression; and the passive-evidence criterion
+turns out to be a property of the defender's action mix, which is a
+disclosure point for Paper 1 as much as a finding for Paper 2.
 
 The O14 result is also a design finding. A hierarchical agent offers a human
 exactly one natural seat, the mode gate, approve or force Recover, and that

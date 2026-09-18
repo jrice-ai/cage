@@ -10,10 +10,11 @@ and gap ticks count per simulator step exactly as they do for KEEP.
 
 Rules: everything oracle_rules supports except O11 (needs KEEP's actor), plus
   O14   Mode authority. When ground truth says the agent's subnets hold a compromised
-        host and the master chose Investigate, force Recover; the recover sub-policy
-        picks the host. The verb-level authority (cf. O11) expressed in H-MARL's own
-        hierarchy. Counted as an override, subject to --min-gap, and the wrapper's
-        HITL consistency check is kept satisfied by updating return_agent.
+        host and the expert gate says Investigate, flip the gate to Recover before the
+        master acts (mask, high_actionmask and return_agent set as an observed IoC
+        would set them); the recover sub-policy picks the host. The verb-level
+        authority (cf. O11) expressed in H-MARL's own hierarchy. Counted as an
+        override, subject to --min-gap.
 
 Seeding modes
   default   fresh CybORG(seed=base+ep) per episode, sampling reseeded per episode with
@@ -130,24 +131,32 @@ def _install(env):
     return holder
 
 
-def _o14(env, cyborg, actions, stats, min_gap, t, last):
-    """Master-phase hook. actions: {blue_agent_i_master: 0|1}, edited in place."""
+def _o14(env, cyborg, obs, stats, min_gap, t, last):
+    """Master-phase hook, applied to the master observations before the master acts.
+    Under HITL the expert gate is the action mask ([1,0] Investigate, [0,1] Recover),
+    set by observation_change together with return_agent. When ground truth says the
+    agent's subnets hold a compromised host and the gate says Investigate, flip the
+    gate to Recover exactly as an observed IoC would have: mask, high_actionmask and
+    return_agent together, so the wrapper's state is indistinguishable from a genuine
+    Recover choice and its HITL consistency check holds."""
     comp = compromised_by_agent(cyborg)
-    for key in actions:
+    for key, o in obs.items():
         agent = key[:12]
         if not comp.get(agent):
             continue
-        if int(actions[key]) == 1:
+        if int(o["action_mask"][1]) == 1:
             stats["agree"] += 1
             continue
         if min_gap and t - last.get(agent, -10 ** 9) < min_gap:
             stats["deferred"] += 1
             continue
         last[agent] = t
-        actions[key] = 1
+        m = np.array([0, 1], dtype=np.int64)
+        o["action_mask"] = m
+        env.high_actionmask[agent] = m
         ra = getattr(env, "return_agent", None)
         if isinstance(ra, dict):
-            ra[agent] = agent + "_recover"      # BlueFlatWrapper.step exits under HITL if these disagree
+            ra[agent] = agent + "_recover"
         stats["override"] += 1
         stats["mode_overrides"] += 1
         stats.setdefault("ovr", []).append([agent, "mode:investigate", "mode:recover"])
@@ -178,13 +187,14 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
         # Mirrors evaluation.py: 2*EPISODE_LENGTH iterations alternating master and
         # sub-policy phases, done computed over the returned observation keys.
         for _ in range(2 * EPISODE_LENGTH):
-            actions = {n: agents[n].get_action(obs[n], env.action_space(n[:12])) for n in obs}
-            master_phase = any("master" in k for k in actions)
+            master_phase = any("master" in k for k in obs)
             if master_phase:
-                expert = {k[:12]: ("recover" if int(v) == 1 else "investigate")
-                          for k, v in actions.items()}
+                expert = {k[:12]: ("recover" if int(o["action_mask"][1]) == 1 else "investigate")
+                          for k, o in obs.items()}          # the expert gate, before any edit
                 if rule == "O14":
-                    _o14(env, cyborg, actions, stats, min_gap, t, o14_last)
+                    _o14(env, cyborg, obs, stats, min_gap, t, o14_last)
+            actions = {n: agents[n].get_action(obs[n], env.action_space(n[:12])) for n in obs}
+            if master_phase:
                 obs, rew, term, trunc, info = env.step(actions)
             else:
                 mode = {k[:12]: k[13:] for k in actions}

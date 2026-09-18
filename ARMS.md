@@ -537,6 +537,25 @@ and `hm_compat_wrecker_3` are three-episode harness gates, not arms;
 episodes, and it adds the latch and executed-count fields the original
 predates.
 
+Latch confusion against ground truth, summed over 100 episodes
+(`tools_investigate.py`; the H-MARL arms above carry the counters under the
+raw keys `tp` / `fp` / `fn` / `own`, later traces also under `latch_*`):
+
+| Arm | Latch | tp | fp | fn | Precision | Recall |
+|---|---|---|---|---|---|---|
+| `hm_wo_O2e_g32` | passive | 12,078 | 126,572 | 630,311 | 0.087 | 0.019 |
+| `hm_wo_O10_g32` | strict | 6,322 | 2 | 640,313 | 1.000 | 0.010 |
+| `hm_wo_O13_g32` | strict | 5,375 | 1 | 640,557 | 1.000 | 0.008 |
+| `wo_O10_g32y` (KEEP) | strict | 13,775 | 875 | 704,425 | 0.940 | 0.019 |
+| `wo_O13_g32` (KEEP) | strict | 14,066 | 931 | 675,368 | 0.938 | 0.020 |
+
+Investigation measures per arm (response = the acting agent's next Restore
+or Remove on the investigated host): H-MARL O10 median 31, p90 139, within
+50 44.5%, never 32.8%, gate flip at next step 2.6%; H-MARL O13 32 / 145 /
+42.0% / 33.3% / 1.9%; KEEP O10 36 / 133 / 49.8% / 22.4%; KEEP O13 36 / 135
+/ 45.8% / 23.7%. Yields (flags_new / analyses) 0.181, 0.233, 0.163, 0.216.
+Repeat share 66.1%, 48.0%, 66.3%, 46.8%.
+
 ---
 
 ## Known issues
@@ -598,6 +617,11 @@ predates.
   exactly; the default mode is the oracle convention (fresh CybORG per
   episode, seed = episode). Never pair a compat run against a default-mode
   arm, and never compare a compat mean with a KEEP arm as if seeds matched.
+- **Latch counter names.** `oracle.py` footers name the latch confusion
+  `latch_tp` / `latch_fp` / `latch_fn` / `latch_own`; `capture_hmarl.py`
+  traces captured on 2026-09-18 carry them under the raw stats keys `tp` /
+  `fp` / `fn` / `own` (the harness dumps every numeric stat) and later traces
+  under both. `tools_investigate.py` reads either.
 - **O14's first form.** Overriding the master's output after it acts leaves
   the wrapper's `high_actionmask`/`return_agent` bookkeeping in a state no
   genuine step produces, and `BlueFlatWrapper.step` calls `exit()` under
