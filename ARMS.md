@@ -664,20 +664,58 @@ Gates for the patched pipeline, 2026-09-20:
 | `k_pilot_w_gate3` | `KEEP_WEIGHTS=pilot_wrecker`, `--rule none --red FSRedAgentWrecker`, 3 episodes | -852, -1020, -956 against the shipped control's -740, -1484, -1183 on the same seeds; header `weights: pilot_wrecker` |
 
 Continuation runs, 2,000 episodes each (1M environment steps, the H-MARL
-first budget), 25 workers, `KEEP_SEED` 1000 (environments 1000-1024, disjoint
-from the evaluation seeds), kept checkpoints at 500, 1000, 1500 and 2000
-episodes, run in sequence:
+first budget, 80 updates), 25 workers, `KEEP_SEED` 1000 (environments
+1000-1024, disjoint from the evaluation seeds), one at a time, about 2.2
+minutes an update. Curve values are the trainer's `Avg reward for episode`:
+25-episode means under sampling on the training seeds, directly comparable
+to evaluation values for this defender (same stochastic policy, different
+seeds), unlike H-MARL's. No intermediate checkpoints were kept (Known
+issues, `KEEP_CKPT`); the `final` weights are the rolling checkpoint after
+update 80.
 
-| Tag | Adversary | Status |
-|---|---|---|
-| `kft_Wrecker_s1000` | FSRedAgentWrecker | running 2026-09-20, about 2.2 minutes per update |
-| `kft_FiniteStateRedAgent_s1000` | FiniteStateRedAgent | queued |
-| `kft_WreckerQ32_s1000` | FSRedAgentWreckerQ32 | queued |
+| Tag | Adversary | First 10 updates | Last 10 | Halves | Slope per update | sd |
+|---|---|---|---|---|---|---|
+| `kft_Wrecker_s1000` | FSRedAgentWrecker | -1128.9 | -1037.6 | -1092.3 / -1026.1 (t 4.1) | +1.41 +/- 0.35 | 79.3 |
+| `kft_FiniteStateRedAgent_s1000` | FiniteStateRedAgent | -209.0 | -216.8 | -217.5 / -217.2 | -0.05 +/- 0.07 | 14.6 |
+| `kft_WreckerQ32_s1000` | FSRedAgentWreckerQ32 | -769.9 | -850.7 | -804.0 / -858.2 (t -3.4) | -1.51 +/- 0.33 | 76.9 |
 
-Each kept checkpoint is to be copied to `keep_weights/<tag>_e<N>/gnn_ppo-{i}.pt`
-and evaluated with `--rule none` under Wrecker and under the stock red on
-seeds 0-99, paired against `red_FSRedAgentWrecker` and `corpus_v1`; the final
-checkpoint also under O1 at gap 32.
+Quarters: Wrecker -1130, -1055, -1009, -1043 (the gain is in the first
+thousand episodes); stock -216, -219, -218, -216 after a first update at
+-174; Q32 -771, -837, -840, -876.
+
+Evaluation of the final weights, `oracle.py`, 100 episodes, seeds 0-99, six
+workers, 4.7 minutes an arm (nine arms in 37 minutes on 2026-09-20). Paired
+against the shipped-policy arm on the same seeds; band under Wrecker +/-81
+and 45-51 wins, under the stock red +/-15 and 35-66 wins; no Q32 null exists
+yet.
+
+| Directory | Weights | Adversary | Rule | Mean | Stdev | Against | Delta | Wins | Sign p |
+|---|---|---|---|---|---|---|---|---|---|
+| `k_kft_Wrecker_s1000_final_w_none` | Wrecker-trained | Wrecker | none | -1020.23 | 301.79 | `red_FSRedAgentWrecker` | +95.4 | 60/100 | 0.057 |
+| `k_kft_Wrecker_s1000_final_s_none` | Wrecker-trained | stock | none | -250.93 | 95.47 | `corpus_v1` | -63.6 | 25/100 | 0.000 |
+| `k_kft_Wrecker_s1000_final_WreckerQ32_none` | Wrecker-trained | Q32 | none | -698.04 | | `red_FSRedAgentWreckerQ32` | +75.0 | 56/100 | 0.27 |
+| `k_kft_Wrecker_s1000_final_w_O1_g32` | Wrecker-trained | Wrecker | O1, gap 32, budget 99999 | -626.33 | | `k_kft_Wrecker_s1000_final_w_none` | +393.9 | 93/100 | 0.000 |
+| | | | | | | `wo_O1_g32` (shipped + O1) | +37.0 | 55/100 | 0.37 |
+| `k_kft_FiniteStateRedAgent_s1000_final_w_none` | stock-trained | Wrecker | none | -1161.37 | 310.62 | `red_FSRedAgentWrecker` | -45.7 | | |
+| `k_kft_FiniteStateRedAgent_s1000_final_s_none` | stock-trained | stock | none | -198.52 | 54.48 | `corpus_v1` | -11.2 | 39/100 | 0.044 |
+| `k_kft_WreckerQ32_s1000_final_WreckerQ32_none` | Q32-trained | Q32 | none | -838.79 | | `red_FSRedAgentWreckerQ32` | -65.7 | 38/100 | 0.021 |
+| `k_kft_WreckerQ32_s1000_final_w_none` | Q32-trained | Wrecker | none | -1246.31 | | `red_FSRedAgentWrecker` | -130.7 | 38/100 | 0.021 |
+| `k_kft_WreckerQ32_s1000_final_s_none` | Q32-trained | stock | none | -239.65 | | `corpus_v1` | -52.3 | 25/100 | 0.000 |
+
+Executed restores under O1 on the retrained policy: 53.7 per episode
+(shipped policy, `wo_O1_g32`: 52.3).
+
+Reading, one seed. Training under Wrecker buys +95 under Wrecker (outside
+the band on both mean and wins, p 0.057), a fifth of what O1 buys on the
+same policy (+394 here, +452 on the shipped one), and costs -64 against the
+stock red, four times that band. O1 brings the retrained policy to -626 and
+the shipped policy to -663, the same endpoint within the band: retraining's
+gain is subtracted from the supervisor's, not added to it. Training under
+the stock red changes nothing measurable (-11 and -46, inside both bands).
+Training under Q32 makes the policy worse on Q32 itself (-66), under Wrecker
+(-131) and under stock (-52). Fraction of the Wrecker excess loss (-928)
+recovered: retraining 0.10, O1 at gap 32 0.49. Seed 1001 of all three runs,
+with kept checkpoints, is in progress (`kft_*_s1001`).
 
 ---
 
@@ -795,3 +833,16 @@ checkpoint also under O1 at gap 32.
   iteration against -842.76 (per-episode seeding) and -863.86 (compat) in
   evaluation; `ft_Wrecker_s0/iter_99` reads -893 in training and -945.59
   in evaluation. Compare curves with curves and arms with arms.
+- **`KEEP_CKPT` was not passed into the container** until 2026-09-20 18:52:
+  `train.py` read it, `bin/run` did not forward it, so the three `kft_*_s1000`
+  runs kept no intermediate checkpoints (the queue's three `missing` lines in
+  `ft_runs.log`). Fixed in `tools_patch_keep_train.py` (`-e KEEP_CKPT`);
+  `kft_*_s1001` onward keep them.
+- **Evaluation script must be executable.** `run_keep_eval.sh` launched
+  without `chmod +x` fails every arm with `Exit 126` and writes nothing; the
+  first queue on 2026-09-20 was lost this way. `ls keep_weights/` after the
+  first minute is the check: the arm's weight directory appears at once.
+- **KEEP evaluation time.** `oracle.py --rule none`, 100 episodes, six
+  workers: 4.7 minutes an arm on the Alienware (nine arms, 17:43 to 18:21 on
+  2026-09-20), not the hour recorded in RESULTS.md under "Harness" for the
+  H-MARL comparison. Evaluation is cheap; training is the budget.

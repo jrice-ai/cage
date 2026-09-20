@@ -92,16 +92,22 @@ SEED = int(_os.environ.get("KEEP_SEED", "1337"))''')
 
 
 def patch_run(src):
-    if "KEEP_WEIGHTS" in src:
-        return src
-    old = '-e HMARL_MODEL_DIR -e HMARL_LOGDIR -e HMARL_POLICY_DIR \\'
-    assert src.count(old) == 1, "bin/run HMARL line not found (apply tools_patch_hmarl_train.py first)"
-    src = src.replace(old, old + '\n  -e KEEP_WEIGHTS -e KEEP_RED -e KEEP_RESTORE -e KEEP_EPISODES -e KEEP_WORKERS -e KEEP_SEED -e KEEP_SHARED_ENV_SEED \\')
-    old = "bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && exec \"$@\"' _ \"$@\""
-    assert src.count(old) == 1, "bin/run exec line not found"
-    return src.replace(old, "bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && "
-                            "if [ -n \"$KEEP_WEIGHTS\" ]; then cp /work/keep_weights/$KEEP_WEIGHTS/gnn_ppo-*.pt /opt/cage/cage-4-submission/weights/; fi && "
-                            "exec \"$@\"' _ \"$@\"")
+    if "KEEP_WEIGHTS" not in src:
+        old = '-e HMARL_MODEL_DIR -e HMARL_LOGDIR -e HMARL_POLICY_DIR \\'
+        assert src.count(old) == 1, "bin/run HMARL line not found (apply tools_patch_hmarl_train.py first)"
+        src = src.replace(old, old + '\n  -e KEEP_WEIGHTS -e KEEP_RED -e KEEP_RESTORE -e KEEP_EPISODES -e KEEP_WORKERS -e KEEP_SEED -e KEEP_SHARED_ENV_SEED \\')
+        old = "bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && exec \"$@\"' _ \"$@\""
+        assert src.count(old) == 1, "bin/run exec line not found"
+        src = src.replace(old, "bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && "
+                               "if [ -n \"$KEEP_WEIGHTS\" ]; then cp /work/keep_weights/$KEEP_WEIGHTS/gnn_ppo-*.pt /opt/cage/cage-4-submission/weights/; fi && "
+                               "exec \"$@\"' _ \"$@\"")
+    if "-e KEEP_CKPT" not in src:
+        # KEEP_CKPT was read by train.py but not passed into the container; the
+        # 2026-09-20 s1000 runs kept no intermediate checkpoints because of it.
+        old = "-e KEEP_SHARED_ENV_SEED \\"
+        assert src.count(old) == 1, "bin/run KEEP line not found"
+        src = src.replace(old, "-e KEEP_SHARED_ENV_SEED -e KEEP_CKPT \\")
+    return src
 
 
 def patch_oracle(src):
