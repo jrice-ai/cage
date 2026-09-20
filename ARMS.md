@@ -17,13 +17,17 @@ and the footer carries `latch_tp/fp/fn/own` and `flags_new` (evidence rules),
 `deferred` (gap), and executed-override counts by type `analyses` /
 `restores` / `removes` / `sleeps`. From commit `d974f69` the header also
 carries `workers`. Arms between `dd22fff` and `d974f69` report `analyses` /
-`restores` as attempts; see Known issues.
+`restores` as attempts; see Known issues. From 2026-09-20 the header carries
+`weights`: `shipped`, or the name of a `keep_weights/` directory swapped in
+by `KEEP_WEIGHTS` (see "Retrained defenders").
 
 **Schema B-H** (`capture_hmarl.py`, H-MARL Expert): Schema B plus per-step
 `mode` (the sub-policy each agent executed, `investigate` or `recover`) and
 `expert_mode` (the gate's own choice before any rule), and footer
 `env_steps`, `mode_overrides`, `recover_agent_steps`; header `harness`,
-`defender`, `seed_mode` (`episode` or `compat`), `policy_seed`, `workers`.
+`defender`, `seed_mode` (`episode` or `compat`), `policy_seed`, `workers`,
+and from 2026-09-20 `policy_dir` (the sub-policy checkpoint loaded,
+`saved_policies/sub/iter_49/policies/` for the shipped defender).
 Every simulator step is recorded, so these arms are 500 steps, not 499.
 
 Neither is a superset of the other. Schema B lacks Tier-3 ground truth; Schema A
@@ -411,6 +415,7 @@ adversary; the defender is unchanged and at deployment competence.
 | `wo_O2_g64` | KEEP sampled | unset | O2, gap 64 | 99999 | -797.25 | 229.27 | 32.0 | 47.3 |
 | `wo_O2_g128` | KEEP sampled | unset | O2, gap 128 | 99999 | -889.95 | 255.82 | 18.1 | 55.3 |
 | `wo_O2e_b77` | KEEP sampled | unset | O2e | 77 | -1170.05 | 341.22 | 77.0 | 106.4 |
+| `wo_O2e_b77_r` | KEEP sampled | unset | O2e | 77 | -1170.05 | 341.22 | 77.0 | 106.4 |
 | `wo_O2e_bmax` | KEEP sampled | unset | O2e | 100000 | -1195.90 | 228.23 | 347.4 | 9.3 |
 | `wo_O2er_b77` | KEEP sampled | unset | O2er | 77 | -1202.02 | 335.55 | 77.0 | 106.4 |
 | `wo_O2ew_b77` | KEEP sampled | unset | O2ew | 77 | -1184.93 | 348.62 | 77.0 | 63.9 |
@@ -528,9 +533,12 @@ KEEP's under Wrecker. Against the stock red the single null is +0.1 and
 `hm_wo_O14_g32` was first launched with a version of the rule that overrode
 the master's output and patched `return_agent` by hand; the wrapper's HITL
 consistency check tripped mid-run and the directory was deleted. The reported
-arm is the gate-flip form described under Oracle rules. `hm_compat_gate3b`
-and `hm_compat_wrecker_3` are three-episode harness gates, not arms;
-`data/hm_gate3` is the matching three-episode `evaluation.py` run.
+arm is the gate-flip form described under Oracle rules. `hm_compat_gate3b`,
+`hm_compat_wrecker_3`, `hm_gate_patch`, `hm_gate_pilot` and
+`hm_compat_gate3k` are three-episode harness gates, not arms (all -931.00,
+-1308.00, -469.00 except `hm_gate_pilot`, which loads the one-iteration
+`pilot_wrecker` checkpoint: -829, -2551, -1556); `data/hm_gate3` is the
+matching three-episode `evaluation.py` run.
 
 `wo_O2e_b77_r` (under Wrecker, above) is `wo_O2e_b77` rerun after the
 `owned_hosts` cache fix: identical on every shared footer key across all 100
@@ -555,6 +563,121 @@ or Remove on the investigated host): H-MARL O10 median 31, p90 139, within
 42.0% / 33.3% / 1.9%; KEEP O10 36 / 133 / 49.8% / 22.4%; KEEP O13 36 / 135
 / 45.8% / 23.7%. Yields (flags_new / analyses) 0.181, 0.233, 0.163, 0.216.
 Repeat share 66.1%, 48.0%, 66.3%, 46.8%.
+
+---
+
+## Retrained defenders
+
+Chapter 4's mechanism question: whether a deployed defender's deficit under an
+unseen adversary is a distribution shift its own trainer would close, or a
+capacity limit. Both trainers are the authors' pipelines with settings lifted
+to environment variables (`tools_patch_hmarl_train.py`,
+`tools_patch_keep_train.py`; the resulting diffs are `build/hmarl-fixes.patch`
+and `build/keep-train.patch`). Every retrained policy is evaluated through the
+same harnesses as the shipped one, and the trace header names the weights.
+
+### H-MARL sub-policy continuation
+
+`subpolicies/train_subpolicies.py` in `cage-hmarl:dev`, restored from the
+shipped `saved_policies/sub/iter_49`, shipped hyperparameters (lr 5e-5, 30 SGD
+iterations, entropy 0.001, minibatch 32,768), `HMARL_TRAIN_BATCH=100000` so
+one iteration is 100k environment steps (the shipped iteration is 1M), twelve
+rollout workers, `HMARL_RED` the adversary, `HMARL_SEED` the RLlib seed.
+Checkpoints under `repos/Hierarchical-MARL/h-marl-3policy/saved_policies/<run>/iter_N`
+(root-owned). Only the ten sub-policies train; the expert master is a rule on
+`iocs_exist` and has no parameters, so this is continuation under a frozen
+gate by construction. Launchers `run_ft.sh` (ten iterations) and
+`run_ft_resume.sh` (to a target iteration, restarting from the last
+checkpoint after a trainer crash); completion lines in `data/ft_runs.log`;
+trainer output in `data/<run>.log`.
+
+Curve values are RLlib `episode_reward_mean` divided by ten (it sums the ten
+policy-agents' rewards), a trailing window of 100 training episodes under
+sampling, so not evaluation numbers; the window resets after every restore.
+Read with
+`grep -o "episode_reward_mean': [-0-9.]*" data/<run>.log | awk -F': ' '$2!=p{printf "%.0f ", $2/10; p=$2}'`
+(the trainer prints each iteration twice).
+
+| Run | Adversary | RLlib seed | Iterations | Env steps | Curve, score units |
+|---|---|---|---|---|---|
+| `pilot_wrecker` | FSRedAgentWrecker | unset | 50 | 100k | timing pilot, 8m33s wall; evaluated as `hm_gate_pilot` |
+| `ft_FiniteStateRedAgent_s0` | FiniteStateRedAgent | 0 | 50-99 | 5M | iterations 50-74 mean -140.5, 75-99 mean -145.3; sd across iterations 6.1; slope -0.17 per iteration |
+| `ft_FiniteStateRedAgent_s1` | FiniteStateRedAgent | 1 | 50-59 | 1M | flat, `data/ft_FiniteStateRedAgent_s1.log` |
+| `ft_Wrecker_s0` | FSRedAgentWrecker | 0 | 50-99 | 5M | iterations 50-74 mean -893.0, 75-99 mean -892.7; sd 34.0; slope +0.01 per iteration |
+| `ft_Wrecker_s1` | FSRedAgentWrecker | 1 | 50-59 | 1M | -881 first iteration, -840 last, inside the iteration noise |
+| `ft_WreckerQ32_s0` | FSRedAgentWreckerQ32 | 0 | 50-59 | 1M | flat, `data/ft_WreckerQ32_s0.log` |
+| `ft_WreckerQ32_s1` | FSRedAgentWreckerQ32 | 1 | 50-54 | 500k | -575 -574 -580 -603 -569; the resume to 59 was lost (Known issues) |
+
+`ft_FiniteStateRedAgent_s0` restarted twice from its last checkpoint (after
+iter_59 and iter_66) on the trainer crash below; the curve is continuous
+across the restarts apart from the window reset.
+
+Evaluation of the 5M-step Wrecker checkpoint (`HMARL_POLICY_DIR=saved_policies/ft_Wrecker_s0/iter_99/policies/`),
+Schema B-H, default seeding, environment seeds 0-99, `--rule none`; paired
+against the shipped-policy arms on the same seeds:
+
+| Directory | Weights | Adversary | Mean | Stdev | Paired against | Delta | Wins | Sign p | Recover agent-steps/ep |
+|---|---|---|---|---|---|---|---|---|---|
+| `hm_ft_w99_w_none` | `ft_Wrecker_s0/iter_99` | FSRedAgentWrecker | -945.59 | 402.48 | `hm_w_none` | -102.8 | 43/100 | 0.19 | 203.6 |
+| | | | | | `hm_w_none_p9000` | -29.6 | 48/100 | 0.76 | |
+| `hm_ft_w99_s_none` | `ft_Wrecker_s0/iter_99` | FiniteStateRedAgent | -143.21 | 59.13 | `hm_s_none` | -6.8 | 47/100 | 0.84 | 200.6 |
+
+Against the shipped control the fine-tuned policy scores exactly what the
+p9000 sampling null scores (43/100), and against that null it is 48/100. Five
+million steps of sub-policy training under Wrecker produced a policy
+indistinguishable from a sampling-seed draw of the shipped one, with no slope
+in the curve to extend, and no measurable cost against the stock red. The one
+behavioural change is fewer Recover-mode agent-steps (263.1 to 203.6 under
+Wrecker, 247.3 to 200.6 under stock): fewer IoC-bearing observations, either
+fewer looks that land or faster clearing, and worth nothing either way. These
+two arms were captured before the `policy_dir` header field existed; their
+provenance is the directory name and `data/hm_ft_w99_*.log`.
+
+### KEEP continuation
+
+`train.py` in `cage-keep:dev`, run from the `/work` mount so the patched
+trainer is used; evaluation (`oracle.py`) uses the image's copy at
+`/opt/cage/cage-4-submission`, whose weights `KEEP_WEIGHTS=<name>` replaces
+with `keep_weights/<name>/gnn_ppo-{0..4}.pt` before the command runs
+(`keep_weights/` is not in git). Shipped hyperparameters: 25 episodes per
+update, batch 2,500, 4 epochs, `SEED` 1337 for torch and the environments.
+Patched: `KEEP_RED`, `KEEP_RESTORE` (a directory of `gnn_ppo-{i}.pt`),
+`KEEP_EPISODES`, `KEEP_WORKERS`, `KEEP_SEED`, `KEEP_SHARED_ENV_SEED`,
+`KEEP_CKPT`. Restored agents have `training` set back to true (Known
+issues). Environments are seeded `seed+i` unless `KEEP_SHARED_ENV_SEED` is
+set. The trainer prints `Avg reward for episode` once per update (the 25
+episodes' mean under sampling) and writes `logs/<tag>.pt`, a list of
+`(avg_reward, episode, loss)`; rolling checkpoints
+`checkpoints/<tag>-{i}_checkpoint.pt` every update, kept ones
+`<tag>-{i}_e<episodes>.pt` every `KEEP_CKPT` episodes. Launcher
+`run_keep_ft.sh <red> <seed> <episodes> [workers]`, tag `kft_<red>_s<seed>`,
+one run at a time (Known issues).
+
+Gates for the patched pipeline, 2026-09-20:
+
+| Directory | What | Result |
+|---|---|---|
+| `o2e_smoke_k` | O2e smoke, 2 episodes, stock red | -327.00, 87.68, 77.0 / 108.5, unchanged; header `weights: shipped` |
+| `hm_compat_gate3k` | H-MARL compat, 3 episodes, Wrecker | -931.00, -1308.00, -469.00, unchanged; header `policy_dir` |
+| `pilot_wrecker` (checkpoints) | 50 episodes from the shipped weights under Wrecker, 12 workers, `KEEP_SEED` 0 | 5m03s wall, two updates, `Avg reward` -1277.16 then -1167.48 |
+| `pilot_wrecker25` (checkpoints) | as above, 25 workers | 4m25s wall |
+| `k_pilot_w_gate3` | `KEEP_WEIGHTS=pilot_wrecker`, `--rule none --red FSRedAgentWrecker`, 3 episodes | -852, -1020, -956 against the shipped control's -740, -1484, -1183 on the same seeds; header `weights: pilot_wrecker` |
+
+Continuation runs, 2,000 episodes each (1M environment steps, the H-MARL
+first budget), 25 workers, `KEEP_SEED` 1000 (environments 1000-1024, disjoint
+from the evaluation seeds), kept checkpoints at 500, 1000, 1500 and 2000
+episodes, run in sequence:
+
+| Tag | Adversary | Status |
+|---|---|---|
+| `kft_Wrecker_s1000` | FSRedAgentWrecker | running 2026-09-20, about 2.2 minutes per update |
+| `kft_FiniteStateRedAgent_s1000` | FiniteStateRedAgent | queued |
+| `kft_WreckerQ32_s1000` | FSRedAgentWreckerQ32 | queued |
+
+Each kept checkpoint is to be copied to `keep_weights/<tag>_e<N>/gnn_ppo-{i}.pt`
+and evaluated with `--rule none` under Wrecker and under the stock red on
+seeds 0-99, paired against `red_FSRedAgentWrecker` and `corpus_v1`; the final
+checkpoint also under O1 at gap 32.
 
 ---
 
@@ -627,3 +750,48 @@ Repeat share 66.1%, 48.0%, 66.3%, 46.8%.
   genuine step produces, and `BlueFlatWrapper.step` calls `exit()` under
   `HITL`. Edit the gate before the master acts (mask, `high_actionmask`,
   `return_agent` together), which is also the honest definition of the rule.
+- **H-MARL trainer crash.** `train_subpolicies.py` dies at random iteration
+  boundaries with `ValueError: operands could not be broadcast together with
+  shapes (459,) (458,)` inside a RolloutWorker (the wrapper's
+  `handle_extra_ticks` off by one). It killed `ft_WreckerQ32_s1` at its
+  fifth iteration and the `ft_FiniteStateRedAgent_s0` continuation twice.
+  `run_ft_resume.sh` restarts from the last saved iteration, up to three
+  failures.
+- **A killed loop leaves no line.** `run_ft_resume.sh` writes to
+  `ft_runs.log` only when its trainer exits; if the loop shell itself dies
+  nothing is written and the resume silently stops (`ft_WreckerQ32_s1`
+  stopped at iter_54 with no record). Launch loops under `nohup`, and never
+  overwrite a script that is running: bash reads scripts incrementally, and
+  the three `run_keep_ft.sh` instances overwritten on 2026-09-20 exited with
+  a syntax error (`Exit 2`) once their containers were killed, before their
+  log line.
+- **KEEP `load()` clears the training flag.** `models/cage4.py`: `eval()`
+  sets `self.training = False`, `train()` sets the module modes only, and
+  `load()` ends with `eval()`. A restored agent inside `train.py` returns
+  evaluation-style actions and the worker fails with `TypeError: cannot
+  unpack non-iterable int object`. The shipped pipeline never restores, so
+  it never saw this. `tools_patch_keep_train.py` sets `training = True` on
+  restored agents.
+- **KEEP seeds all training environments identically.** The shipped
+  `train.py` builds every environment with `CybORG(sg, "sim", seed=seed)` in
+  a loop over workers, so all 25 start from the same scenario draw and
+  diverge only through blue's sampled actions. Patched to `seed+i`;
+  `KEEP_SHARED_ENV_SEED=1` reproduces the shipped behaviour. Counts against
+  the published training claim alongside the nine Paper 1 defects.
+- **Training runs must not share the machine.** joblib caps each worker's
+  BLAS threads at cores over workers per process, unaware of other
+  containers. Three 8-worker KEEP runs side by side put the load average at
+  90 on 24 cores with no update in ten minutes; a single run at 12 or 25
+  workers is clean (5m03s and 4m25s for 50 episodes). The
+  `OMP_NUM_THREADS=1` remedy was never tested cleanly: the first
+  `docker kill` did not take (it printed no IDs), so the relaunch stacked
+  three more runs on the first three (load 185). Verify the kill with
+  `docker ps` before relaunching.
+- **Curve values are not evaluation values.** RLlib's `episode_reward_mean`
+  sums the ten H-MARL policy-agents (divide by ten), is a trailing window
+  under training-time sampling, and resets on restore; KEEP's `Avg reward
+  for episode` is a 25-episode mean under sampling on the training seeds.
+  The shipped H-MARL policy reads -894 in its first Wrecker training
+  iteration against -842.76 (per-episode seeding) and -863.86 (compat) in
+  evaluation; `ft_Wrecker_s0/iter_99` reads -893 in training and -945.59
+  in evaluation. Compare curves with curves and arms with arms.
