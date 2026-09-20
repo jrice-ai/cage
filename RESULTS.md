@@ -31,6 +31,11 @@ What the file establishes, in order of appearance:
   digit. The adversary result and the verb result hold across two
   architectures; the investigate result is smaller, takes the form of tail
   compression, and the step records rule out the obvious explanation for it.
+- The mechanism test: each defender's own trainer continued under the
+  deployment adversary. H-MARL's trainable part does not adapt in five
+  million steps, and the resulting policy evaluates as a sampling draw of the
+  shipped one; KEEP's runs are in progress. Two defects in KEEP's trainer
+  and one in H-MARL's, found on the way.
 
 All measurements before "The adversary determines whether supervision helps"
 are against `FiniteStateRedAgent`. Arm definitions and per-arm numbers live in
@@ -3027,3 +3032,123 @@ exposed, reproduced footer-for-footer under the fix (100 episodes, every
 shared key identical), so the hazard never fired in a reported number. The
 `--compat` mode, which resets one CybORG per episode, needed the fix
 regardless.
+
+## Retraining as the mechanism test
+
+Everything under Wrecker so far says the supervisor's gain is the defender's
+deficit: a perfect-information substitute brings KEEP from -1116 and H-MARL
+from -843 to about the same place, and each travels as far as it was from
+there. That leaves the question a reader will ask first. Is the deficit a
+distribution shift, which the defender's own trainer would close if it were
+shown the adversary, or a limit of what the architecture can represent? The
+two readings give the supervisor different values. Under shift, the human is
+a stand-in for a retraining run and is worth at most what that run costs;
+under capacity, the human supplies something training cannot, at this budget
+and in this architecture. The test is the same for both defenders: continue
+the shipped weights under the deployment adversary with the authors' own
+pipeline, at the authors' hyperparameters, and put the result through the
+same ladder as the shipped policy. Pipelines, runs, gates and per-arm numbers
+are in ARMS.md, "Retrained defenders".
+
+### H-MARL: the trainable part does not adapt
+
+H-MARL Expert trains its ten sub-policies (Investigate and Recover for each
+of five agents) with RLlib PPO; the expert master is a rule on `iocs_exist`
+with no parameters. Continuing the shipped `iter_49` checkpoint therefore
+trains the sub-policies under a frozen gate, which is the only continuation
+the shipped architecture admits. Iterations of 100k environment steps at the
+shipped learning rate, SGD passes and entropy; RLlib seeds 0 and 1; three
+adversaries.
+
+| Adversary | Seed | Env steps | Curve |
+|---|---|---|---|
+| stock | 0 | 5M | -140.5 over the first 25 iterations, -145.3 over the last 25 |
+| stock | 1 | 1M | flat |
+| Wrecker | 0 | 5M | -893.0 over the first 25, -892.7 over the last 25; sd across iterations 34; slope +0.01 per iteration |
+| Wrecker | 1 | 1M | -881 to -840, inside the iteration noise |
+| Q32 | 0 | 1M | flat |
+| Q32 | 1 | 0.5M | -575 to -569, flat |
+
+Curve values are training-time window means in score units, not evaluation
+numbers (ARMS.md, Known issues). Two things in the table matter. The Wrecker
+curve has no slope at all over five million steps, so this is not a budget
+that a longer run would have converted; and the stock control drifted five
+points the wrong way, small but three standard errors, so the optimizer was
+changing the parameters throughout. The trainer worked and found nothing.
+
+The 5M-step Wrecker checkpoint through the harness, seeds 0-99, paired
+against the shipped-policy arms:
+
+| Arm | Adversary | Mean | Stdev | Against | Delta | Wins | Sign p |
+|---|---|---|---|---|---|---|---|
+| `hm_ft_w99_w_none` | Wrecker | -945.59 | 402.48 | control `hm_w_none` | -102.8 | 43/100 | 0.19 |
+| | | | | null `hm_w_none_p9000` | -29.6 | 48/100 | 0.76 |
+| `hm_ft_w99_s_none` | stock | -143.21 | 59.13 | control `hm_s_none` | -6.8 | 47/100 | 0.84 |
+
+Against the shipped control it wins 43 of 100, which is exactly what the
+sampling null wins; against that null, 48 of 100. Five million steps of the
+authors' trainer under Wrecker produced a policy that the paired design
+cannot tell from a different sampling seed of the shipped one, at no cost
+against the stock red. The single behavioural change is a fifth fewer
+Recover-mode agent-steps (263 to 204 under Wrecker, 247 to 201 under stock),
+that is, fewer IoC-bearing observations reaching the gate, which bought
+nothing either way. The sub-policies drifted; drift is not adaptation.
+
+For this architecture the capacity reading holds, and it holds by
+construction rather than by exhaustion: the deficit under Wrecker lives in
+what the gate can see, and a sub-policy cannot learn to look for what the
+gate never sends it to look for. Two caveats travel with that. Five million
+steps is a tenth of the shipped training budget, and the zero slope, not the
+step count, is the answer to that objection. And "capacity" here means the
+capacity of the trainable part; a retrained gate is a different agent, which
+is the point.
+
+Read with the ladder, this closes both seats a hierarchical agent offers.
+Forcing the gate with truth (O14) was worth nothing; training the policies
+under the gate is worth nothing; naming the target host (O1) is worth +98.
+Whatever a supervisor is for on H-MARL under Wrecker, it is the target, and
+neither of the agent's own decision points can be taught or told it.
+
+### KEEP: the clean test, in progress
+
+KEEP trains one GNN-PPO policy per agent end to end, verb and target
+together, so its continuation is the version of the test with nothing
+frozen. The authors' `train.py` is used from the shipped weights with the
+adversary, seed, episode budget, worker count and checkpoint interval lifted
+to environment variables, and the evaluation harness swaps a named weight
+set into the image and records its name in every trace header.
+
+Two defects in the shipped trainer surfaced on the way, neither of which the
+shipped pipeline could have hit. `models.cage4.load()` ends with `eval()`,
+which clears the agent's `training` flag, and the class's `train()` sets the
+network modes without setting the flag back, so a restored agent inside the
+trainer returns evaluation-style actions and the worker fails; the shipped
+pipeline never restores. And the trainer builds all 25 parallel environments
+with the same seed, so they start from the same scenario draw and diverge
+only through blue's own sampled actions; the continuation seeds them `seed+i`
+and keeps the shipped behaviour behind a switch. The second belongs with the
+nine evaluation defects as a disclosure for Paper 1: the published training
+run's 25 workers started from one scenario draw and diverged only as far as
+blue's own sampling pushed them apart.
+
+Gates: the O2e smoke and the H-MARL compat run reproduce to the digit under
+the patched runner; 50 episodes from the shipped weights under Wrecker train
+in five minutes at 12 workers (four and a half at 25, so rollouts are not
+the bottleneck), save five checkpoints, and swapping those checkpoints into
+the harness changes the totals on the same seeds (-852, -1020, -956 against
+-740, -1484, -1183). Runs side by side oversubscribe the machine and are not
+attempted again.
+
+Three continuations, 2,000 episodes each (1M environment steps, the H-MARL
+first budget), one at a time: the stock red as control, Wrecker, and Q32 as
+the intermediate point on the targeting axis. Kept checkpoints at 500, 1000,
+1500 and 2000 episodes go through `--rule none` under Wrecker and under the
+stock red on seeds 0-99, and the final checkpoint through O1 at gap 32. The
+reading is fixed in advance. If the Wrecker control moves toward the O1
+endpoint (-663) the deficit was shift, the supervisor's gain is retraining's
+gain, and the human's value is bounded by the cost of a training run. If it
+stays inside the Wrecker band around -1116 with the stock control unmoved,
+the capacity reading holds for a fully trainable defender too, and the
+supervisor supplies what training at this budget does not. A partial move
+puts a number on how much of the +452 a training run buys, which is the
+fraction the human study has to beat.
