@@ -57,6 +57,8 @@ _IMPACT_SEEN = {}
 def note_impacts(cyborg, step):
     key = id(cyborg)
     d = _IMPACT_SEEN.setdefault(key, {})
+    if step == 0:
+        d.clear()   # a recycled id or a reset() must not inherit the last episode's impacts
     for a in [f'red_agent_{i}' for i in range(6)]:
         act = cyborg.get_last_action(a)
         if act is None:
@@ -70,14 +72,19 @@ def note_impacts(cyborg, step):
 
 
 def owned_hosts(cyborg, agent_name):
-    key = (id(cyborg), agent_name)
-    if key not in _HOSTS_CACHE:
-        st = cyborg.environment_controller.state
-        _HOSTS_CACHE[key] = [
-            h for h in st.hosts
+    # Cached per agent against the live State object (held strongly, so its address
+    # cannot be recycled by a later episode) and its host-name tuple, so a fresh
+    # CybORG per episode and a reset() of the same CybORG both invalidate it.
+    st = cyborg.environment_controller.state
+    names = tuple(st.hosts)
+    ent = _HOSTS_CACHE.get(agent_name)
+    if ent is None or ent[0] is not st or ent[1] != names:
+        ent = (st, names, [
+            h for h in names
             if "router" not in h and subnet_of(h)
-            and OWNER.get(subnet_of(h)) == agent_name]
-    return _HOSTS_CACHE[key]
+            and OWNER.get(subnet_of(h)) == agent_name])
+        _HOSTS_CACHE[agent_name] = ent
+    return ent[2]
 
 
 def compromised_by_agent(cyborg):
