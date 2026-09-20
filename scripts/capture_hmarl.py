@@ -179,7 +179,7 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness": "capture_hmarl", "defender": "H-MARL Expert",
-            "harness_sha": HARNESS_SHA, "machine": MACHINE, "episode": ep, "seed": seed,
+            "harness_sha": HARNESS_SHA, "machine": MACHINE, "policy_dir": os.environ.get("HMARL_POLICY_DIR", "saved_policies/sub/iter_49/policies/"), "episode": ep, "seed": seed,
             "rule": rule, "budget": budget, "min_gap": min_gap,
             "cyborg_version": CYBORG_VERSION, "episode_length": EPISODE_LENGTH, **hdr,
         }) + "\n")

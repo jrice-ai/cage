@@ -91,7 +91,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 
     with open(path, "w") as f:
         f.write(json.dumps({
-            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "red_agent": _rc.__name__, "episode": ep, "seed": seed,
+            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "red_agent": _rc.__name__, "episode": ep, "seed": seed,
             "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")

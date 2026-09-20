@@ -3,5 +3,9 @@
 img="$1"; shift
 exec docker run --rm --hostname "$(hostname)" \
   -e HARNESS_SHA="$(git -C ~/cage rev-parse HEAD)" \
+  --shm-size=4g \
+  -e HMARL_RED -e HMARL_SEED -e HMARL_TRAIN_BATCH -e HMARL_RESTORE -e HMARL_ITER0 -e HMARL_ITERS \
+  -e HMARL_MODEL_DIR -e HMARL_LOGDIR -e HMARL_POLICY_DIR \
+  -e KEEP_WEIGHTS -e KEEP_RED -e KEEP_RESTORE -e KEEP_EPISODES -e KEEP_WORKERS -e KEEP_SEED -e KEEP_SHARED_ENV_SEED \
   -v ~/cage:/work "$img" \
-  bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && exec "$@"' _ "$@"
+  bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && if [ -n "$KEEP_WEIGHTS" ]; then cp /work/keep_weights/$KEEP_WEIGHTS/gnn_ppo-*.pt /opt/cage/cage-4-submission/weights/; fi && exec "$@"' _ "$@"

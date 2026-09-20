@@ -4,3 +4,4 @@ data/
 __pycache__/
 *:Zone.Identifier
 *.bak
+keep_weights/

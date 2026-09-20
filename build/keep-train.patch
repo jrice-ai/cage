@@ -1,0 +1,74 @@
+diff --git a/train.py b/train.py
+index 5f3d500..fbae7cf 100644
+--- a/train.py
++++ b/train.py
+@@ -1,4 +1,5 @@
+ from argparse import ArgumentParser
++import os as _os, importlib as _importlib
+ import os 
+ from types import SimpleNamespace
+ 
+@@ -15,13 +16,20 @@ from models.memory_buffer import MultiPPOMemory
+ from wrapper.graph_wrapper import GraphWrapper
+ from wrapper.observation_graph import ObservationGraph
+ 
+-SEED = 1337
++def _red_class():
++    name = _os.environ.get("KEEP_RED", "FiniteStateRedAgent")
++    if name == "FiniteStateRedAgent":
++        return FiniteStateRedAgent
++    return getattr(_importlib.import_module(f"CybORG.Agents.SimpleAgents.{name}"), name)
++
++
++SEED = int(_os.environ.get("KEEP_SEED", "1337"))
+ HYPER_PARAMS = SimpleNamespace(
+     N = 25,             # How many episodes before training
+-    workers = 25,       # How many envs can run in parallel
++    workers = int(_os.environ.get("KEEP_WORKERS", "25")),       # How many envs can run in parallel
+     bs = 2500,          # How many steps to learn from at a time
+     episode_len = 500,
+-    training_episodes = 500_000, # Realistically, stops improving around 50k
++    training_episodes = int(_os.environ.get("KEEP_EPISODES", "500000")), # Realistically, stops improving around 50k
+     epochs = 4
+ )
+ 
+@@ -100,10 +108,10 @@ def train(agents, hp, seed=SEED):
+         sg = EnterpriseScenarioGenerator(
+             blue_agent_class=SleepAgent,
+             green_agent_class=EnterpriseGreenAgent,
+-            red_agent_class=FiniteStateRedAgent,
++            red_agent_class=_red_class(),
+             steps=hp.episode_len,
+         )
+-        env = CybORG(sg, "sim", seed=seed)
++        env = CybORG(sg, "sim", seed=(seed if _os.environ.get("KEEP_SHARED_ENV_SEED") else seed + i))
+         envs.append(GraphWrapper(env))
+ 
+     # Define learn function for threads to call later so we can 
+@@ -154,8 +162,10 @@ def train(agents, hp, seed=SEED):
+             agent = agents[i]
+             agent.save(outf=f'checkpoints/{hp.fnames}-{i}_checkpoint.pt')
+ 
+-            if e % 10_000 < hp.N and e > hp.N:
+-                agent.save(outf=f'checkpoints/{hp.fnames}-{i}_{e//1000}k.pt')
++            _ckpt = int(_os.environ.get("KEEP_CKPT", "10000"))
++            if e % _ckpt < hp.N and e > hp.N:
++                agent.save(outf=f'checkpoints/{hp.fnames}-{i}_{e//1000}k.pt' if _ckpt == 10000
++                           else f'checkpoints/{hp.fnames}-{i}_e{e}.pt')
+ 
+ 
+ if __name__ == '__main__':
+@@ -191,6 +201,12 @@ if __name__ == '__main__':
+         clip=0.2,
+         epochs=HYPER_PARAMS.epochs
+     ) for _ in range(N_AGENTS)]
++    if _os.environ.get("KEEP_RESTORE"):
++        from models.cage4 import load as _load_agent
++        agents = [_load_agent(f"{_os.environ['KEEP_RESTORE']}/gnn_ppo-{i}.pt") for i in range(N_AGENTS)]
++        print("Restored agents from", _os.environ["KEEP_RESTORE"], flush=True)
++        for _a in agents:
++            _a.training = True  # load() calls eval(); train() does not reset this flag
+ 
+     HYPER_PARAMS.fnames = args.fname
+     train(agents, HYPER_PARAMS)
+\ No newline at end of file

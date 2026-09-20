@@ -11,11 +11,51 @@ index 0fb55bc..5220714 100644
  
  class BlueFlatWrapper(BlueFixedActionWrapper):
      """Converts observation spaces to vectors of fixed size and ordering across episodes.
+diff --git a/h-marl-3policy/subpolicies/Ray_BlueAgent.py b/h-marl-3policy/subpolicies/Ray_BlueAgent.py
+index 620739a..93755ab 100644
+--- a/h-marl-3policy/subpolicies/Ray_BlueAgent.py
++++ b/h-marl-3policy/subpolicies/Ray_BlueAgent.py
+@@ -26,7 +26,7 @@ class HMARLBlueAgent(BaseAgent):
+         # each blue agent has its own policy
+        
+         # for evaluation
+-        pkl_cp_dir = os.path.join("saved_policies/sub/iter_49/policies/", self.name)
++        pkl_cp_dir = os.path.join(os.environ.get("HMARL_POLICY_DIR", "saved_policies/sub/iter_49/policies/"), self.name)
+         
+         print("\nLoading Serializable blue agent model from ", pkl_cp_dir)
+         self.policy = SerializablePolicy.from_checkpoint(pkl_cp_dir)
 diff --git a/h-marl-3policy/subpolicies/evaluation.py b/h-marl-3policy/subpolicies/evaluation.py
-index 86b3c69..6bf800c 100644
+index 86b3c69..c16458f 100644
 --- a/h-marl-3policy/subpolicies/evaluation.py
 +++ b/h-marl-3policy/subpolicies/evaluation.py
-@@ -249,6 +249,12 @@ if __name__ == "__main__":
+@@ -53,7 +53,7 @@ def load_submission(source: str):
+     return Submission
+ 
+ 
+-def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=None):
++def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=None, red_agent="FiniteStateRedAgent"):
+     cyborg_version = CYBORG_VERSION
+     EPISODE_LENGTH = 500
+     scenario = "Scenario4"
+@@ -64,7 +64,8 @@ def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=N
+     sg = EnterpriseScenarioGenerator(
+         blue_agent_class=SleepAgent,
+         green_agent_class=EnterpriseGreenAgent,
+-        red_agent_class=FiniteStateRedAgent,
++        red_agent_class=__import__(f"CybORG.Agents.SimpleAgents.{red_agent}",
++                                   fromlist=["x"]).__dict__[red_agent],
+         steps=EPISODE_LENGTH,
+     )
+     cyborg = CybORG(sg, "sim", seed=seed)
+@@ -226,6 +227,7 @@ if __name__ == "__main__":
+         "--seed", type=int, default=None, help="Set the seed for CybORG"
+     )
+     parser.add_argument("--max-eps", type=int, default=100, help="Max episodes to run")
++    parser.add_argument("--red", default="FiniteStateRedAgent")
+     args = parser.parse_args()
+     args.output_path = os.path.abspath(args.output_path)
+     args.submission_path = os.path.abspath(args.submission_path)
+@@ -249,7 +251,13 @@ if __name__ == "__main__":
      # algo.save(checkpoint_path)
      
  
@@ -27,12 +67,41 @@ index 86b3c69..6bf800c 100644
 +
      submission = load_submission(args.submission_path)
      run_evaluation(
-         submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed
+-        submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed
++        submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed, red_agent=args.red
+     )
 diff --git a/h-marl-3policy/subpolicies/evaluation_metrics.py b/h-marl-3policy/subpolicies/evaluation_metrics.py
-index fdfe301..8bdc073 100644
+index fdfe301..552955d 100644
 --- a/h-marl-3policy/subpolicies/evaluation_metrics.py
 +++ b/h-marl-3policy/subpolicies/evaluation_metrics.py
-@@ -398,6 +398,12 @@ if __name__ == "__main__":
+@@ -53,7 +53,7 @@ def load_submission(source: str):
+     return Submission
+ 
+ 
+-def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=None):
++def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=None, red_agent="FiniteStateRedAgent"):
+     cyborg_version = CYBORG_VERSION
+     EPISODE_LENGTH = 500
+     scenario = "Scenario4"
+@@ -64,7 +64,8 @@ def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=N
+     sg = EnterpriseScenarioGenerator(
+         blue_agent_class=SleepAgent,
+         green_agent_class=EnterpriseGreenAgent,
+-        red_agent_class=FiniteStateRedAgent,
++        red_agent_class=__import__(f"CybORG.Agents.SimpleAgents.{red_agent}",
++                                   fromlist=["x"]).__dict__[red_agent],
+         steps=EPISODE_LENGTH,
+     )
+     cyborg = CybORG(sg, "sim", seed=seed)
+@@ -377,6 +378,7 @@ if __name__ == "__main__":
+         "--seed", type=int, default=None, help="Set the seed for CybORG"
+     )
+     parser.add_argument("--max-eps", type=int, default=100, help="Max episodes to run")
++    parser.add_argument("--red", default="FiniteStateRedAgent")
+     args = parser.parse_args()
+     args.output_path = os.path.abspath(args.output_path)
+     args.submission_path = os.path.abspath(args.submission_path)
+@@ -398,7 +400,13 @@ if __name__ == "__main__":
      # algo.restore(checkpoint_path)
      # algo.save(checkpoint_path)
  
@@ -44,4 +113,74 @@ index fdfe301..8bdc073 100644
 +
      submission = load_submission(args.submission_path)
      run_evaluation(
-         submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed
+-        submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed
++        submission, max_eps=args.max_eps, log_path=args.output_path, seed=args.seed, red_agent=args.red
+     )
+diff --git a/h-marl-3policy/subpolicies/train_subpolicies.py b/h-marl-3policy/subpolicies/train_subpolicies.py
+index 18d9458..e773222 100644
+--- a/h-marl-3policy/subpolicies/train_subpolicies.py
++++ b/h-marl-3policy/subpolicies/train_subpolicies.py
+@@ -71,11 +71,21 @@ class CCPPOTorchPolicy(PPOTorchPolicy):
+         )
+ 
+ 
++import os as _os, importlib as _importlib
++
++
++def _red_class():
++    name = _os.environ.get("HMARL_RED", "FiniteStateRedAgent")
++    if name == "FiniteStateRedAgent":
++        return FiniteStateRedAgent
++    return getattr(_importlib.import_module(f"CybORG.Agents.SimpleAgents.{name}"), name)
++
++
+ def env_creator_CC4(env_config: dict):
+     sg = EnterpriseScenarioGenerator(
+         blue_agent_class=SleepAgent,
+         green_agent_class=EnterpriseGreenAgent,
+-        red_agent_class=FiniteStateRedAgent,
++        red_agent_class=_red_class(),
+         steps=500,
+     )
+     cyborg = CybORG(scenario_generator=sg)
+@@ -121,7 +131,7 @@ def algo_builder(num_workers = 0):
+     algo_config = (
+         PPOConfig()
+         .framework("torch")
+-        .debugging(logger_config={"logdir":"logs/train_subpolicies", "type":"ray.tune.logger.TBXLogger"})
++        .debugging(logger_config={"logdir": _os.environ.get("HMARL_LOGDIR", "logs/train_subpolicies"), "type":"ray.tune.logger.TBXLogger"}, seed=(int(_os.environ["HMARL_SEED"]) if _os.environ.get("HMARL_SEED") else None))
+         .environment(env="CC4")
+         # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
+         #.resources(num_gpus=1)  # export CUDA_VISIBLE_DEVICES=0,1
+@@ -135,7 +145,7 @@ def algo_builder(num_workers = 0):
+         .training(
+             model={"custom_model": "my_model"},
+             sgd_minibatch_size = 32768, # default 128
+-            train_batch_size = 1000000, # default 4000
++            train_batch_size = int(_os.environ.get("HMARL_TRAIN_BATCH", "1000000")), # default 4000
+             )
+         .multi_agent(
+             policies={
+@@ -177,14 +187,19 @@ if __name__ == '__main__':
+     args = parser.parse_args()
+     
+     algo = algo_builder(num_workers=args.num_workers)
+-    model_dir = "saved_policies/sub"
++    model_dir = _os.environ.get("HMARL_MODEL_DIR", "saved_policies/sub")
++    if _os.environ.get("HMARL_RESTORE"):
++        print("Restoring from", _os.environ["HMARL_RESTORE"], flush=True)
++        algo.restore(_os.environ["HMARL_RESTORE"])
++    _iter0 = int(_os.environ.get("HMARL_ITER0", "0"))
++    _iters = int(_os.environ.get("HMARL_ITERS", "50"))
+ 
+     # if need to restore
+     # checkpoint_path = "models/train_CC4/iter_10"
+     # algo.restore(checkpoint_path)
+ 
+-    for i in range(50):
+-        iteration = i # for restore, adjust iter, overwise you will  overwrite old models, e.g.  i + 156
++    for i in range(_iters):
++        iteration = _iter0 + i
+         train_info = algo.train()
+         print("\nIteration:", i, train_info)
+         model_dir_crt = os.path.join(model_dir, "iter_"+str(iteration))
