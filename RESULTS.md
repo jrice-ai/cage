@@ -33,13 +33,13 @@ What the file establishes, in order of appearance:
   compression, and the step records rule out the obvious explanation for it.
 - The mechanism test: each defender's own trainer continued under the
   deployment adversary. H-MARL's trainable part does not adapt in five
-  million steps. KEEP's trainer, shown Wrecker, recovers a fifth of what the
-  supervisor recovers and pays for it against the stock red; shown the
-  intermediate adversary, it makes the policy worse everywhere; and the
-  supervisor's endpoint is the same on the retrained policy as on the
-  shipped one, so retraining's gain is subtracted from the supervisor's,
-  not added. Two defects in KEEP's trainer and one in H-MARL's, found on
-  the way.
+  million steps. KEEP's trainer, shown Wrecker, recovers a tenth to a fifth
+  of the excess loss (the supervisor recovers half) and pays 64 for it
+  against the stock red at both seeds; shown other adversaries it wanders,
+  with a sign that depends on the seed; and the supervisor's endpoint is
+  the same on every retrained policy as on the shipped one, so retraining's
+  gain is subtracted from the supervisor's, not added. Two defects in
+  KEEP's trainer and one in H-MARL's, found on the way.
 
 All measurements before "The adversary determines whether supervision helps"
 are against `FiniteStateRedAgent`. Arm definitions and per-arm numbers live in
@@ -3115,7 +3115,7 @@ under the gate is worth nothing; naming the target host (O1) is worth +98.
 Whatever a supervisor is for on H-MARL under Wrecker, it is the target, and
 neither of the agent's own decision points can be taught or told it.
 
-### KEEP: a fifth of the supervisor's gain, in one adversary of three
+### KEEP: a tenth to a fifth of the deficit, and the endpoint does not move
 
 KEEP trains one GNN-PPO policy per agent end to end, verb and target
 together, so its continuation is the version of the test with nothing
@@ -3137,99 +3137,123 @@ belongs with the nine evaluation defects as a disclosure for Paper 1.
 
 Three continuations of 2,000 episodes (1M environment steps, the H-MARL
 first budget; 80 updates of 25 episodes at the shipped learning rate, batch
-and epochs), one seed, one at a time: the stock red as control, Wrecker,
+and epochs), two seeds, one at a time: the stock red as control, Wrecker,
 and Q32 as the intermediate point on the targeting axis. KEEP's training
 curve is in score units (the same stochastic policy on different seeds), so
-it can be read directly.
+it can be read directly; the second seed also kept checkpoints at 500,
+1000 and 1500 episodes.
 
-| Trained under | First 10 updates | Last 10 | Halves | Slope per update |
-|---|---|---|---|---|
-| stock | -209 | -217 | -217.5, -217.2 | -0.05 +/- 0.07 |
-| Wrecker | -1129 | -1038 | -1092, -1026 (t 4.1) | +1.41 +/- 0.35 |
-| Q32 | -770 | -851 | -804, -858 (t -3.4) | -1.51 +/- 0.33 |
-
-Under Wrecker the trainer finds something and it is front-loaded: quarters
--1130, -1055, -1009, -1043, so the gain is in the first thousand episodes
-and does not continue. Under the stock red it knocks the policy off its
-optimum in the first few updates (the first 25-episode mean is -174, then
-about -217 for the rest of the run, which is what a fresh optimizer state
-at the shipped learning rate does) and never returns. Under Q32 it makes
-the policy worse throughout, with no sign of turning.
-
-The final weights through the harness, seeds 0-99, paired against the
-shipped-policy arms (band under Wrecker +/-81 and 45-51 wins; under stock
-+/-15 and 35-66):
-
-| Weights | Adversary | Mean | Delta | Wins | Sign p |
+| Trained under | Seed | First 10 updates | Last 10 | Halves | Slope per update |
 |---|---|---|---|---|---|
-| Wrecker-trained | Wrecker | -1020.23 | +95.4 | 60/100 | 0.057 |
-| Wrecker-trained | stock | -250.93 | -63.6 | 25/100 | 0.000 |
-| Wrecker-trained | Q32 | -698.04 | +75.0 | 56/100 | 0.27 |
-| stock-trained | Wrecker | -1161.37 | -45.7 | | |
-| stock-trained | stock | -198.52 | -11.2 | 39/100 | 0.044 |
-| Q32-trained | Q32 | -838.79 | -65.7 | 38/100 | 0.021 |
-| Q32-trained | Wrecker | -1246.31 | -130.7 | 38/100 | 0.021 |
-| Q32-trained | stock | -239.65 | -52.3 | 25/100 | 0.000 |
+| stock | 1000 | -209 | -217 | -217.5, -217.2 | -0.05 +/- 0.07 |
+| stock | 1001 | -218 | -250 | -221.9, -221.4 | -0.17 +/- 0.10, died at update 77 |
+| Wrecker | 1000 | -1129 | -1038 | -1092, -1026 (t 4.1) | +1.41 +/- 0.35 |
+| Wrecker | 1001 | -1109 | -985 | -1089.9, -1084.2 | +0.73 +/- 0.46 |
+| Q32 | 1000 | -770 | -851 | -804, -858 (t -3.4) | -1.51 +/- 0.33 |
+| Q32 | 1001 | -753 | -682 | -747.1, -695.4 | +1.35 +/- 0.24 |
 
-And the supervisor on the retrained policy: O1 at gap 32 takes the
-Wrecker-trained KEEP from -1020 to -626 (+394, 93/100), against -663 for
-the same rule on the shipped policy (+37 between the two endpoints, 55/100,
-p 0.37, inside the band).
+Under Wrecker the trainer finds something at both seeds, at different
+times: quarters -1130, -1055, -1009, -1043 at seed 1000 (the gain is in the
+first thousand episodes) and -1088, -1092, -1157, -1011 at seed 1001 (in
+the last), and in both it stops once it has arrived. Under the stock red it
+knocks the policy off its optimum in the first few updates (the first
+25-episode mean is -174, then about -217, which is what a fresh optimizer
+state at the shipped learning rate does) and thereafter wanders; at seed
+1001 it fell from -216 to -259 over the last eight updates and the run
+died with a worker termination at update 77. Under Q32 the two seeds have
+opposite signs: -80 over the run at one, +70 at the other.
+
+The weights through the harness, seeds 0-99, paired against the
+shipped-policy arms (band under Wrecker +/-81 and 45-51 wins; under stock
++/-15 and 35-66); the stock-trained policy at seed 1001 is shown at its
+kept checkpoints because its final is from after the collapse:
+
+| Weights | Adversary | Seed 1000 | Seed 1001 |
+|---|---|---|---|
+| Wrecker-trained, final | Wrecker | +95.4 (60/100, p 0.057) | +167.2 (70/100, p 0.000) |
+| Wrecker-trained, 500 / 1000 / 1500 ep | Wrecker | | +24, +16, +177 |
+| Wrecker-trained | stock | -63.6 (25/100) | -64.5 (32/100) |
+| Wrecker-trained | Q32 | +75.0 (56/100) | +109.8 (63/100, p 0.012) |
+| stock-trained, final | stock | -11.2 (39/100) | -74.0 (17/100), after the collapse |
+| stock-trained, 1000 / 1500 ep | stock | | -50, -4 |
+| stock-trained, final | Wrecker | -45.7 | -351.3, after the collapse |
+| stock-trained, 1000 / 1500 ep | Wrecker | | -67, -124 |
+| Q32-trained | Q32 | -65.7 (38/100, p 0.021) | +92.9 (63/100, p 0.012) |
+| Q32-trained | Wrecker | -130.7 (38/100) | +45.5 (55/100) |
+| Q32-trained | stock | -52.3 (25/100) | -27.1 (34/100) |
+
+And the supervisor on the retrained policies: O1 at gap 32 takes the
+Wrecker-trained KEEP to -626 (seed 1000, +394 over its control, 93/100)
+and -657 (seed 1001, +291, 83/100), against -663 for the same rule on the
+shipped policy: +37 (55/100, p 0.37) and +6 (50/100, p 1.0) between the
+endpoints, both inside the band.
 
 Four things follow.
 
-**Retraining at this budget buys a fifth of what the supervisor buys, and
-pays for it.** +95 under Wrecker (0.10 of the excess loss, against 0.49 for
-O1), with -64 against the stock red, four times that band. O1 at gap 32
-costs -16 against the stock red for its +452. A supervisor with the target
-is five times as effective where it applies and a quarter as costly where
-it does not.
+**Retraining at this budget buys a tenth to a fifth of the deficit, and
+pays for it.** +95 and +167 under Wrecker, 0.10 and 0.18 of the excess
+loss against 0.49 for O1, at a cost of -64 against the stock red at both
+seeds, four times that band. O1 at gap 32 costs -16 against the stock red
+for its +452. Where the adversary's signal is strong the trainer finds
+something at every seed; it is a fifth to a third of what naming the
+target finds.
 
-**The supervisor's endpoint does not move.** O1 brings the retrained policy
-and the shipped policy to the same place, -626 and -663. Retraining lifted
-the control by 95 and the supervisor's marginal gain fell from +452 to
-+394, and the sum is where it always is. This is the strongest form of the
-"gain is the deficit" result: the target information takes whichever policy
-it is given to about -650, and what retraining supplies is subtracted from
+**The supervisor's endpoint does not move.** O1 brings both retrained
+policies and the shipped policy to the same place: -626, -657, -663. The
+supervisor's marginal gain fell by what retraining had lifted the control,
+and the sum is where it always is. This is the strongest form of the "gain
+is the deficit" result: the target information takes whichever policy it
+is given to about -650, and what retraining supplies is subtracted from
 the human's value rather than added to it. Supervision and retraining are
-substitutes, not complements, at this budget.
+substitutes, not complements, at this budget, and the result now rests on
+three arms against one.
 
-**Retraining is not reliably in the right direction.** Shown the
-intermediate adversary, the trainer made KEEP worse on Q32 itself, worse
-under Wrecker and worse under the stock red. Shown Wrecker, it helped on
-Wrecker and (inside the band) on Q32 and hurt on stock. Shown the stock
-red, it changed nothing in evaluation. The authors' trainer from the
-authors' weights at the authors' hyperparameters, shown the deployment
-adversary for 2,000 episodes, helps in one case of three and hurts in two.
-Whether the Q32 result is a seed effect is what the second seed, running as
-this is written, will say.
+**Away from Wrecker the trainer is a random walk.** Shown Q32, it made the
+policy worse at one seed (-66 on Q32, -131 under Wrecker, -52 under stock)
+and better at the other (+93, +46, -27). Shown the stock red, it left the
+policy -11 off at one seed and, at the other, -50 off at 1000 episodes,
+back to -4 at 1500, and -74 after a late collapse. Continued training on
+the policy's own adversary perturbs it by tens of points in either
+direction along the run, so the -64 under Wrecker training sits at the bad
+end of what any continued training does rather than being cleanly
+Wrecker's price, and the "any training" baseline under Wrecker is itself
+negative (-46 to -351), which puts the Wrecker gains further from the
+trainer's default than from zero. The authors' trainer restarted from the
+authors' weights is a high-variance process whose drift depends on how
+strong the adversary's reward signal is.
 
-**The budget objection is answered by the shape, not the count.** 2,000
-episodes is four percent of where KEEP's own training stopped improving,
-and a flat curve alone would not settle it. The Wrecker curve is not flat:
-it rises for a thousand episodes and stops, which is what a small,
-quickly-found adjustment looks like and not what a slow approach to -663
-looks like. A longer run from the final checkpoint is the follow-up if the
-second seed shows the same shape.
+**The budget objection is open again.** 2,000 episodes is four percent of
+where KEEP's own training stopped improving. At seed 1000 the gain arrived
+in the first thousand episodes and stopped; at seed 1001 it arrived
+between 1000 and 1500 and stopped. "Arrives, then stops" held twice, but
+at different times, and a run that stopped at 1,000 episodes would have
+called seed 1001 a null. A 10,000-episode run from the shipped weights with
+a checkpoint every 500 is in progress, alongside a third seed of the
+2,000-episode set.
 
 ### What the mechanism test does to the study
 
 The mechanism test was set up to bound the supervisor's value from a third
 side, and it does. On H-MARL the bound is zero by construction: the gate is
 the deficit and nothing below it can be trained toward the target. On KEEP
-the bound is a fifth, paid for elsewhere, and the supervisor's endpoint is
-unchanged by it. The formal question's three terms are now all measured on
-the same pairing: what the defender lacks (the target), what the
-environment pays for it (about -650 as the floor a perfect-information
-substitute reaches under Wrecker), and what the trainer could have supplied
-instead (0.10 of the excess, once, with side effects).
+the bound is a tenth to a fifth of the excess, paid for elsewhere, and the
+supervisor's endpoint is unchanged by it at every seed. The formal
+question's three terms are now all measured on the same pairing: what the
+defender lacks (the target), what the environment pays for it (about -650
+as the floor a perfect-information substitute reaches under Wrecker at gap
+32), and what the trainer could have supplied instead (0.10 to 0.18 of the
+excess, arriving at a seed-dependent time, with a side effect of the same
+order as its gains everywhere but Wrecker).
 
 For the human study this fixes the comparison. The human's ceiling under
-Wrecker is not +452 against a shipped defender but about +394 against a
+Wrecker is not +452 against a shipped defender but +290 to +390 against a
 retrained one, and the honest control arm is the retrained defender, not
 the shipped one, because a deployed defender that has met its adversary
-would have been retrained. That control is cheap: three hours of training
-and five minutes of evaluation per adversary.
+would have been retrained. That control is cheap (three hours of training
+and five minutes of evaluation per adversary) but it has to be chosen by
+evaluation, not by training budget, because the trainer wanders: a
+checkpoint is a control arm only once its stock-red and Wrecker arms have
+been run.
 
 For Paper 1 the shared training seed is a tenth defect, and the trainer's
 behaviour on restore (a fresh optimizer walking a converged policy off its
