@@ -2876,12 +2876,19 @@ against the control on the same environment seeds.
 |---|---|---|---|---|---|
 | Wrecker | `hm_w_none_p9000` | -915.97 | -73.2 | 43/100 | 0.19 |
 | Wrecker | `hm_w_none_p9001` | -898.46 | -55.7 | 47/100 | 0.62 |
+| Wrecker | `hm_w_none_p9002` | -896.31 | -53.5 | 44/100 | 0.27 |
+| Wrecker | `hm_w_none_p9003` | -890.41 | -47.6 | 43/100 | 0.19 |
+| Wrecker | `hm_w_none_p9004` | -854.60 | -11.8 | 48/100 | 0.76 |
 | stock | `hm_s_none_p9000` | -136.36 | +0.1 | 51/100 | 0.92 |
+| Q32 | `hm_WreckerQ32_none_g0_p9000` | -591.85 | -6.1 | 52/100 | 0.76 |
 
-Under Wrecker the band is about +/-75 on the mean and 43 to 47 wins, the
-same width as KEEP's. Against the stock red it is nearly zero: the expert
-gate is deterministic given the observation, and against an adversary that
-converts little, the sub-policies' sampling barely moves the score.
+Under Wrecker the band is about +/-75 on the mean and 43 to 48 wins, the
+same width as KEEP's; all five nulls fall below the control, so the
+control is the best of six draws and a gain quoted against it is about 40
+smaller than against the null centre (-883). Against the stock red and
+under Q32 the band is nearly zero: the expert gate is deterministic given
+the observation, and against an adversary that converts little, the
+sub-policies' sampling barely moves the score.
 
 ### The adversary sets the sign for both defenders
 
@@ -3008,6 +3015,58 @@ The strict latch is truth-grade on both defenders (precision 1.000 on
 H-MARL under O10, 6,322 true against 2 false; 0.94 on KEEP) and half as
 complete (recall 0.010 against 0.019), because this defender clears flags
 faster by restoring.
+
+### The targeting axis on H-MARL
+
+The conversion and priority sweep's adversaries, each with a control, an
+O1 arm and an O10 arm at gap 32 on H-MARL, paired on seeds 0-99 (ARMS.md,
+"H-MARL Expert on the targeting axis"). The measure is the fraction of the
+point's excess loss the rule recovers, with a paired bootstrap interval;
+KEEP's O1 line from the same points is beside it.
+
+| Adversary | H-MARL excess | H-MARL O1 | H-MARL O10 | KEEP excess | KEEP O1 |
+|---|---|---|---|---|---|
+| ConvOnly | -97 | -0.11 [-0.38, 0.12] | 0.16 [-0.05, 0.34] | -129 | 0.38 [0.17, 0.53] |
+| Q04 | -103 | 0.09 [-0.14, 0.28] | 0.32 [0.14, 0.48] | -138 | 0.54 [0.40, 0.66] |
+| Q16 | -304 | 0.24 [0.14, 0.33] | 0.20 [0.09, 0.29] | -352 | 0.46 [0.37, 0.54] |
+| Q32 | -449 | 0.31 [0.23, 0.38] | 0.17 [0.06, 0.26] | -586 | 0.45 [0.38, 0.51] |
+| Q48 | -602 | 0.24 [0.15, 0.32] | 0.17 [0.08, 0.25] | -741 | 0.47 [0.42, 0.52] |
+| Q64 (Wrecker) | -706 | 0.14 [0.02, 0.25] | 0.14 [0.05, 0.23] | -928 | 0.49 [0.44, 0.53] |
+
+**KEEP's line is flat; H-MARL's is a hump under it.** KEEP recovers 0.45
+to 0.54 of its excess at every depth from Q04 up, with intervals that
+overlap each other and exclude every H-MARL value. H-MARL recovers
+nothing measurable where its deficit is within a hundred points of stock
+(ConvOnly, Q04: fifty restores per episode against a deficit that small
+has nothing to buy, and at ConvOnly the O1 arm loses 60 of 100), 0.24 to
+0.31 from Q16 to Q48, and 0.14 at Wrecker, 0.19 against the null centre.
+In absolute terms H-MARL's O1 gain rises from +73 at Q16 to +145 at Q48
+and falls to +99 at Q64 (+139 against the null centre), while KEEP's
+rises monotonically to +452. The fall at the deepest point is at the edge
+of what the intervals allow (Q32's lower bound 0.23, Q64's upper 0.25),
+and the fairer Q64 value sits inside Q48's interval, so the honest
+statement is a plateau at about a quarter from Q16 up with a possible
+decline at the extreme, not a peak.
+
+Two things for the framework. Amenability has a defender-level component:
+H-MARL's line sits under KEEP's at every depth by a factor of two to four,
+so which defender a supervisor is paired with sets the scale of what
+naming the target is worth. And it has a pairing component: KEEP's
+fraction does not depend on depth and H-MARL's does, rising from nothing
+to a quarter as the adversary concentrates. The policy layer is not two
+parallel lines, which is what H1 predicted; it is one flat line and one
+that saturates, and a study that measured H-MARL at a single depth would
+have got a different fraction at each.
+
+**Investigation on H-MARL is worth as much as substitution at the ends of
+the axis.** O10's fraction is flat at 0.14 to 0.20 from Q16 up (0.32 at
+Q04, where both rules are inside wide intervals), and it equals or beats
+O1 at ConvOnly, Q04 and Q64. On KEEP, investigation at Wrecker was a
+third of substitution. On this defender, where to look is as good as what
+to do wherever substitution has little to offer, which is consistent with
+the tail-compression reading above: the directed look prevents the bad
+episodes, and at the extremes of the axis that is most of what there is
+to prevent.
 
 ### What this does to the study
 

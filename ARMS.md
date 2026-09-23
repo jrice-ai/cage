@@ -484,6 +484,7 @@ an O1 arm at gap 32 (`oracle.py`, Schema B, 6 workers). P95 reproduces
 | `red_FSRedAgentWreckerP95` | `o1_g32_FSRedAgentWreckerP95` | P95 (= Wrecker) | -1115.65 | -663.38 | +452.27 | 95/100 |
 | `red_FSRedAgentConvOnly` | `o1_g32_FSRedAgentConvOnly` | ConvOnly | -316.62 | -268.19 | +48.43 | 63/100 |
 | `red_FSRedAgentConvOnly_null9000` | | ConvOnly, policy_seed 9000 | -301.66 | | +14.96 vs control | 51/100 |
+| `red_FSRedAgentWreckerQ32_null9000` | | Q32, policy_seed 9000 | -764.96 | | +8.1 vs control | 56/100 |
 | `red_FSRedAgentWreckerQ04` | `o1_g32_FSRedAgentWreckerQ04` | Q04 | -325.11 | -250.60 | +74.51 | 71/100 |
 | `red_FSRedAgentWreckerQ16` | `o1_g32_FSRedAgentWreckerQ16` | Q16 | -539.17 | -376.15 | +163.02 | 80/100 |
 | `red_FSRedAgentWreckerQ32` | `o1_g32_FSRedAgentWreckerQ32` | Q32 | -773.08 | -510.80 | +262.28 | 81/100 |
@@ -507,6 +508,9 @@ same environment seeds, from `tools_paired.py`.
 | `hm_w_none` | FSRedAgentWrecker | none | ep | -842.76 | 312.94 | control | | | 0 | |
 | `hm_w_none_p9000` | FSRedAgentWrecker | none | 9000+ep | -915.97 | 354.28 | -73.2 | 43/100 | 0.19 | 0 | |
 | `hm_w_none_p9001` | FSRedAgentWrecker | none | 9001+ep | -898.46 | 354.60 | -55.7 | 47/100 | 0.62 | 0 | |
+| `hm_w_none_p9002` | FSRedAgentWrecker | none | 9002+ep | -896.31 | | -53.5 | 44/100 | 0.27 | 0 | |
+| `hm_w_none_p9003` | FSRedAgentWrecker | none | 9003+ep | -890.41 | | -47.6 | 43/100 | 0.19 | 0 | |
+| `hm_w_none_p9004` | FSRedAgentWrecker | none | 9004+ep | -854.60 | | -11.8 | 48/100 | 0.76 | 0 | |
 | `hm_wo_O1_g32` | FSRedAgentWrecker | O1 | ep | -744.22 | 330.34 | +98.5 | 65/100 | 0.004 | 54.0 restores | 0.0 |
 | `hm_wo_O10_g32` | FSRedAgentWrecker | O10 | ep | -741.90 | 239.51 | +100.9 | 55/100 | 0.37 | 59.4 analyses | 10.6 |
 | `hm_wo_O13_g32` | FSRedAgentWrecker | O13 | ep | -804.14 | 252.39 | +38.6 | 55/100 | 0.37 | 44.7 analyses | 10.3 |
@@ -524,11 +528,16 @@ Recover agent-steps per episode, of 2,500: `hm_w_none` 263.1, `hm_s_none`
 `hm_w_none` (-842.76) is the per-episode-seeded counterpart of the compat
 -863.86; they are different seedings and are not expected to agree.
 
-**H-MARL noise floor under Wrecker**, two policy seeds against the control:
-deltas -73.2 and -55.7, wins 43 and 47 of 100. **The bar is roughly 75 points
-of mean delta and a win rate outside 43 to 47 of 100**, the same width as
-KEEP's under Wrecker. Against the stock red the single null is +0.1 and
-51/100: this defender's sampling barely moves its score there.
+**H-MARL noise floor under Wrecker**, five policy seeds against the
+control: deltas -73.2, -55.7, -53.5, -47.6, -11.8 (mean -48.4, sd 22.6),
+wins 43 to 48 of 100, every one below the control, so `hm_w_none`
+(-842.76) is the best of six sampling draws and the six-draw mean is
+-883.1. **The bar is roughly 75 points of mean delta and a win rate
+outside 43 to 48 of 100**, the same width as KEEP's under Wrecker; a
+delta quoted against `hm_w_none` understates a gain by about 40 relative
+to the null centre. Against the stock red the single null is +0.1 and
+51/100, and under Q32 (`hm_WreckerQ32_none_g0_p9000`, -591.85) -6.1 and
+52/100: this defender's sampling barely moves its score away from Wrecker.
 
 `hm_wo_O14_g32` was first launched with a version of the rule that overrode
 the master's output and patched `return_agent` by hand; the wrapper's HITL
@@ -563,6 +572,38 @@ or Remove on the investigated host): H-MARL O10 median 31, p90 139, within
 42.0% / 33.3% / 1.9%; KEEP O10 36 / 133 / 49.8% / 22.4%; KEEP O13 36 / 135
 / 45.8% / 23.7%. Yields (flags_new / analyses) 0.181, 0.233, 0.163, 0.216.
 Repeat share 66.1%, 48.0%, 66.3%, 46.8%.
+
+### H-MARL Expert on the targeting axis
+
+The conversion and priority sweep's adversaries on H-MARL, Schema B-H,
+default seeding, seeds 0-99, six workers, four minutes an arm (2026-09-22,
+`hm_<red>_<rule>_g<gap>`). Each point: control, O1 at gap 32, O10 at gap
+32, paired against the control on the same seeds. Fraction = delta over
+the point's excess loss (control minus `hm_s_none`, -136.43), paired
+bootstrap interval from `tools_fraction_ci.py`. Q64 is Wrecker
+(`hm_w_none`, `hm_wo_O1_g32`, `hm_wo_O10_g32`, above).
+
+| Red agent | Control | Excess | O1 mean | O1 delta | Wins | Fraction [95% CI] | O10 mean | O10 delta | Wins | Fraction [95% CI] |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ConvOnly | -232.99 | -96.5 | -243.39 | -10.4 | 40/100 | -0.108 [-0.382, 0.120] | -217.28 | +15.7 | 55/100 | 0.163 [-0.051, 0.340] |
+| Q04 | -239.10 | -102.7 | -230.20 | +8.9 | 51/100 | 0.087 [-0.143, 0.277] | -205.96 | +33.2 | 67/100 | 0.323 [0.141, 0.475] |
+| Q16 | -440.29 | -303.8 | -367.39 | +72.9 | 68/100 | 0.240 [0.136, 0.332] | -379.77 | +60.5 | 66/100 | 0.199 [0.094, 0.294] |
+| Q32 | -585.79 | -449.4 | -446.89 | +138.9 | 74/100 | 0.309 [0.229, 0.383] | -511.62 | +74.2 | 63/100 | 0.165 [0.061, 0.260] |
+| Q48 | -738.05 | -601.6 | -593.45 | +144.6 | 67/100 | 0.240 [0.150, 0.321] | -635.73 | +102.3 | 62/100 | 0.170 [0.080, 0.251] |
+| Q64 (Wrecker) | -842.76 | -706.3 | -744.22 | +98.5 | 65/100 | 0.140 [0.016, 0.249] | -741.90 | +100.9 | 55/100 | 0.143 [0.052, 0.225] |
+
+Executed per episode: O1 52.9 to 54.3 restores; O10 57.8 to 59.5 analyses
+with 10.0 to 13.2 agreements. Recover agent-steps per episode, control /
+O1 / O10: ConvOnly 265.0 (O10) and 211.5 (O1); Q04 247.4 / 326.3; Q16
+236.3 / 312.8; Q32 230.0 / 303.3; Q48 220.6 / 291.7 (O1 / O10).
+
+KEEP's O1 fractions on the same points, from `corpus_v1`, `red_*` and
+`o1_g32_*` (Wrecker: `wo_O1_g32`): ConvOnly 0.375 [0.166, 0.533], Q04
+0.541 [0.397, 0.663], Q16 0.463 [0.374, 0.540], Q32 0.448 [0.381, 0.506],
+Q48 0.471 [0.415, 0.521], Q64 0.487 [0.437, 0.534].
+
+Against the Wrecker null centre (-883.1) rather than the control, H-MARL's
+Q64 O1 gain is +138.9 and its fraction 0.186.
 
 ---
 
