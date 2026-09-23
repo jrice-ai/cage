@@ -21,7 +21,12 @@ def footers(d):
                 if line.strip():
                     last = line
         if last:
-            out[os.path.basename(f)] = json.loads(last)
+            try:
+                rec = json.loads(last)
+            except json.JSONDecodeError:
+                continue                      # file still being written
+            if rec.get("record") == "footer":  # step records mean the episode is unfinished
+                out[os.path.basename(f)] = rec
     return out
 
 
@@ -53,7 +58,10 @@ def main():
         A = footers(d)
         eps = sorted(set(A) & set(C))
         if not eps:
-            print(f"{os.path.basename(d):<28}   no shared episodes")
+            print(f"{os.path.basename(d):<28}   no shared episodes" + (f" ({len(A)} finished, in progress?)" if A else ""))
+            continue
+        if len(eps) < len(C):
+            print(f"{os.path.basename(d):<28}   {len(eps)} of {len(C)} episodes finished, in progress; not paired")
             continue
         deltas = [A[e]["total_reward"] - C[e]["total_reward"] for e in eps]
         wins = sum(1 for x in deltas if x > 0)

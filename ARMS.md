@@ -681,16 +681,40 @@ update 80.
 | `kft_Wrecker_s1001` | FSRedAgentWrecker | -1108.8 | -985.3 | -1089.9 / -1084.2 | +0.73 +/- 0.46 | 96.2 |
 | `kft_FiniteStateRedAgent_s1001` | FiniteStateRedAgent | -218.4 | -249.5 | -221.9 / -221.4 (76 updates) | -0.17 +/- 0.10 | 20.0 |
 | `kft_WreckerQ32_s1001` | FSRedAgentWreckerQ32 | -752.7 | -681.6 | -747.1 / -695.4 | +1.35 +/- 0.24 | 59.0 |
+| `kft_Wrecker_s1002` | FSRedAgentWrecker | -1170.4 | -1112.2 | -1167.0 / -1223.7 | +0.01 +/- 0.64 | 131.0 |
+| `kft_FiniteStateRedAgent_s1002` | FiniteStateRedAgent | -198.5 | -251.5 | -229.0 / -283.5 | -1.11 +/- 0.24 | 56.3 |
+| `kft_WreckerQ32_s1002` | FSRedAgentWreckerQ32 | -788.0 | -877.1 | -796.1 / -873.2 | -1.60 +/- 0.32 | 74.8 |
+| `kft_Wrecker_s1000_long` | FSRedAgentWrecker, 10,000 episodes | | | 500-episode means -1159 ... -1297, mean -1280 | | |
+| `kft_Wrecker_s1000_lr01` | FSRedAgentWrecker, `KEEP_LR_SCALE` 0.1 | -1158.3 | -1117.7 | -1148.0 / -1112.5 | +0.78 +/- 0.34 | 71.5 |
+| `kft_FiniteStateRedAgent_s1000_lr01` | FiniteStateRedAgent, `KEEP_LR_SCALE` 0.1 | -193.9 | -179.8 | -186.8 / -184.3 | +0.09 +/- 0.06 | 13.2 |
 
 Quarters, seed 1000: Wrecker -1130, -1055, -1009, -1043 (the gain is in the
 first thousand episodes); stock -216, -219, -218, -216 after a first update
 at -174; Q32 -771, -837, -840, -876. Seed 1001: Wrecker -1088, -1092,
 -1157, -1011 (the gain is in the last quarter); stock -219, -225, -209,
 -234, with updates 69-76 at -259 before the run died (Known issues); Q32
--763, -731, -712, -679, the opposite sign from seed 1000. Seed 1001 kept
-checkpoints at 500, 1000 and 1500 episodes (`KEEP_CKPT` forwarded from
-18:52 on 2026-09-20); `kft_FiniteStateRedAgent_s1001`'s `final` is the
-rolling checkpoint after update 76.
+-763, -731, -712, -679, the opposite sign from seed 1000. Seed 1002:
+Wrecker -1131, -1203, -1337, -1111 (down to -1573 at update 48, then back);
+stock -203, -255, -311, -256 (a mid-run collapse to -398, partly recovered);
+Q32 -780, -812, -879, -867. Seeds 1001 and 1002 kept checkpoints at 500,
+1000 and 1500 episodes (`KEEP_CKPT` forwarded from 18:52 on 2026-09-20);
+`kft_FiniteStateRedAgent_s1001`'s `final` is the rolling checkpoint after
+update 76.
+
+`kft_*_s1000_lr01` are the shipped recipe with both learning rates
+multiplied by 0.1 (actor 3e-5, critic 1e-4; `KEEP_LR_SCALE=0.1`), seed
+1000, 2,000 episodes, checkpoints at 500, 1000 and 1500. Quarters: Wrecker
+-1145, -1151, -1123, -1102; stock -188, -185, -185, -183. No first-update
+knock (the stock curve's first value is -213 against -174 at the shipped
+rate, and its sd across updates is 13 against 15 to 56).
+
+`kft_Wrecker_s1000_long` is 10,000 episodes (400 updates, 5M environment
+steps) under Wrecker at `KEEP_SEED` 1000 with a kept checkpoint every 500
+episodes, 16 hours. Its twenty 500-episode training means: -1159, -1231,
+-1181, -1328, -1537, -1328, -1286, -1267, -1195, -1091, -1077, -1222,
+-1225, -1306, -1419, -1447, -1432, -1318, -1254, -1297. It diverged from
+`kft_Wrecker_s1000` (same seed, same settings apart from `KEEP_EPISODES`)
+within the first 500 episodes; see Known issues.
 
 Evaluation of the final weights, `oracle.py`, 100 episodes, seeds 0-99, six
 workers, 4.7 minutes an arm (nine arms in 37 minutes on 2026-09-20). Paired
@@ -735,28 +759,101 @@ Seed 1001, same pairings (`k_kft_<tag>_<N|final>_<w|s|WreckerQ32>_<rule>`):
 | `k_kft_WreckerQ32_s1001_final_w_none` | Q32-trained | Wrecker | -1070.11 | `red_FSRedAgentWrecker` | +45.5 | 55/100 | 0.32 |
 | `k_kft_WreckerQ32_s1001_final_s_none` | Q32-trained | stock | -214.44 | `corpus_v1` | -27.1 | 34/100 | 0.002 |
 
-Executed restores under O1 on the retrained policies: 53.7 (seed 1000) and
-55.2 (seed 1001) per episode; shipped policy (`wo_O1_g32`) 52.3.
+Seed 1002, same pairings:
 
-Reading, two seeds. Held exactly across seeds: the stock-red cost of
-Wrecker training (-63.6, -64.5) and the supervisor's endpoint (O1 at gap
-32 brings the Wrecker-trained policies to -626 and -657 against -663 on
-the shipped policy; +37 and +6, 55 and 50 wins). Held in sign, larger at
-the second seed: the Wrecker gain, +95 and +167 (0.10 and 0.18 of the
-Wrecker excess loss of -928; O1 recovers 0.49), arriving in the first
-thousand episodes at seed 1000 and between 1000 and 1500 at seed 1001, and
-flat after arriving in both. Not held: Q32 training is -66 on Q32 at one
-seed and +93 at the other; the stock control is -11 at seed 1000 and, at
-seed 1001, -50 at 1000 episodes, -4 at 1500 and -74 after update 76,
-under Wrecker -46 against -67, -124 and -351. Continued training on the
-policy's own adversary perturbs it by tens of points in either direction
-along the run, so the -64 under Wrecker training sits at the bad end of
-that range rather than being cleanly Wrecker's price, and the "any
-training" baseline under Wrecker is negative, which puts the Wrecker gains
-further from the trainer's default than from zero. Seed 1002 of all three
-(with 500/1000/1500 checkpoints under the training adversary and the stock
-red) and a 10,000-episode Wrecker run from the shipped weights
-(`kft_Wrecker_s1000_long`, checkpoints every 500) are in progress.
+| Directory | Weights | Adversary | Mean | Against | Delta | Wins | Sign p |
+|---|---|---|---|---|---|---|---|
+| `k_kft_Wrecker_s1002_500_w_none` | Wrecker-trained, 500 ep | Wrecker | -1219.79 | `red_FSRedAgentWrecker` | -104.1 | 51/100 | 0.92 |
+| `k_kft_Wrecker_s1002_1000_w_none` | Wrecker-trained, 1000 ep | Wrecker | -1355.35 | `red_FSRedAgentWrecker` | -239.7 | 31/100 | 0.000 |
+| `k_kft_Wrecker_s1002_1500_w_none` | Wrecker-trained, 1500 ep | Wrecker | -1104.79 | `red_FSRedAgentWrecker` | +10.9 | 47/100 | 0.62 |
+| `k_kft_Wrecker_s1002_final_w_none` | Wrecker-trained | Wrecker | -1086.71 | `red_FSRedAgentWrecker` | +28.9 | 55/100 | 0.37 |
+| `k_kft_Wrecker_s1002_500_s_none` | Wrecker-trained, 500 ep | stock | -241.93 | `corpus_v1` | -54.6 | 36/100 | 0.009 |
+| `k_kft_Wrecker_s1002_1000_s_none` | Wrecker-trained, 1000 ep | stock | -318.12 | `corpus_v1` | -130.8 | 10/100 | 0.000 |
+| `k_kft_Wrecker_s1002_1500_s_none` | Wrecker-trained, 1500 ep | stock | -239.65 | `corpus_v1` | -52.3 | 31/100 | 0.000 |
+| `k_kft_Wrecker_s1002_final_s_none` | Wrecker-trained | stock | -278.92 | `corpus_v1` | -91.6 | 23/100 | 0.000 |
+| `k_kft_Wrecker_s1002_final_WreckerQ32_none` | Wrecker-trained | Q32 | -778.89 | `red_FSRedAgentWreckerQ32` | -5.8 | 54/100 | 0.48 |
+| `k_kft_Wrecker_s1002_final_w_O1_g32` | Wrecker-trained | Wrecker | -674.79 | `wo_O1_g32` (shipped + O1) | -11.4 | 52/100 | 0.69 |
+| `k_kft_FiniteStateRedAgent_s1002_500_s_none` | stock-trained, 500 ep | stock | -237.58 | `corpus_v1` | -50.3 | 36/100 | 0.007 |
+| `k_kft_FiniteStateRedAgent_s1002_1000_s_none` | stock-trained, 1000 ep | stock | -339.27 | `corpus_v1` | -151.9 | 12/100 | 0.000 |
+| `k_kft_FiniteStateRedAgent_s1002_1500_s_none` | stock-trained, 1500 ep | stock | -276.49 | `corpus_v1` | -89.2 | 32/100 | 0.000 |
+| `k_kft_FiniteStateRedAgent_s1002_final_s_none` | stock-trained | stock | -233.70 | `corpus_v1` | -46.4 | 35/100 | 0.004 |
+| `k_kft_FiniteStateRedAgent_s1002_final_w_none` | stock-trained | Wrecker | -1328.62 | `red_FSRedAgentWrecker` | -213.0 | 36/100 | 0.007 |
+| `k_kft_FiniteStateRedAgent_s1002_final_WreckerQ32_none` | stock-trained | Q32 | -879.54 | `red_FSRedAgentWreckerQ32` | -106.5 | 47/100 | 0.62 |
+| `k_kft_WreckerQ32_s1002_500_WreckerQ32_none` | Q32-trained, 500 ep | Q32 | -761.16 | `red_FSRedAgentWreckerQ32` | +11.9 | 54/100 | 0.48 |
+| `k_kft_WreckerQ32_s1002_1000_WreckerQ32_none` | Q32-trained, 1000 ep | Q32 | -860.46 | `red_FSRedAgentWreckerQ32` | -87.4 | 43/100 | 0.19 |
+| `k_kft_WreckerQ32_s1002_1500_WreckerQ32_none` | Q32-trained, 1500 ep | Q32 | -917.41 | `red_FSRedAgentWreckerQ32` | -144.3 | 33/100 | 0.001 |
+| `k_kft_WreckerQ32_s1002_final_WreckerQ32_none` | Q32-trained | Q32 | -892.35 | `red_FSRedAgentWreckerQ32` | -119.3 | 40/100 | 0.057 |
+| `k_kft_WreckerQ32_s1002_final_w_none` | Q32-trained | Wrecker | -1230.90 | `red_FSRedAgentWrecker` | -115.2 | 37/100 | 0.012 |
+| `k_kft_WreckerQ32_s1002_{500,1000,1500,final}_s_none` | Q32-trained | stock | -263.15, -254.85, -312.81, -338.82 | `corpus_v1` | -75.8, -67.5, -125.5, -151.5 | 23, 26, 12, 10 /100 | all 0.000 |
+
+The 10,000-episode run, every kept checkpoint under Wrecker
+(`k_kft_Wrecker_s1000_long_<N>_w_none`, paired against
+`red_FSRedAgentWrecker`), then its final under stock and O1:
+
+| Episodes | 500 | 1000 | 1500 | 2000 | 2500 | 3000 | 3500 | 4000 | 4500 | 5000 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Delta | -81.5 | -131.4 | -87.6 | -455.5 | -277.8 | -239.8 | -107.3 | -249.5 | +30.5 | +150.7 |
+| Wins | 40 | 43 | 39 | 15 | 29 | 24 | 42 | 29 | 52 | 69 |
+
+| Episodes | 5500 | 6000 | 6500 | 7000 | 7500 | 8000 | 8500 | 9000 | 9500 | final |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Delta | -103.4 | -119.5 | -138.8 | -248.0 | -334.4 | -286.1 | -237.8 | -72.2 | -191.4 | -213.3 |
+| Wins | 40 | 42 | 35 | 28 | 24 | 28 | 31 | 44 | 38 | 34 |
+
+Mean delta over the twenty checkpoints -170, median -165; two positive,
+seventeen below the band. `k_kft_Wrecker_s1000_long_final_s_none` -310.75
+(-123.4 against `corpus_v1`, 11/100); `k_kft_Wrecker_s1000_long_final_w_O1_g32`
+-713.67 (+615.3 over its own control, -50.3 against `wo_O1_g32`, 38/100,
+p 0.021; 54.1 restores per episode).
+
+Learning rate 0.1x (`k_kft_<tag>_lr01_...`), same pairings:
+
+| Directory | Weights | Adversary | Mean | Against | Delta | Wins | Sign p |
+|---|---|---|---|---|---|---|---|
+| `k_kft_Wrecker_s1000_lr01_{500,1000,1500,final}_w_none` | Wrecker-trained | Wrecker | -1176.09, -1107.89, -1094.81, -1096.79 | `red_FSRedAgentWrecker` | -60.4, +7.8, +20.8, +18.9 | 39, 47, 57, 55 /100 | 0.035, 0.62, 0.19, 0.37 |
+| `k_kft_Wrecker_s1000_lr01_{500,1000,1500,final}_s_none` | Wrecker-trained | stock | -180.89, -181.88, -183.08, -191.12 | `corpus_v1` | +6.4, +5.4, +4.2, -3.8 | 47, 59, 51, 51 /100 | 0.62, 0.07, 0.92, 0.84 |
+| `k_kft_Wrecker_s1000_lr01_final_w_O1_g32` | Wrecker-trained | Wrecker | -638.59 | `k_kft_Wrecker_s1000_lr01_final_w_none` | +458.2 | 92/100 | 0.000 |
+| | | | | `wo_O1_g32` (shipped + O1) | +24.8 | 54/100 | 0.48 |
+| `k_kft_FiniteStateRedAgent_s1000_lr01_{500,1000,1500,final}_s_none` | stock-trained | stock | -195.35, -173.23, -181.28, -170.24 | `corpus_v1` | -8.0, +14.1, +6.0, +17.1 | 39, 57, 57, 66 /100 | 0.044, 0.10, 0.16, 0.001 |
+| `k_kft_FiniteStateRedAgent_s1000_lr01_final_w_none` | stock-trained | Wrecker | -1168.26 | `red_FSRedAgentWrecker` | -52.6 | 50/100 | 1.000 |
+
+Every cell inside its band. The stock control's final, +17.1 at 66/100,
+sits on the band's edge on both measures.
+
+Executed restores under O1 on the retrained policies: 53.7 (seed 1000),
+55.2 (seed 1001), 52.1 (seed 1002), 54.1 (long run), 52.5 (learning rate
+0.1x) per episode; shipped policy (`wo_O1_g32`) 52.3.
+
+Supervised endpoint against unsupervised control, six KEEP policies under
+Wrecker (shipped, three Wrecker-trained seeds, the long run, the 0.1x
+learning rate): controls -1115.65, -1020.23, -948.46, -1086.71, -1328.96,
+-1096.79; O1 gap-32 endpoints -663.38, -626.33, -657.39, -674.79, -713.67,
+-638.59. Least squares `endpoint = -458 + 0.186 x control`, r 0.78,
+residuals within 24. O1's gain as a fraction of each policy's own excess
+loss over `corpus_v1`: 0.49, 0.47, 0.38, 0.46, 0.54, 0.50.
+
+Reading, three seeds and the long run. Wrecker training, 2,000 episodes:
++95, +167, +29 under Wrecker (0.10, 0.18, 0.03 of the excess loss of -928;
+O1 recovers 0.49), at -64, -64, -92 against the stock red; positive at
+every seed, outside the band at two. The stock control never stays put:
+-11 at seed 1000; -50, -4, -74 along seed 1001 (the last after a collapse
+and crash); -50, -152, -89, -46 along seed 1002 (a mid-run collapse to
+-398 in training units). Q32 training is -66, +93, -119 on Q32 across the
+three seeds. The 10,000-episode Wrecker run is below the band at
+seventeen of twenty checkpoints, -456 at its worst, +151 at its best
+(5,000 episodes), -213 at the end, and -123 against the stock red. From
+the shipped weights at the shipped recipe, continued training is a random
+walk with a small positive drift under Wrecker at 2,000 episodes and a
+negative one by 10,000, and it costs stock competence at every seed and
+every checkpoint. The supervisor's endpoint moves by 0.185 of the
+unsupervised policy's deficit: inside the shipped-plus-O1 band for the
+four policies within 170 of shipped, -50 for the long run's policy at
+-213. At a tenth of the learning rate the trainer is stable and learns
+nothing: no first-update knock, no wander, no collapse, no stock-red cost
+(+6, +5, +4, -4 along the Wrecker-trained run) and no Wrecker gain (-60,
++8, +21, +19, all inside the band); O1 on that policy lands at -639, on
+the six-policy line. The shipped rate walks and costs; the gentle rate
+sits still; neither recovers the deficit.
 
 ---
 
@@ -896,3 +993,13 @@ red) and a 10,000-episode Wrecker run from the shipped weights
   the 1500-episode kept checkpoint (update 60) is inside both bands. Use the
   kept checkpoints, not `final`, for that run. Whether the collapse caused
   the crash or preceded it by coincidence is not recoverable from the log.
+- **KEEP training is not reproducible from its seed.** `kft_Wrecker_s1000`
+  and `kft_Wrecker_s1000_long` share `KEEP_SEED`, adversary, workers and
+  every other setting except `KEEP_EPISODES`, and their curves differ from
+  the first 500 episodes (first-quarter means -1130 and -1159, then -1055
+  against -1231). `KEEP_SEED` seeds torch in the parent and CybORG per
+  environment; the joblib workers sample actions from their own torch
+  generators, which the trainer never seeds, and the order in which
+  episodes return sets the batch. Report KEEP continuations as draws, not
+  as reproducible runs, and count this beside the shared-seed defect for
+  Paper 1.

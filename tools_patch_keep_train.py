@@ -14,6 +14,8 @@ train.py
   KEEP_CKPT              interval in episodes for kept checkpoints (default 10000, the shipped
                          value, with the shipped _{k}k naming); any other value names the kept
                          files by episode count, {fname}-{i}_e{episodes}.pt
+  KEEP_LR_SCALE          multiplier on the restored agents' learning rates (shipped: actor 3e-4,
+                         critic 1e-3); only with KEEP_RESTORE. 0.1 is the conservative fine-tune.
 bin/run
   KEEP_WEIGHTS           name of a directory under ~/cage/keep_weights whose gnn_ppo-*.pt
                          replace the image's weights before the command runs (default shipped)
@@ -88,6 +90,17 @@ SEED = int(_os.environ.get("KEEP_SEED", "1337"))''')
                "            if e % _ckpt < hp.N and e > hp.N:\n"
                "                agent.save(outf=f'checkpoints/{hp.fnames}-{i}_{e//1000}k.pt' if _ckpt == 10000\n"
                "                           else f'checkpoints/{hp.fnames}-{i}_e{e}.pt')\n")
+    if "KEEP_LR_SCALE" not in src:
+        old = "            _a.training = True  # load() calls eval(); train() does not reset this flag\n"
+        assert src.count(old) == 1, "training-flag line not found"
+        src = src.replace(old, old +
+               '        if _os.environ.get("KEEP_LR_SCALE"):\n'
+               '            _k = float(_os.environ["KEEP_LR_SCALE"])\n'
+               '            for _a in agents:\n'
+               '                for _o in (_a.actor.opt, _a.critic.opt):\n'
+               '                    for _g in _o.param_groups:\n'
+               '                        _g["lr"] *= _k\n'
+               '            print("Scaled learning rates by", _k, flush=True)\n')
     return src
 
 
@@ -107,6 +120,10 @@ def patch_run(src):
         old = "-e KEEP_SHARED_ENV_SEED \\"
         assert src.count(old) == 1, "bin/run KEEP line not found"
         src = src.replace(old, "-e KEEP_SHARED_ENV_SEED -e KEEP_CKPT \\")
+    if "-e KEEP_LR_SCALE" not in src:
+        old = "-e KEEP_CKPT \\"
+        assert src.count(old) == 1, "bin/run KEEP_CKPT not found"
+        src = src.replace(old, "-e KEEP_CKPT -e KEEP_LR_SCALE \\")
     return src
 
 

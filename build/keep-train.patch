@@ -1,5 +1,5 @@
 diff --git a/train.py b/train.py
-index 5f3d500..fbae7cf 100644
+index 5f3d500..24e90ee 100644
 --- a/train.py
 +++ b/train.py
 @@ -1,4 +1,5 @@
@@ -58,7 +58,7 @@ index 5f3d500..fbae7cf 100644
  
  
  if __name__ == '__main__':
-@@ -191,6 +201,12 @@ if __name__ == '__main__':
+@@ -191,6 +201,19 @@ if __name__ == '__main__':
          clip=0.2,
          epochs=HYPER_PARAMS.epochs
      ) for _ in range(N_AGENTS)]
@@ -68,6 +68,13 @@ index 5f3d500..fbae7cf 100644
 +        print("Restored agents from", _os.environ["KEEP_RESTORE"], flush=True)
 +        for _a in agents:
 +            _a.training = True  # load() calls eval(); train() does not reset this flag
++        if _os.environ.get("KEEP_LR_SCALE"):
++            _k = float(_os.environ["KEEP_LR_SCALE"])
++            for _a in agents:
++                for _o in (_a.actor.opt, _a.critic.opt):
++                    for _g in _o.param_groups:
++                        _g["lr"] *= _k
++            print("Scaled learning rates by", _k, flush=True)
  
      HYPER_PARAMS.fnames = args.fname
      train(agents, HYPER_PARAMS)
