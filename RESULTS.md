@@ -3068,6 +3068,45 @@ the tail-compression reading above: the directed look prevents the bad
 episodes, and at the extremes of the axis that is most of what there is
 to prevent.
 
+### Adversaries that differ in kind
+
+Trident's ten heuristic reds, which differ in what red does rather than in
+how hard it targets, each with a control, an O1 arm and an O10 arm on both
+defenders (ARMS.md, "Trident's heuristic reds on both defenders"). Seven of
+the ten leave both defenders better off than the stock red does (their
+excess loss is positive, 21 to 89 points), FailureTracker is within 20 of
+zero on both, and only Degrader (KEEP -82, H-MARL -56) and, on KEEP,
+Impacter (-41) produce a deficit.
+
+| Red agent | KEEP excess | KEEP O1 | KEEP O10 | H-MARL excess | H-MARL O1 | H-MARL O10 |
+|---|---|---|---|---|---|---|
+| seven easier-than-stock reds | +21 to +89 | -2 to -25 | -4 to +16 | +39 to +86 | -23 to -30 | -2 to +8 |
+| FailureTracker | -18 | +1 | +13 | -3 | -26 | +10 |
+| Impacter | -41 | +69 (1.67 [1.19, 3.54]) | +27 | +3 | 0 | +19 |
+| Degrader | -82 | +58 (0.72 [0.51, 0.92]) | -2 | -56 | +1 (0.02) | +14 (0.25 [-0.36, 0.64]) |
+
+**The sign of supervision's value is the sign of the deficit, whatever the
+adversary's kind.** Where the adversary leaves blue better off, naming the
+target costs 8 to 30 points on both defenders, the same sign and size as
+O1's cost against the stock red itself (-16 and -24), and investigation is
+inert. The adversary result holds across kind as it held across depth: a
+supervisor with perfect information harms where there is nothing to
+recover.
+
+**Where a deficit exists, KEEP recovers most or all of it and H-MARL
+recovers none.** Degrader costs KEEP 82 and O1 returns 58; Impacter costs
+KEEP 41 and O1 returns 69, taking KEEP above its stock-red score. The same
+two adversaries cost H-MARL 56 and 3, and O1 returns +1 and 0, with O10
+returning +14 and +19 on intervals that include zero. On these
+action-biased reds KEEP's fraction sits at or above its depth-axis line
+and H-MARL's at zero, below its depth-axis plateau. Kind does something
+the depth axis does not capture, and in opposite directions on the two
+defenders; but the deficits are small enough (41 to 82 points) that the
+intervals are wide, and this is a hint for the framework's threat layer,
+not a result for the papers. A red agent that is both action-biased and
+targeting-concentrated, which none of Trident's twelve or the Q sweep is,
+would be the pairing to test it on.
+
 ### What this does to the study
 
 KEEP stays the study defender. Its ceilings, +452 substitute and +155
@@ -3270,7 +3309,9 @@ The supervisor on every retrained policy, O1 at gap 32 under Wrecker:
 
 Least squares over the six: `endpoint = -458 + 0.186 x control`, r 0.78,
 residuals within 24. O1's gain as a fraction of each policy's own excess
-loss: 0.49, 0.47, 0.38, 0.46, 0.54, 0.50.
+loss: 0.49, 0.47, 0.38, 0.46, 0.54, 0.50. Investigation behaves the same
+way: O10 at gap 32 on the gentle-rate policy is +121 (60/100), a fraction
+of 0.133, against +127 and 0.137 on the shipped policy.
 
 Four things follow.
 

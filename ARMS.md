@@ -485,6 +485,9 @@ an O1 arm at gap 32 (`oracle.py`, Schema B, 6 workers). P95 reproduces
 | `red_FSRedAgentConvOnly` | `o1_g32_FSRedAgentConvOnly` | ConvOnly | -316.62 | -268.19 | +48.43 | 63/100 |
 | `red_FSRedAgentConvOnly_null9000` | | ConvOnly, policy_seed 9000 | -301.66 | | +14.96 vs control | 51/100 |
 | `red_FSRedAgentWreckerQ32_null9000` | | Q32, policy_seed 9000 | -764.96 | | +8.1 vs control | 56/100 |
+| `red_FSRedAgentWreckerQ04_null9000` | | Q04, policy_seed 9000 | -314.55 | | +10.6 vs control | 53/100 |
+| `red_FSRedAgentWreckerQ16_null9000` | | Q16, policy_seed 9000 | -559.98 | | -20.8 vs control | 49/100 |
+| `red_FSRedAgentWreckerQ48_null9000` | | Q48, policy_seed 9000 | -961.80 | | -33.6 vs control | 37/100, p 0.012 |
 | `red_FSRedAgentWreckerQ04` | `o1_g32_FSRedAgentWreckerQ04` | Q04 | -325.11 | -250.60 | +74.51 | 71/100 |
 | `red_FSRedAgentWreckerQ16` | `o1_g32_FSRedAgentWreckerQ16` | Q16 | -539.17 | -376.15 | +163.02 | 80/100 |
 | `red_FSRedAgentWreckerQ32` | `o1_g32_FSRedAgentWreckerQ32` | Q32 | -773.08 | -510.80 | +262.28 | 81/100 |
@@ -604,6 +607,41 @@ Q48 0.471 [0.415, 0.521], Q64 0.487 [0.437, 0.534].
 
 Against the Wrecker null centre (-883.1) rather than the control, H-MARL's
 Q64 O1 gain is +138.9 and its fraction 0.186.
+
+### Trident's heuristic reds on both defenders
+
+The ten non-default agents of Appendix B, each with an O1 and an O10 arm at
+gap 32 (budget 99999) on both defenders, paired on seeds 0-99, 2026-09-23.
+H-MARL: `hm_<Name>_none_g0`, `hm_<Name>_O1_g32`, `hm_<Name>_O10_g32`
+(Schema B-H). KEEP: controls are the `red_FSRedAgent<Name>` arms above
+(Schema A); rules `o1_g32_FSRedAgent<Name>`, `o10_g32_FSRedAgent<Name>`
+(Schema B). Excess is control minus the defender's stock control
+(`hm_s_none` -136.43, `corpus_v1` -187.32); a positive excess means the
+adversary leaves the defender better off than the stock red and there is
+no deficit for a rule to recover, so no fraction is given. Fractions with
+paired bootstrap intervals where the excess is negative.
+
+| Red agent | H-MARL control | Excess | O1 delta | O10 delta | KEEP control | Excess | O1 delta | O10 delta |
+|---|---|---|---|---|---|---|---|---|
+| TargetARestricted | -50.0 | +86.4 | -30.1 | -0.6 | -98.52 | +88.8 | -12.2 | +4.4 |
+| TargetAOperational | -54.5 | +81.9 | -29.1 | +2.0 | -99.89 | +87.4 | -24.8 | -3.5 |
+| TargetA | -51.9 | +84.5 | -26.4 | +2.9 | -104.18 | +83.1 | -19.3 | +5.8 |
+| TargetB | -72.7 | +63.7 | -23.8 | +6.6 | -116.25 | +71.1 | -17.9 | +2.3 |
+| TargetBRestricted | -71.5 | +64.9 | -23.4 | +8.1 | -117.93 | +69.4 | -17.0 | -0.4 |
+| TargetBOperational | -78.3 | +58.1 | -24.7 | +6.4 | -127.31 | +60.0 | -8.2 | +12.2 |
+| Combined | -97.3 | +39.1 | -25.8 | -2.1 | -165.87 | +21.4 | -2.4 | +16.0 |
+| FailureTracker | -139.2 | -2.8 | -26.1 | +9.8 | -205.66 | -18.3 | +1.0 | +12.5 |
+| Impacter | -133.5 | +2.9 | +0.2 | +18.7 | -228.73 | -41.4 | +69.3 | +26.5 |
+| Degrader | -192.1 | -55.7 | +1.2 | +14.1 | -268.80 | -81.5 | +58.3 | -1.9 |
+
+Fractions where a deficit exists: KEEP Degrader O1 0.715 [0.505, 0.917],
+O10 -0.023 [-0.542, 0.353]; KEEP Impacter O1 1.673 [1.188, 3.539] (O1
+takes KEEP above its stock-red score), O10 0.640 [-0.629, 1.484]; H-MARL
+Degrader O1 0.021 [-0.816, 0.460], O10 0.253 [-0.359, 0.636]; FailureTracker
+on either defender and Impacter on H-MARL have an excess within 20 of zero
+and no usable fraction. The three original H-MARL arms for
+TargetARestricted and the KEEP O1 arm failed or were killed on the first
+launch (Known issues) and were rerun; the reported arms are the reruns.
 
 ---
 
@@ -865,6 +903,11 @@ Executed restores under O1 on the retrained policies: 53.7 (seed 1000),
 55.2 (seed 1001), 52.1 (seed 1002), 54.1 (long run), 52.5 (learning rate
 0.1x) per episode; shipped policy (`wo_O1_g32`) 52.3.
 
+`k_kft_Wrecker_s1000_lr01_final_w_O10_g32`: O10 at gap 32 on the
+0.1x-learning-rate policy, -975.61, +121.2 over its control (60/100, p
+0.057), 59.7 analyses and 9.2 agreements per episode; the shipped policy's
+O10 (`wo_O10_g32`) is +127.4 from -1115.65. Fractions 0.133 and 0.137.
+
 Supervised endpoint against unsupervised control, six KEEP policies under
 Wrecker (shipped, three Wrecker-trained seeds, the long run, the 0.1x
 learning rate): controls -1115.65, -1020.23, -948.46, -1086.71, -1328.96,
@@ -1044,3 +1087,18 @@ sits still; neither recovers the deficit.
   episodes return sets the batch. Report KEEP continuations as draws, not
   as reproducible runs, and count this beside the shared-seed defect for
   Paper 1.
+- **H-MARL's time-to-recover metric and the contractor network.**
+  `BlueFlatWrapper_CC4.update_time_to_recover_metric` (under their
+  `COMPUTE_METRICS = True`) keys a dictionary by blue subnet and raises
+  `KeyError: 'contractor_network_subnet'` when a red agent's activity marks
+  a contractor host as infected; Trident's `TargetA*` family does this on
+  the first step. The metric feeds no reward and nothing the harness
+  records. From 2026-09-22 `capture_hmarl.py` wraps the call on the wrapper
+  instance to swallow `KeyError`; their code is untouched, and the
+  three-episode compat gate reproduces under the guard
+  (`hm_compat_gate3m`). The failed arms were rerun; the KEEP O1 arm for the
+  same adversary was killed mid-run by the recovery and rerun from a clean
+  directory.
+- **`pkill -f` patterns.** `\|` is not alternation in `pkill`'s extended
+  regex; a pattern written that way matches nothing and reports nothing.
+  Use `pkill -f 'a|b'` or kill by PID.

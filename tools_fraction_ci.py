@@ -52,7 +52,11 @@ def main():
             print(f"{os.path.basename(arm)}: no shared episodes"); continue
         s = [S[e] for e in eps]; c = [C[e] for e in eps]; a = [A[e] for e in eps]
         m = len(eps)
-        excess = mean(c) - mean(s); delta = mean(a) - mean(c); frac = delta / -excess
+        excess = mean(c) - mean(s); delta = mean(a) - mean(c)
+        if excess >= 0:      # the adversary leaves the defender no worse than the stock red: nothing to recover
+            print(f"{os.path.basename(arm):26} n {m:3}  excess {excess:8.1f}  delta {delta:+7.1f}  fraction n/a (no deficit)")
+            continue
+        frac = delta / -excess
         fb = []
         for _ in range(n):
             idx = [rng.randrange(m) for _ in range(m)]

@@ -128,6 +128,21 @@ def _install(env):
         return orig(out, messages, **kw)
 
     env.env_step = env_step
+
+    # The wrapper's time-to-recover metric (COMPUTE_METRICS) keys a dictionary by
+    # blue subnet and raises KeyError('contractor_network_subnet') when a red
+    # agent's activity marks a contractor host as infected (Trident's TargetA*
+    # family does). The metric is theirs, feeds no reward and nothing we record,
+    # so the call is made tolerant on this instance; their code is untouched.
+    if hasattr(env, "update_time_to_recover_metric"):
+        _metric = env.update_time_to_recover_metric
+
+        def _safe_metric(*a_, **k_):
+            try:
+                return _metric(*a_, **k_)
+            except KeyError:
+                return None
+        env.update_time_to_recover_metric = _safe_metric
     return holder
 
 
@@ -179,7 +194,7 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness": "capture_hmarl", "defender": "H-MARL Expert",
-            "harness_sha": HARNESS_SHA, "machine": MACHINE, "policy_dir": os.environ.get("HMARL_POLICY_DIR", "saved_policies/sub/iter_49/policies/"), "episode": ep, "seed": seed,
+            "harness_sha": HARNESS_SHA, "machine": MACHINE, "episode": ep, "seed": seed,
             "rule": rule, "budget": budget, "min_gap": min_gap,
             "cyborg_version": CYBORG_VERSION, "episode_length": EPISODE_LENGTH, **hdr,
         }) + "\n")
@@ -232,6 +247,8 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
             "analyses": stats["exec_Analyse"], "restores": stats["exec_Restore"],
             "removes": stats["exec_Remove"], "sleeps": stats["exec_Sleep"],
             "flags_new": stats["flags_new"],
+            "latch_tp": stats["tp"], "latch_fp": stats["fp"], "latch_fn": stats["fn"],
+            "latch_own": stats["own"],
             "mode_overrides": stats["mode_overrides"], "recover_agent_steps": recover_steps,
             "wall_seconds": round(time.time() - t0, 2),
         }
