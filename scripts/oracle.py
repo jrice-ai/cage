@@ -65,6 +65,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     agents = Submission.AGENTS
 
     stats = Counter()
+    stats["dact"] = []      # rule defender's per-step reasons; emptied into each step record
     decoys = {}
     install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap)
     if rule == "O11":
@@ -122,7 +123,9 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
                 "step_reward": step_reward, "cumulative_reward": total,
                 "n_compromised_owned": n_comp,
                 "overrides": stats.pop("ovr", []),
+                "defender": stats.get("dact") or [],
             }) + "\n")
+            stats["dact"] = []
 
             if term.get("blue_agent_0") or trunc.get("blue_agent_0"):
                 break
@@ -137,6 +140,11 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "flags_new": stats.get("flags_new", 0),
             "latch_tp": stats.get("tp", 0), "latch_fp": stats.get("fp", 0),
             "latch_fn": stats.get("fn", 0), "latch_own": stats.get("own", 0),
+            "defender_restores": stats.get("d_restore", 0), "defender_analyses": stats.get("d_analyse", 0),
+            "defender_decoys": stats.get("d_decoy", 0), "defender_sleeps": stats.get("d_sleep", 0),
+            "defender_flags_new": stats.get("d_flags_new", 0), "defender_alerts": stats.get("d_alerts", 0),
+            "defender_removes": stats.get("d_remove", 0), "defender_blocks": stats.get("d_block", 0), "defender_allows": stats.get("d_allow", 0),
+            "defender_tp": stats.get("d_tp", 0), "defender_fp": stats.get("d_fp", 0), "defender_fn": stats.get("d_fn", 0),
             "wall_seconds": round(time.time() - t0, 2),
         }) + "\n")
 
@@ -147,7 +155,10 @@ def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s", "O11", "O10", "O12", "O13"])
+                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2s", "O11", "O10", "O12", "O13",
+                            "R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "RT",
+                            "R1+O1", "R2+O1", "R2+O10", "R3+O1", "R4+O1", "R4+O10", "R4+O13", "R4+O2s", "R4d+O1", "RT+O1"],
+                   help="a supervisor rule on KEEP, or a rule defender (R1 to R4, RT), optionally with a supervisor rule on top (R4+O1)")
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=1)

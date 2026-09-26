@@ -19,7 +19,13 @@ and the footer carries `latch_tp/fp/fn/own` and `flags_new` (evidence rules),
 carries `workers`. Arms between `dd22fff` and `d974f69` report `analyses` /
 `restores` as attempts; see Known issues. From 2026-09-20 the header carries
 `weights`: `shipped`, or the name of a `keep_weights/` directory swapped in
-by `KEEP_WEIGHTS` (see "Retrained defenders").
+by `KEEP_WEIGHTS` (see "Retrained defenders"). From 2026-09-26 (rule
+defenders) the step record carries `defender` as `[[agent, reason, host],
+...]` (the rule's own decisions that step, empty for policy arms) and the
+footer `defender_restores/analyses/decoys/sleeps/removes/blocks/allows/
+flags_new/alerts/tp/fp/fn`; a `--rule` of the form `R2+O1` runs the rule
+defender under the supervisor, and the header's `rule` field keeps the
+full form.
 
 **Schema B-H** (`capture_hmarl.py`, H-MARL Expert): Schema B plus per-step
 `mode` (the sub-policy each agent executed, `investigate` or `recover`) and
@@ -941,7 +947,274 @@ sits still; neither recovers the deficit.
 
 ---
 
+## Rule defenders
+
+A third defender that was never trained: a hand-written blue policy inside
+the oracle harness, so that every arm, tool and pairing built for KEEP
+applies to it unchanged. `tools_add_R1.py` (idempotent, tests for the code
+it inserts, upgrades an earlier installed block) adds `make_defender` to
+`scripts/oracle_rules.py` and restructures `make_oracle`'s intercept: with
+a defender rule, the defender's proposal replaces the policy's action
+before the supervisor rule sees it, the supervisor may override it as it
+would KEEP's, and whatever executes is fed back to the defender's memory
+(`note`), so a supervisor's Restore clears the rule's flags for that host.
+A `--rule` of `R2` runs the defender alone, `R2+O1` under a supervisor;
+unknown rule names now raise `ValueError` instead of passing through as
+`none`. `run_rd.sh <kind> <red> [sup] [gap] [budget]` runs one arm through
+`bin/run cage-keep:dev`, 100 episodes at six workers, into
+`data/traces/rd_<kind>_<w|s|red>_<sup>[_g<gap>]`. Diagnostics that shaped
+the rules: `tools_diag_eyes.py` (what the observation supports, one
+episode) and `tools_diag_posture.py` (KEEP's block/allow/decoy posture,
+five episodes).
+
+Gates. The O2e smoke reproduced after each of the three patch versions
+(`o2e_smoke_r1`, `o2e_smoke_r4`, `o2e_smoke_r41`: -327.00, 87.68, 77.0 /
+108.5), the H-MARL compat gate after the first (`hm_compat_gate3r`,
+-902.67, sd 420.22). Determinism: `rd_R4_w_none` and `rerun_rd_R4_w_none`
+are identical on every core key over all 100 footers.
+
+### Definitions
+
+An alert is a substantive observation entry naming an owned host, with
+two exclusions: the reset listing at step 0, which names every owned host
+(see Known issues, the O2e latch), and the echo of the rule's own action
+the step before, unless it carries a confirmed file. A confirmed file is
+an Analyse result with `Density >= 0.9`. Alerts are counted per host
+since its last Restore. Windows: no Restore of the same host within 30
+steps (O8's window), no Remove within 10, no Analyse within 10, and one
+Remove per alert. Restore and Remove targets are ordered by confirmed
+file first, then `_host_score` (the zone's phase penalty, servers
+doubled, divided by decoy load), then alert count and recency.
+
+| Kind | Restore on | Else, in order | Notes |
+|---|---|---|---|
+| `R1` | confirmed file | Analyse an alerted host not looked at in 10 steps and alerted since | forensic-only |
+| `R2` | second alert or confirmed file | Analyse once-alerted hosts | the ladder |
+| `R2d` | as R2 | as R2, then a decoy on an owned server without one | |
+| `R3` | first alert or confirmed file | sleep | contain on any alert |
+| `R4` | second alert or confirmed file | block a disallowed inbound zone pair for this phase (one per step) or re-allow one; Remove a once-alerted host; a decoy on the least-decoyed owned host up to three | the analyst playbook |
+| `R4p` | never | posture only | ablation |
+| `R4d` | never | posture, then decoys | ablation |
+| `RT` | any ground-truth-compromised owned host | sleep | perfect eyes, the same hands |
+
+The comms policy for `R4` is written from
+`EnterpriseScenarioGenerator._set_allowed_subnets_per_mission_phase`: HQ
+to contractor, restricted A and restricted B in every phase; phase 0 adds
+(RA, C), (OA, RA), (RB, C), (RB, RA), (OB, RB); phase 1 adds (RB, C),
+(OB, RB); phase 2 adds (RA, C), (OA, RA). Pairs are symmetric. The
+simulator enforces none of it on the network (`_update_agents_allowed_subnets`
+only redirects the greens), which is why posture cannot matter: red uses
+allowed routes.
+
+### Pilots
+
+Three episodes each (seeds 0-2, `OUTPREFIX=pilot_`), Wrecker and stock,
+in the order they were run. Means only.
+
+| Kind | Wrecker | stock | What it showed |
+|---|---|---|---|
+| `R1` | -3105 | -710 | the strict criterion fires about eight times an episode |
+| `R2` | -3141 | -874 | |
+| `R3` | -3302 | -1042 | |
+| `R2d` | -3000 | -1132 | |
+| `R4` (v3) | -3777.67 | -1380.33 | 1,424 and 1,314 Removes in three episodes: alerts were cleared on Remove and re-fired every 10 steps |
+| `R4p` | -5779.67 | -6387.00 | posture alone is the do-nothing floor |
+| `R4d` | -4696.67 | -6745.33 | decoys alone are the floor |
+| `R4` (v3.1) | -2990.00 | -1669.33 | 147 and 181 Removes against 311 and 471 alerts |
+
+The v3.1 pilot footers under Wrecker and stock: restores 129 / 185,
+decoys 579 / 731, flagged-set tp 50 / 111, fp 88 / 94, fn 11,484 / 10,549
+(compromised host-steps not flagged). The flagged set is precise enough;
+it covers almost nothing.
+
+### What the observation supports
+
+`tools_diag_eyes.py`, one episode each, seed 0, the reset listing
+excluded. "Passive" is the alert criterion above; precision is the share
+of host-namings that name a compromised host; coverage is the share of
+compromised host-steps on which the host had been named at least k times
+since its last Restore. Under KEEP (`--rule none`) compromise is kept
+near a fifth of owned host-steps; under R1 it accumulates to two fifths,
+which raises every precision figure.
+
+| Acting policy | Adversary | Namings | Precision | by count 1 / 2 / 3 / 4 / 5+ | Coverage >=1 / >=2 / >=3 | Analyses | Confirmed files |
+|---|---|---|---|---|---|---|---|
+| KEEP | one of the two | 383 | 0.230 | 0.19 / 0.25 / 0.21 / 0.13 / 0.33 | 0.56 / 0.30 / 0.15 | KEEP's own | 5 |
+| KEEP | the other | 393 | 0.178 | 0.13 / 0.23 / 0.23 / 0.28 / 0.11 | 0.59 / 0.36 / 0.18 | KEEP's own | 4 |
+| R1 | Wrecker | 178 | 0.354 | 0.27 / 0.48 / 0.42 / 0.20 / 0.31 | 0.55 / 0.25 / 0.06 | 235 | 8 |
+| R1 | stock | 357 | 0.566 | 0.30 / 0.53 / 0.73 / 0.80 / 0.87 | 0.94 / 0.58 / 0.36 | 368 | 49 |
+
+(The two KEEP rows were pasted without their headers; which red is which
+is not recoverable from the paste and does not matter for the reading.)
+Confirmed files sit on compromised hosts (65 of 66 results with Density
+>= 0.9 across the four runs; the one exception is a clean-host result in
+one KEEP run).
+Under the stock red the alert count separates compromised from clean
+hosts (precision 0.30 at one naming, 0.87 at five) and a look at an
+alerted host confirms a file one time in seven; under Wrecker the count
+separates nothing (0.27 to 0.31) and a look confirms one time in thirty.
+Single episodes, indicative only; the twenty-episode confusion table in
+RESULTS.md ("The evidence latch is uninformative") was computed with the
+reset listing included and is to be redone (Known issues).
+
+### Arms
+
+100 episodes, seeds 0-99, six workers, all from the Alienware on
+2026-09-26. Controls (`rd_<kind>_<a>_none`):
+
+| Kind | stock mean | sd | Wrecker mean | sd |
+|---|---|---|---|---|
+| `R1` | -994.58 | 505.05 | -3294.39 | 483.79 |
+| `R2` | -886.41 | 456.75 | -3158.98 | 544.84 |
+| `R2d` | -772.75 | 413.67 | -3147.38 | 577.35 |
+| `R3` | -989.54 | 514.06 | -3341.76 | 718.95 |
+| `R4` | -1294.34 | 582.75 | -3564.25 | 726.18 |
+| `R4p` | -6507.40 | 1315.60 | -5263.93 | 871.89 |
+| `R4d` | -6011.80 | 1376.12 | -4993.63 | 682.58 |
+| `RT` | -168.60 | 36.29 | -348.90 | 76.33 |
+
+For reference: `arm_sleep` (do nothing, stock) -6592.68; KEEP shipped
+-187.32 / -1115.65; H-MARL Expert -136.43 / -842.76.
+
+Supervisors, paired against the same kind's control under the same red:
+
+| Directory | Rule | Red | Mean | Delta | Wins | Sign p | Executed/ep |
+|---|---|---|---|---|---|---|---|
+| `rd_R2_w_O1_g32` | R2 + O1 gap 32 | Wrecker | -949.63 | +2209.3 | 100/100 | <1e-3 | 55.9 restores |
+| `rd_R2_s_O1_g32` | | stock | -264.65 | +621.8 | 98/100 | <1e-3 | 57.0 |
+| `rd_R4_w_O1_g32` | R4 + O1 gap 32 | Wrecker | -1581.07 | +1983.2 | 98/100 | <1e-3 | 59.4 |
+| `rd_R4_s_O1_g32` | | stock | -626.56 | +667.8 | 88/100 | <1e-3 | 62.3 |
+| `rd_R1_w_O1_g32` | R1 + O1 gap 32 | Wrecker | -915.58 | +2378.8 | 100/100 | <1e-3 | 56.7 |
+| `rd_R1_s_O1_g32` | | stock | -299.90 | +694.7 | 94/100 | <1e-3 | 59.3 |
+| `rd_RT_w_O1_g32` | RT + O1 gap 32 | Wrecker | -343.75 | +5.2 | 50/100 | 1.0 | 43.1 |
+| `rd_R2_w_O10_g32` | R2 + O10 gap 32 | Wrecker | -1906.84 | +1252.1 | 94/100 | <1e-3 | 65.7 analyses, 13.3 agreements |
+| `rd_R2_s_O10_g32` | | stock | -436.41 | +450.0 | 85/100 | <1e-3 | 69.1, 19.4 |
+| `rd_R4_w_O10_g32` | R4 + O10 gap 32 | Wrecker | -2330.17 | +1234.1 | 91/100 | <1e-3 | 67.2, 7.9 |
+| `rd_R4_s_O10_g32` | | stock | -882.75 | +411.6 | 72/100 | <1e-3 | 69.2, 10.2 |
+
+The targeting axis on R4 (`rd_R4_<Q>_none`, `rd_R4_<Q>_O1_g32`; Q64 is
+Wrecker) and R2 at Q32:
+
+| Kind | Red | Control | O1 gap 32 | Delta | Excess over own stock | Fraction | 95% CI |
+|---|---|---|---|---|---|---|---|
+| `R4` | Q04 | -1173.1 | -697.8 | +475.3 | +121.2 | n/a (no deficit) | |
+| `R4` | Q16 | -2239.6 | -1133.6 | +1106.0 | -945.3 | 1.170 | [1.017, 1.375] |
+| `R4` | Q32 | -2954.6 | -1370.1 | +1584.5 | -1660.3 | 0.954 | [0.874, 1.044] |
+| `R4` | Q48 | -3303.6 | -1526.5 | +1777.1 | -2009.3 | 0.884 | [0.807, 0.970] |
+| `R4` | Q64 | -3564.25 | -1581.07 | +1983.2 | -2269.9 | 0.874 | [0.806, 0.948] |
+| `R2` | Q32 | -2446.5 | -729.8 | +1716.7 | -1560.1 | 1.100 | [1.029, 1.187] |
+| `R2` | Q64 | -3158.98 | -949.63 | +2209.3 | -2272.6 | 0.972 | [0.923, 1.026] |
+| `R1` | Q64 | -3294.39 | -915.58 | +2378.8 | -2299.8 | 1.034 | [0.981, 1.092] |
+
+(Controls and endpoints at Q04 to Q48 are recovered from the fraction
+tool's excess and delta over the stock control; the directories carry the
+exact figures.) KEEP on the same axis (`o1_g32_FSRedAgentWreckerQ*`):
+0.541, 0.463, 0.448, 0.471, 0.487.
+
+O10 fractions under Wrecker: R2 0.551 [0.491, 0.610], R4 0.544 [0.479,
+0.609]; KEEP 0.137, H-MARL 0.14.
+
+### Against the learned defenders, O1 at gap 32 under Wrecker
+
+| Policy | Stock control | Wrecker control | Excess | O1 endpoint | O1 gain | Fraction | Endpoint vs `wo_O1_g32` | Six-policy fit residual | Distance to RT closed |
+|---|---|---|---|---|---|---|---|---|---|
+| H-MARL Expert | -136.43 | -842.76 | -706 | -744.22 | +98.5 | 0.14 (0.19 vs null centre) | -81 | -129 | 0.20 |
+| KEEP shipped | -187.32 | -1115.65 | -928 | -663.38 | +452.3 | 0.49 | 0 | +2 | 0.59 |
+| `R4` | -1294.34 | -3564.25 | -2270 | -1581.07 | +1983.2 | 0.87 | -917.7 (4/100) | -460 | 0.62 |
+| `R2` | -886.41 | -3158.98 | -2273 | -949.63 | +2209.3 | 0.97 | -286.2 (27/100) | +96 | 0.79 |
+| `R1` | -994.58 | -3294.39 | -2300 | -915.58 | +2378.8 | 1.03 | -252.2 (28/100) | +155 | 0.81 |
+| `RT` | -168.60 | -348.90 | -180 | -343.75 | +5.2 | 0.03 | +319.6 (98/100) | +179 | |
+
+The six-policy fit is `endpoint = -458 + 0.186 x control` from the KEEP
+retrains ("Retrained defenders"). "Distance to RT closed" is the O1 gain
+over the gap between the policy's Wrecker control and `rd_RT_w_none`
+(-348.90). Wrecker controls span 3,215 points from RT to R4 and the O1
+endpoints 1,237; without R4, 2,945 and 606.
+
+### The directed look, from the step records
+
+`tools_investigate.py` on the O10 arms. Response is a Restore or Remove
+of the investigated host by the investigating agent.
+
+| Arm | Investigations/ep | Yield (files/looks) | Repeat share | Median | p90 | Within 10 | Within 50 | Never |
+|---|---|---|---|---|---|---|---|---|
+| `rd_R4_w_O10_g32` | 67.2 | 0.118 | 73.4% | 38 | 152 | 15.0% | 37.1% | 38.4% |
+| `rd_R2_w_O10_g32` | 65.7 | 0.203 | 72.7% | 38 | 187 | 12.8% | 31.6% | 45.9% |
+| `wo_O10_g32` (KEEP) | 61.2 | 0.16 (from RESULTS.md) | 66.3% | 36 | 133 | 15.3% | 49.8% | 22.4% |
+
+A rule defender restores the step after a confirmed file by construction,
+so its latency distribution is the look's outcome: the share within 10
+steps is the yield, and the rest is the wait for the next passive alert.
+KEEP's is the same shape with the same median.
+
+### Reading
+
+The same supervisor rule is worth +98 on H-MARL, +452 on KEEP and +1,983
+to +2,379 on the rule defenders, in inverse order of what the policy can
+do on its own under the adversary, and it recovers a share of the excess
+loss that rises from 0.14 through 0.49 to about 1 in the same order. The
+share is constant across retrains of one architecture (0.38 to 0.54) and
+not across architectures; it exceeds 1 on R4 at Q16 and R2 at Q32, where
+the rule's stock control is not a ceiling, so for policies far from
+competent the distance to RT closed is the measure that keeps its
+meaning (0.20, 0.59, 0.62, 0.79, 0.81). Endpoints keep the controls'
+order to within two swaps of neighbours (KEEP passes H-MARL, R1 passes
+R2) and compress the spread by three fifths, four fifths without R4. RT
+under Wrecker is 767 better than KEEP and 494 better than H-MARL, and
+under stock within 20 of KEEP and 32 worse than H-MARL: the adversary's
+whole effect is on detection. The directed look recovers 0.55 of a rule
+defender's excess against 0.14 on the learned defenders, with the same
+median latency as KEEP's, which locates the latency in the sensor's
+yield rather than in the policy. On the playbook: posture is the floor
+(`R4p`), decoys alone add about 500 to the floor and about 110 to R2
+under stock and nothing under Wrecker (`R2d`), and Remove-first without
+triage costs about 400 against R2 under both reds and 630 under O1; the
+likely cause is that R2's Analyse of a once-alerted host confirms a file
+one time in seven and restores at once, while a Remove of a rooted host
+evicts nothing, but the ablation (R4 with triage in place of Remove) has
+not been run.
+
+---
+
 ## Known issues
+
+- **The O2e-family latch is seeded by the reset listing.** The observation
+  at step 0 names every owned host with a substantive entry (71 hosts),
+  and the evidence latch (`O2e`, `O2er`, `O2ew`, and the confusion table
+  in RESULTS.md "The evidence latch is uninformative") counted it. Every
+  host therefore starts flagged, clears only on its own Restore or Remove,
+  and "oldest flag first" is dictionary order. The 48 to 52 percent flag
+  rate and the 0.24 precision (the base rate) are this seeding, not the
+  stream. Consequences: the O2e arms at budget 77 and unbounded never
+  tested the evidence criterion, the statement that the latch is 1.2x
+  chance under both reds is not established, and the claim that Wrecker
+  "changes what compromise costs, not what it looks like" rests on it (the
+  single-episode diagnostic above finds the stream half as precise and a
+  look a quarter as productive under Wrecker). The rule defenders exclude
+  the listing (`t == 1` in the harness's step count) and the echo of their
+  own action. Rerun the O2e family under a new rule name that excludes the
+  listing, on KEEP under both reds, and recompute the confusion table,
+  before "Observable evidence does not recover the ground-truth gain" is
+  cited.
+- **R4's first version looped on Remove** (`tools_add_R1.py` v3): alerts
+  were cleared on Remove and re-fired every `REMOVE_WINDOW`, 1,424 Removes
+  in three episodes. Fixed in v3.1 (one Remove per alert, `st["last"][h]
+  > st["removed"][h]`). Only the three-episode pilot ran on v3; every
+  100-episode arm is v3.1, and the upgrade guard keys on the v3.1 code.
+- **R4's comms table is hand-written** from the scenario generator and not
+  validated against the live `allowed_subnets` at runtime. `R4p` sits at
+  the do-nothing floor under stock (+85 on `arm_sleep`, inside its sd), so
+  the blocks are not costing green traffic, but the table has not been
+  checked pair by pair.
+- **`tools_investigate.py` on a rule defender** attributes the response to
+  the investigating agent's Restore or Remove of that host; a supervisor
+  O1 Restore is not present in O10 arms, so the attribution is clean, but
+  the "never" share counts hosts the rule never saw again, which is a
+  property of the alert stream, not of the rule. Conditioning the latency
+  on the look's outcome (a `flags_new` at that step) is the next change,
+  and `wo_O10_g32` predates the `flags_new` footer (0.00 recorded), so the
+  KEEP arm must be rerun under the current harness before that split can
+  be made for KEEP.
 
 - **`oracle.py` segfaults above six workers** on 24-core Arrow Lake.
   `{SIGSEGV(-11)}` at `--workers 12`, stable at 6. `capture.py` runs at 24 on

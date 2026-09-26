@@ -2549,6 +2549,12 @@ evidence; the second for a representation that discriminates within it.
 
 ### The evidence latch is uninformative
 
+(Under review, 2026-09-26. The latch counted the reset observation at step
+0, which names every owned host, so every host starts flagged and clears
+only on its own Restore; the flag rate and precision below are that
+seeding, not the stream. The O2e arms above and this table are to be
+rerun with the listing excluded. ARMS.md, Known issues.)
+
 Confusion between the latched evidence set and ground truth, per agent-host-
 step, 20 episodes of O2e at budget 77 under each adversary:
 
@@ -2668,6 +2674,11 @@ From `wo_O10_g32`'s step records, 6,125 executed investigations:
 - **Load equalised.** 1,562 / 1,192 / 1,179 / 1,099 / 1,093 across agents,
   against 46 percent on agent_4 under substitution: the gap sets the rate
   regardless of where the threat is.
+
+(Added 2026-09-26: a rule defender that restores the step after a
+confirmed file has the same median, 38 steps, and the same share within
+10 steps; the latency is the sensor's yield, not the policy's response.
+See "A defender that was never trained".)
 
 O13 rotates: least-recently-investigated compromised host first, none
 repeated within 50 steps.
@@ -3395,3 +3406,216 @@ walking a converged policy off its optimum in a few updates, then
 wandering) is a caution for anyone who fine-tunes a published CC4 agent:
 report the stock-red cost alongside the gain, and report the checkpoint
 by evaluation, not by episode count.
+
+## A defender that was never trained
+
+The mechanism test left the supervisor's value measured on two learned
+defenders and six retrains of one of them, and the cleanest statement it
+produced, that O1 at gap 32 recovers a constant fraction of whatever
+excess loss the policy has, was a statement about six policies within 400
+points of one another. A third defender that was never trained bounds
+the claim from the other side: a policy whose every decision is written
+down, whose only source of information about compromise is the
+observation stream the learned defenders also read, and which can be
+made deliberately blind, deliberately all-seeing, or anything between.
+It also answers a question the human trial will be asked, which is
+whether the supervisory gain is a property of the supervisor or of the
+particular network it happened to be tested on. Definitions, pilots,
+diagnostics and per-arm numbers are in ARMS.md, "Rule defenders".
+
+### The defenders
+
+Eight rules, all with the same hands (Restore, Remove, Analyse,
+DeployDecoy, BlockTrafficZone, AllowTrafficZone, Sleep) and different
+eyes. An alert is a substantive observation entry naming an owned host,
+excluding the reset listing and the echo of the rule's own action; a
+confirmed file is an Analyse result at Density 0.9 or above. R1 restores
+only on a confirmed file and spends idle steps analysing alerted hosts.
+R2 restores on the second alert as well, R3 on the first. R2d adds a
+decoy per server. R4 is the analyst's playbook: enforce the mission's
+comms policy inbound to its zones, restore on a confirmed file, Remove
+on the first alert and Restore on the second, decoy the least-decoyed
+host between; R4p and R4d are its posture-only and posture-plus-decoys
+ablations. RT restores any owned host that is compromised in ground
+truth: perfect eyes, the same hands. The rules run inside the oracle
+harness as the policy, so every supervisor rule, pairing and tool built
+for KEEP applies unchanged, and the harness gates (O2e smoke, H-MARL
+compat, footer-identical rerun) all reproduce.
+
+### The ladder alone
+
+100 episodes, seeds 0-99, paired with every other arm in the study.
+
+| Defender | stock | Wrecker |
+|---|---|---|
+| RT (ground truth) | -168.60 | -348.90 |
+| H-MARL Expert | -136.43 | -842.76 |
+| KEEP shipped | -187.32 | -1115.65 |
+| R2d | -772.75 | -3147.38 |
+| R2 | -886.41 | -3158.98 |
+| R3 | -989.54 | -3341.76 |
+| R1 | -994.58 | -3294.39 |
+| R4 | -1294.34 | -3564.25 |
+| R4d | -6011.80 | -4993.63 |
+| R4p | -6507.40 | -5263.93 |
+| do nothing | -6592.68 | |
+
+Three things in the table. First, the whole of the adversary's effect on
+the learned defenders is detection. A one-line rule with ground truth
+scores -349 under Wrecker, 767 better than KEEP and 494 better than
+H-MARL, and under the stock red it is within 20 of KEEP and 32 worse than
+H-MARL. Given the target, the hands the environment offers are enough;
+what the learned defenders lose under Wrecker is the target. Second, the
+observation stream on its own carries a rule nine tenths of the way from
+doing nothing to KEEP under the stock red and half of the way under
+Wrecker. The best evidence ladder (R2, look twice then restore) lands at
+-886 and -3159, against a floor of -6593 and about -5264 (R4p). The single-episode diagnostic says why: under the stock red the
+alert count separates compromised from clean hosts (precision 0.30 at
+one alert, 0.87 at five) and a look at an alerted host confirms a file
+one time in seven; under Wrecker the count separates nothing (0.27 to
+0.31) and a look confirms one time in thirty. The flagged set the rules
+act on is precise enough (tp 111 against fp 94 under stock) and covers
+almost nothing (10,500 compromised host-steps unflagged in three
+episodes). Third, the playbook is worse than the ladder. Posture alone
+is the do-nothing floor, because the simulator never enforces the comms
+policy on red and red uses allowed routes; decoys alone are the floor
+plus 500; and R4 is 400 behind R2 under both reds. The probable cause is
+that R4 spends the first alert on a Remove, which evicts nothing from a
+rooted host, where R2 spends it on an Analyse that confirms a file one
+time in seven and restores at once. The ablation that would settle it
+(R4 with triage in place of Remove) has not been run. For the human
+trial this is worth knowing before an interface is designed around a
+runbook: in CC4 the things an analyst does first, block and decoy and
+remove, are the things that score nothing.
+
+### The same supervisor on six kinds of policy
+
+O1 at gap 32 under Wrecker, paired against each policy's own control:
+
+| Policy | Wrecker control | With O1 | O1's gain | Fraction of excess | Distance to RT closed |
+|---|---|---|---|---|---|
+| H-MARL Expert | -842.76 | -744.22 | +98.5 | 0.14 (0.19 against the null centre) | 0.20 |
+| KEEP shipped | -1115.65 | -663.38 | +452.3 | 0.49 | 0.59 |
+| R4 | -3564.25 | -1581.07 | +1983.2 | 0.87 | 0.62 |
+| R2 | -3158.98 | -949.63 | +2209.3 | 0.97 | 0.79 |
+| R1 | -3294.39 | -915.58 | +2378.8 | 1.03 | 0.81 |
+| RT | -348.90 | -343.75 | +5.2 | | |
+
+The same rule, the same cadence, the same information, is worth +98 on
+one policy and +2,379 on another, a factor of 24, and every ordering in
+the table is the inverse of the policies' own competence under the
+adversary. The fraction of excess loss recovered runs 0.14, 0.49, 0.87,
+0.97, 1.03. The retrains had put the fraction at 0.38 to 0.54 for six
+KEEP policies and the endpoint on a line with slope 0.186; the line
+extrapolated 2,000 points beyond its data lands within 180 of R1, R2, RT
+and H-MARL and 460 from R4, so it was a KEEP-family fact with a
+wider reach than it had any right to, and the constant fraction is an
+architecture property, not a supervisor property. What is constant is
+the direction: supervision and the policy's own competence are
+substitutes, and the supervisor's marginal value is the information the
+policy lacks, in the currency of the score.
+
+The fraction stops being a fraction when the policy is far from
+competent. It exceeds 1 on R4 at Q16 and R2 at Q32, and its confidence
+interval includes 1 on R1 and R2 under Wrecker, because the stock
+control of a blind policy is not a ceiling and O1 lifts the rule above
+it. For those policies the measure that keeps its meaning is the share
+of the distance to RT that the supervisor closes: 0.20 on H-MARL, 0.59
+on KEEP, 0.62 on R4, 0.79 on R2, 0.81 on R1. RT with O1 on top is +5.2
+at 50 of 100, the check that O1 supplies nothing RT does not have.
+
+The endpoints keep the controls' order to within two swaps of
+neighbours (KEEP passes H-MARL, R1 passes R2) and compress the spread
+by three fifths (3,215 points across the controls, 1,237 across the
+endpoints; four fifths without R4). The supervisor does not equalise
+policies. It compresses them, and a policy that was better without a
+supervisor is usually still better with one.
+
+### The directed look
+
+O10 at gap 32 (Analyse the ground-truth-compromised host, the rest is
+the policy's) recovers 0.55 of R2's and R4's excess under Wrecker
+against 0.14 on KEEP and 0.14 on H-MARL. The step records say why, and
+they revise an earlier attribution. On a rule defender the response to a
+look is by construction: a confirmed file is a Restore the next step, an
+empty result is nothing. Its latency distribution is therefore the look's
+outcome, the share within 10 steps is the look's yield (0.12 to 0.20),
+and the rest is the wait for the next passive alert. That distribution
+has median 38 and 15 percent within 10 steps on R4, 38 and 13 percent on
+R2. KEEP's has median 36 and 15 percent within 10. "Why investigation is
+worth a third of substitution" attributed KEEP's slow response to the
+policy; the rule shows the same numbers with no policy in the loop. KEEP
+acts on a confirmed file about as reliably as a rule that always does,
+and does nothing with an empty look, which is correct. The gap between
+the look and the substitution is the sensor's yield, one confirmed file
+in five to eight looks at a host that is in fact compromised, and no
+policy closes it. What differs between policies is what the rest of the
+policy does with the time: the rules gain 0.55 of their excess from the
+looks because the looks are most of the evidence they will ever get;
+KEEP gains 0.14 because it was already looking.
+
+### Along the targeting axis
+
+R4 at Q04, Q16, Q32, Q48 and Q64 (Wrecker), O1 fractions n/a (no
+deficit: R4 does 121 better against Q04 than against the stock red),
+1.17, 0.95, 0.88, 0.87; R2 at Q32, 1.10. KEEP on the same points 0.54,
+0.46, 0.45, 0.47, 0.49. The rule's share declines with the adversary's
+concentration while KEEP's does not, and both endpoints fall with it
+(R4 from -698 at Q04 to -1581 at Q64, KEEP from -251 to -663). A
+supervisor that names the target every 32 steps per agent is worth
+proportionally less against an adversary that does its damage between
+namings, and a blind policy feels that more than one that fills the
+gaps itself.
+
+### What this does to the framework and the trial
+
+The four-layer framework puts the supervisor's value at the difference
+between what the environment pays for a decision and what the policy
+would have decided alone. The rule defenders make that difference
+measurable across its whole range on one pairing: zero at RT, a fifth of
+the excess on H-MARL, half on KEEP, all of it on a policy with no eyes.
+The claim to carry forward is not "the supervisor recovers half the
+deficit" but "the supervisor recovers the part of the deficit that is
+the information it supplies, and how much of the deficit that is depends
+on the policy". Under Wrecker, for every policy tested, that part is the
+target. A gate flip, posture and decoys are worth nothing, and the one
+other thing worth anything, the directed look, is worth what the policy
+makes of it: as much as the substitution on H-MARL (+101 against +98), a
+quarter of it on KEEP (+127 against +452), half on R2 (+1,252 against
++2,209).
+
+For the human trial the table settles which policy to supervise, and it
+is not the one with the largest effect. On a rule defender a supervisor
+who can identify compromised hosts produces +2,200 at 100 wins of 100,
+which no interface condition will fail to show and none will be
+distinguished by, because the fraction is at its ceiling; on H-MARL the
+same supervisor produces +98, 1.3 noise bands, which a trial of a few
+dozen episodes would struggle to show at all. KEEP's 0.49 is the working range:
+a good supervisor and a poor one land on different sides of it, and the
++452 ceiling at 95 of 100 gives a trial of a few dozen episodes room to
+tell them apart. The rules are the calibration arm (what a supervisor is
+worth when the policy has nothing, and a check that a human's effect is
+the information and not the interface) and RT is the ceiling. The
+runbook finding is the second thing the trial takes: an interface that
+invites the analyst's habitual first moves invites the moves that score
+nothing here, and the display should put the eviction decision, with
+its evidence, first.
+
+For the papers: the mechanism-test section's "constant fraction" becomes
+"constant within an architecture, set by what the architecture lacks
+across them", with the six-kinds table as its figure; the O10 latency
+attribution is corrected; and the evidence-criterion results (O2e family
+and the latch confusion table) are withdrawn pending the rerun with the
+reset listing excluded, which is the defect the rule defenders surfaced.
+
+### Open items from this section
+
+- Rerun the O2e family on KEEP under both reds with the reset listing
+  excluded (a new rule name for provenance), and recompute the
+  twenty-episode confusion table. Four arms, twenty minutes.
+- R4 with triage in place of Remove, to attribute the playbook's 400.
+- Split the O10 response latency by the look's outcome (`flags_new` at
+  the step), and rerun `wo_O10_g32` under the current harness so the KEEP
+  arm carries the flags.
+- The single-episode eyes diagnostic at twenty episodes per red, with the
+  corrected latch, to put numbers on how much less visible Wrecker is.
