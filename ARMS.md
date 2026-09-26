@@ -1004,6 +1004,7 @@ doubled, divided by decoy load), then alert count and recency.
 | `R3` | first alert or confirmed file | sleep | contain on any alert |
 | `R4` | second alert or confirmed file | block a disallowed inbound zone pair for this phase (one per step) or re-allow one; Remove a once-alerted host; a decoy on the least-decoyed owned host up to three | the analyst playbook |
 | `R4p` | never | posture only | ablation |
+| `R4t` | second alert or confirmed file | posture; Analyse a once-alerted host (as R2); a decoy on the least-decoyed owned host up to three | R4 with triage in place of Remove (ablation, `tools_add_R4t.py`, 2026-09-26) |
 | `R4d` | never | posture, then decoys | ablation |
 | `RT` | any ground-truth-compromised owned host | sleep | perfect eyes, the same hands |
 
@@ -1079,6 +1080,7 @@ reset listing included and is to be redone (Known issues).
 | `R2d` | -772.75 | 413.67 | -3147.38 | 577.35 |
 | `R3` | -989.54 | 514.06 | -3341.76 | 718.95 |
 | `R4` | -1294.34 | 582.75 | -3564.25 | 726.18 |
+| `R4t` | -954.63 | 477.40 | -2763.38 | 633.39 |
 | `R4p` | -6507.40 | 1315.60 | -5263.93 | 871.89 |
 | `R4d` | -6011.80 | 1376.12 | -4993.63 | 682.58 |
 | `RT` | -168.60 | 36.29 | -348.90 | 76.33 |
@@ -1097,6 +1099,7 @@ Supervisors, paired against the same kind's control under the same red:
 | `rd_R1_w_O1_g32` | R1 + O1 gap 32 | Wrecker | -915.58 | +2378.8 | 100/100 | <1e-3 | 56.7 |
 | `rd_R1_s_O1_g32` | | stock | -299.90 | +694.7 | 94/100 | <1e-3 | 59.3 |
 | `rd_RT_w_O1_g32` | RT + O1 gap 32 | Wrecker | -343.75 | +5.2 | 50/100 | 1.0 | 43.1 |
+| `rd_R4t_w_O1_g32` | R4t + O1 gap 32 | Wrecker | -1256.04 | +1507.3 | 92/100 | <1e-3 | 59.2 |
 | `rd_R2_w_O10_g32` | R2 + O10 gap 32 | Wrecker | -1906.84 | +1252.1 | 94/100 | <1e-3 | 65.7 analyses, 13.3 agreements |
 | `rd_R2_s_O10_g32` | | stock | -436.41 | +450.0 | 85/100 | <1e-3 | 69.1, 19.4 |
 | `rd_R4_w_O10_g32` | R4 + O10 gap 32 | Wrecker | -2330.17 | +1234.1 | 91/100 | <1e-3 | 67.2, 7.9 |
@@ -1114,6 +1117,7 @@ Wrecker) and R2 at Q32:
 | `R4` | Q64 | -3564.25 | -1581.07 | +1983.2 | -2269.9 | 0.874 | [0.806, 0.948] |
 | `R2` | Q32 | -2446.5 | -729.8 | +1716.7 | -1560.1 | 1.100 | [1.029, 1.187] |
 | `R2` | Q64 | -3158.98 | -949.63 | +2209.3 | -2272.6 | 0.972 | [0.923, 1.026] |
+| `R4t` | Q64 | -2763.38 | -1256.04 | +1507.3 | -1808.8 | 0.833 | [0.762, 0.904] |
 | `R1` | Q64 | -3294.39 | -915.58 | +2378.8 | -2299.8 | 1.034 | [0.981, 1.092] |
 
 (Controls and endpoints at Q04 to Q48 are recovered from the fraction
@@ -1131,6 +1135,7 @@ O10 fractions under Wrecker: R2 0.551 [0.491, 0.610], R4 0.544 [0.479,
 | H-MARL Expert | -136.43 | -842.76 | -706 | -744.22 | +98.5 | 0.14 (0.19 vs null centre) | -81 | -129 | 0.20 |
 | KEEP shipped | -187.32 | -1115.65 | -928 | -663.38 | +452.3 | 0.49 | 0 | +2 | 0.59 |
 | `R4` | -1294.34 | -3564.25 | -2270 | -1581.07 | +1983.2 | 0.87 | -917.7 (4/100) | -460 | 0.62 |
+| `R4t` | -954.63 | -2763.38 | -1809 | -1256.04 | +1507.3 | 0.83 | -592.7 (7/100) | -284 | 0.62 |
 | `R2` | -886.41 | -3158.98 | -2273 | -949.63 | +2209.3 | 0.97 | -286.2 (27/100) | +96 | 0.79 |
 | `R1` | -994.58 | -3294.39 | -2300 | -915.58 | +2378.8 | 1.03 | -252.2 (28/100) | +155 | 0.81 |
 | `RT` | -168.60 | -348.90 | -180 | -343.75 | +5.2 | 0.03 | +319.6 (98/100) | +179 | |
@@ -1168,8 +1173,9 @@ not across architectures; it exceeds 1 on R4 at Q16 and R2 at Q32, where
 the rule's stock control is not a ceiling, so for policies far from
 competent the distance to RT closed is the measure that keeps its
 meaning (0.20, 0.59, 0.62, 0.79, 0.81). Endpoints keep the controls'
-order to within two swaps of neighbours (KEEP passes H-MARL, R1 passes
-R2) and compress the spread by three fifths, four fifths without R4. RT
+order to within swaps of neighbours (KEEP passes H-MARL, R1 passes R2,
+R2 and R1 pass R4t) and compress the spread by three fifths, four fifths
+without R4. RT
 under Wrecker is 767 better than KEEP and 494 better than H-MARL, and
 under stock within 20 of KEEP and 32 worse than H-MARL: the adversary's
 whole effect is on detection. The directed look recovers 0.55 of a rule
@@ -1178,11 +1184,18 @@ median latency as KEEP's, which locates the latency in the sensor's
 yield rather than in the policy. On the playbook: posture is the floor
 (`R4p`), decoys alone add about 500 to the floor and about 110 to R2
 under stock and nothing under Wrecker (`R2d`), and Remove-first without
-triage costs about 400 against R2 under both reds and 630 under O1; the
-likely cause is that R2's Analyse of a once-alerted host confirms a file
-one time in seven and restores at once, while a Remove of a rooted host
-evicts nothing, but the ablation (R4 with triage in place of Remove) has
-not been run.
+triage costs about 400 against R2 under both reds and 630 under O1. The
+ablation `R4t` (Analyse in place of Remove, everything else as R4)
+attributes it: paired against R4 it is +340 (70/100) under stock and
++801 (82/100) under Wrecker, which puts it 68 behind R2 under stock and
+396 ahead of it under Wrecker (-2763, the best unsupervised rule
+defender). So the Remove is the whole of the playbook's deficit, and the
+playbook's other parts, three decoys per host on top of posture, are
+worth about 400 under Wrecker once the Remove is gone and nothing under
+stock (R4t against R2d: -182 stock, +384 Wrecker). With O1 on top the
+order reverses: R4t + O1 is -1256 against R2 + O1's -950, fraction 0.83
+against 0.97, and 592 behind KEEP + O1 at 7/100. What the decoys buy
+without a supervisor they do not buy with one; not attributed.
 
 ---
 

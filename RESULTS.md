@@ -3488,6 +3488,7 @@ compat, footer-identical rerun) all reproduce.
 | R3 | -989.54 | -3341.76 |
 | R1 | -994.58 | -3294.39 |
 | R4 | -1294.34 | -3564.25 |
+| R4t (R4, Analyse for Remove) | -954.63 | -2763.38 |
 | R4d | -6011.80 | -4993.63 |
 | R4p | -6507.40 | -5263.93 |
 | do nothing | -6592.68 | |
@@ -3508,17 +3509,22 @@ one time in seven; under Wrecker the count separates nothing (0.27 to
 0.31) and a look confirms one time in thirty. The flagged set the rules
 act on is precise enough (tp 111 against fp 94 under stock) and covers
 almost nothing (10,500 compromised host-steps unflagged in three
-episodes). Third, the playbook is worse than the ladder. Posture alone
-is the do-nothing floor, because the simulator never enforces the comms
-policy on red and red uses allowed routes; decoys alone are the floor
-plus 500; and R4 is 400 behind R2 under both reds. The probable cause is
-that R4 spends the first alert on a Remove, which evicts nothing from a
-rooted host, where R2 spends it on an Analyse that confirms a file one
-time in seven and restores at once. The ablation that would settle it
-(R4 with triage in place of Remove) has not been run. For the human
-trial this is worth knowing before an interface is designed around a
-runbook: in CC4 the things an analyst does first, block and decoy and
-remove, are the things that score nothing.
+episodes). Third, the playbook's Remove is its deficit. Posture alone is the
+do-nothing floor, because the simulator never enforces the comms policy
+on red and red uses allowed routes; decoys alone are the floor plus 500;
+and R4 is 400 behind R2 under both reds. R4t, the playbook with an
+Analyse on the first alert in place of the Remove and nothing else
+changed, recovers +340 under stock and +801 under Wrecker against R4
+(70 and 82 of 100): a Remove of a rooted host evicts nothing and the
+alert is spent, where an Analyse confirms a file one time in seven and
+restores at once. With the Remove gone the rest of the playbook earns
+its keep under the adversary: R4t is 396 ahead of R2 under Wrecker
+(-2763, the best unsupervised rule defender) and 68 behind it under
+stock, so three decoys per host are worth about 400 against a targeting
+red and nothing against a spreading one. For the human trial this is
+worth knowing before an interface is designed around a runbook: in CC4
+the analyst's block scores nothing, the analyst's remove costs 400, and
+the analyst's decoys pay only against the adversary that targets.
 
 ### The same supervisor on six kinds of policy
 
@@ -3529,6 +3535,7 @@ O1 at gap 32 under Wrecker, paired against each policy's own control:
 | H-MARL Expert | -842.76 | -744.22 | +98.5 | 0.14 (0.19 against the null centre) | 0.20 |
 | KEEP shipped | -1115.65 | -663.38 | +452.3 | 0.49 | 0.59 |
 | R4 | -3564.25 | -1581.07 | +1983.2 | 0.87 | 0.62 |
+| R4t | -2763.38 | -1256.04 | +1507.3 | 0.83 | 0.62 |
 | R2 | -3158.98 | -949.63 | +2209.3 | 0.97 | 0.79 |
 | R1 | -3294.39 | -915.58 | +2378.8 | 1.03 | 0.81 |
 | RT | -348.90 | -343.75 | +5.2 | | |
@@ -3536,8 +3543,8 @@ O1 at gap 32 under Wrecker, paired against each policy's own control:
 The same rule, the same cadence, the same information, is worth +98 on
 one policy and +2,379 on another, a factor of 24, and every ordering in
 the table is the inverse of the policies' own competence under the
-adversary. The fraction of excess loss recovered runs 0.14, 0.49, 0.87,
-0.97, 1.03. The retrains had put the fraction at 0.38 to 0.54 for six
+adversary. The fraction of excess loss recovered runs 0.14, 0.49, 0.83, 0.87,
+0.97, 1.03 (R4t, the playbook without its Remove, at 0.83). The retrains had put the fraction at 0.38 to 0.54 for six
 KEEP policies and the endpoint on a line with slope 0.186; the line
 extrapolated 2,000 points beyond its data lands within 180 of R1, R2, RT
 and H-MARL and 460 from R4, so it was a KEEP-family fact with a
@@ -3556,8 +3563,9 @@ of the distance to RT that the supervisor closes: 0.20 on H-MARL, 0.59
 on KEEP, 0.62 on R4, 0.79 on R2, 0.81 on R1. RT with O1 on top is +5.2
 at 50 of 100, the check that O1 supplies nothing RT does not have.
 
-The endpoints keep the controls' order to within two swaps of
-neighbours (KEEP passes H-MARL, R1 passes R2) and compress the spread
+The endpoints keep the controls' order to within swaps of neighbours
+(KEEP passes H-MARL, R1 passes R2, and R2 and R1 pass R4t) and compress
+the spread
 by three fifths (3,215 points across the controls, 1,237 across the
 endpoints; four fifths without R4). The supervisor does not equalise
 policies. It compresses them, and a policy that was better without a
@@ -3647,7 +3655,10 @@ uninformative").
 
 - Done 2026-09-26: the O2e family rerun as O2f with the listing and echo
   excluded, seven arms. Conclusion unchanged; figures corrected in place.
-- R4 with triage in place of Remove, to attribute the playbook's 400.
+- Done 2026-09-26: R4t attributes the playbook's 400 to the Remove.
+  Unexplained: with O1 on top R4t (-1256) falls behind R2 (-950) though
+  it leads R2 by 396 without one; what three decoys per host buy
+  without a supervisor they do not buy with one.
 - Split the O10 response latency by the look's outcome (`flags_new` at
   the step), and rerun `wo_O10_g32` under the current harness so the KEEP
   arm carries the flags.
