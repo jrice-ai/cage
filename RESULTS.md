@@ -2504,6 +2504,11 @@ than KEEP alone; the sign test is two-sided exact binomial.
 | O2er, budget 77 | -86.37 | 48/100 | 0.76 | -1.89 |
 | O2ew, budget 77 | -69.28 | 52/100 | 0.76 | -1.48 |
 | O2e, unbounded | -80.25 | 40/100 | 0.057 | -2.18 |
+| O2f, budget 77 (corrected latch) | +34.9 | 54/100 | 0.48 | |
+| O2fr, budget 77 | +11.2 | 51/100 | 0.92 | |
+| O2fw, budget 77 | +11.2 | 51/100 | 0.92 | |
+| O2f, unbounded | -42.9 | 43/100 | 0.19 | |
+| O2f, gap 32 | -11.5 | 51/100 | 0.92 | |
 
 An identical policy reaches |t| = 2.05 by sampling seed alone, so the paired
 t overstates; the sign test is the statistic reported. Win rate is monotonic
@@ -2529,9 +2534,26 @@ observation naming the host.
 | O2ew | evidence | most recent, 30-step window | 77 | -1184.93 | 348.62 | -69.28 | 77.0 | 63.9 |
 | O2 | ground truth | first compromised | unbounded | -654.88 | 69.86 | +460.77 | 403.8 | 1.1 |
 | O2e | evidence | oldest flag | unbounded | -1195.90 | 228.23 | -80.25 | 347.4 | 9.3 |
+| O2f | evidence, corrected | oldest flag | 77 | -1080.73 | | +34.9 | 77.0 | 80.5 |
+| O2fr | evidence, corrected | most recent | 77 | -1104.42 | | +11.2 | 77.0 | 80.8 |
+| O2fw | evidence, corrected | most recent, 30-step window | 77 | -1104.42 | | +11.2 | 77.0 | 51.1 |
+| O2f | evidence, corrected | oldest flag | unbounded | -1158.58 | | -42.9 | 292.4 | 7.8 |
+| O2f | evidence, corrected | oldest flag | gap 32 | -1127.15 | | -11.5 | 63.6 | 10.0 |
 
-All evidence arms are inside the noise band on the wrong side, within 32
-points of one another. Ordering and expiry do not matter. The evidence rule
+The O2e rows counted two entries that are not evidence: the reset
+observation at step 0, which names every owned host, and the echo of the
+agent's own action on a host the step before (ARMS.md, Known issues,
+found 2026-09-26 while building the rule defenders). The O2f rows are
+the same rules with both excluded, run the same day; the originals are
+kept for provenance. The correction moves every arm by 20 to 80 points
+toward zero and none of them out of the band: the best corrected
+evidence arm is +35 at 54 of 100, and at gap 32, the cadence at which
+ground truth is worth +452 and strict evidence +56, the passive
+criterion is -11.5. On H-MARL the corrected rule is -164.7 at 31 of 100
+against the original's -150.2 ("H-MARL Expert through the ladder").
+
+All evidence arms are inside the noise band, within 80 points of
+one another. Ordering and expiry do not matter. The evidence rule
 agrees with KEEP twice as often as the ground-truth rule does at the same
 budget: the policy already acts on the observable signal, and an oracle
 limited to that signal has nothing to add.
@@ -2549,24 +2571,29 @@ evidence; the second for a representation that discriminates within it.
 
 ### The evidence latch is uninformative
 
-(Under review, 2026-09-26. The latch counted the reset observation at step
-0, which names every owned host, so every host starts flagged and clears
-only on its own Restore; the flag rate and precision below are that
-seeding, not the stream. The O2e arms above and this table are to be
-rerun with the listing excluded. ARMS.md, Known issues.)
-
 Confusion between the latched evidence set and ground truth, per agent-host-
-step, 20 episodes of O2e at budget 77 under each adversary:
+step. The first two rows are the original latch (20 episodes of O2e at
+budget 77), which counted the reset listing and the agent's own echo; the
+corrected rows are O2f at budget 77, summed over the 100-episode arms'
+footers (`tools_latch_sum.py`).
 
-| Adversary | Precision | Recall | Flagged/step | Compromised/step | Lift |
-|---|---|---|---|---|---|
-| Wrecker | 0.245 | 0.584 | 48.5% | 20.4% | 1.2x |
-| FiniteStateRedAgent | 0.237 | 0.611 | 52.3% | 20.3% | 1.2x |
+| Latch | Adversary | Precision | Recall | Flagged/step | Compromised/step | Lift |
+|---|---|---|---|---|---|---|
+| O2e | Wrecker | 0.245 | 0.584 | 48.5% | 20.4% | 1.2x |
+| O2e | FiniteStateRedAgent | 0.237 | 0.611 | 52.3% | 20.3% | 1.2x |
+| O2f, corrected | Wrecker | 0.279 | 0.480 | 34.5% | 20.1% | 1.4x |
+| O2f, corrected | FiniteStateRedAgent | 0.285 | 0.521 | 38.0% | 20.8% | 1.4x |
 
-The latch marks half the network and is 1.2x better than chance at
-identifying the compromised fifth. Forty percent of compromised hosts are never
-flagged. The adversary does not change any of this to within a few points:
-Wrecker changes what compromise costs, not what it looks like.
+The original latch marked half the network; the listing accounted for a
+third of its flags. Corrected, the criterion marks a third of the
+network and is 1.4x better than chance at identifying the compromised
+fifth. Half of compromised host-steps are unflagged. The adversary does not change any of this to within a few points, on
+either latch: Wrecker changes what compromise costs, not what it looks
+like, at least as KEEP operates the network. (Under a defender that
+evicts almost nothing the two reds do look different, ARMS.md "What the
+observation supports": with compromise accumulating to two fifths of
+host-steps the stock red's repeated namings become informative and
+Wrecker's do not. Single episodes.)
 
 This retires the evidence criterion as a recovery-quality metric. KEEP's 69.8
 percent evidence-precision, reported above, is a 1.4x lift over a 50 percent
@@ -2937,6 +2964,7 @@ All arms gap 32, seeds 0-99, paired against `hm_w_none`.
 | Investigate, rotating | O13 | where to look | -804.14 | +38.6 | 55/100 | 0.37 | 44.7 analyses |
 | Mode, force Recover | O14 | whether to recover | -880.27 | -37.5 | 43/100 | 0.23 | 57.8 gate flips |
 | Read passive evidence | O2e | nothing | -993.01 | -150.2 | 36/100 | 0.007 | 72.3 restores |
+| Read passive evidence, corrected latch | O2f | nothing | -1007.49 | -164.7 | 31/100 | <0.001 | 71.6 restores |
 | null | | | -916, -898 | -73, -56 | 43, 47 | | |
 
 O14 is the rule KEEP cannot express: when ground truth says the agent's
@@ -2969,8 +2997,12 @@ Reading the ladder against KEEP's:
   Analyse, and every Analyse that returns ordinary files names a host, so
   "any substantive observation" floods with clean hosts. O2e's 72 restores
   per episode are then 91 percent wasted, and restores cost green
-  availability. One caveat on the comparison: KEEP's O2e arms were budget-77
-  bursts, this one is spread at gap 32.
+  availability. Corrected for the reset listing and the agent's own echo
+  (O2f, 2026-09-26) the latch is 0.174 precise on H-MARL, still below the
+  0.19 base rate, and the arm is -165 at 31 of 100; on KEEP the corrected
+  arm at the same cadence (`wo_O2f_g32`) is -11.5. The correction removes
+  the caveat about cadence: at gap 32 on both defenders, passive evidence
+  is a null on KEEP and a harm on H-MARL.
 
 ### Investigation on H-MARL, from the step records
 
@@ -3605,14 +3637,16 @@ For the papers: the mechanism-test section's "constant fraction" becomes
 "constant within an architecture, set by what the architecture lacks
 across them", with the six-kinds table as its figure; the O10 latency
 attribution is corrected; and the evidence-criterion results (O2e family
-and the latch confusion table) are withdrawn pending the rerun with the
-reset listing excluded, which is the defect the rule defenders surfaced.
+and the latch confusion table), which the rule defenders showed to have
+counted the reset listing as evidence, were rerun the same day with the
+listing excluded and stand with corrected figures ("Observable evidence
+does not recover the ground-truth gain", "The evidence latch is
+uninformative").
 
 ### Open items from this section
 
-- Rerun the O2e family on KEEP under both reds with the reset listing
-  excluded (a new rule name for provenance), and recompute the
-  twenty-episode confusion table. Four arms, twenty minutes.
+- Done 2026-09-26: the O2e family rerun as O2f with the listing and echo
+  excluded, seven arms. Conclusion unchanged; figures corrected in place.
 - R4 with triage in place of Remove, to attribute the playbook's 400.
 - Split the O10 response latency by the look's outcome (`flags_new` at
   the step), and rerun `wo_O10_g32` under the current harness so the KEEP

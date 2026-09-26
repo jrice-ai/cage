@@ -64,7 +64,7 @@ from oracle_rules import (make_oracle, note_impacts, compromised_by_agent,
                           EPISODE_LENGTH, BLUE, RED, HARNESS_SHA, MACHINE)
 
 RULES = ["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
-         "O2e", "O2er", "O2ew", "O2s", "O10", "O12", "O13", "O14"]
+         "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13", "O14"]
 
 _SUB = None
 

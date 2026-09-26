@@ -194,6 +194,7 @@ Restore or Remove. Footer reports the latch's confusion against ground truth.
 | `O2er` | As O2e, most recently observed host first |
 | `O2ew` | As O2er, flags expire 30 steps after the last observation naming the host |
 | `O2s` | Flag only on a `Files` entry with `Density >= 0.9` (Analyse-confirmed); most recent first |
+| `O2f`, `O2fr`, `O2fw` | O2e, O2er, O2ew with the reset listing (the agent's first observation, `t == 1`) and the echo of the agent's own executed action the step before excluded, unless the entry carries a confirmed file. Added 2026-09-26 (`tools_add_O2f.py`); the originals keep their behaviour for provenance |
 
 **Authority** — vary what the supervisor is allowed to decide, ground truth
 used only where stated:
@@ -225,6 +226,7 @@ reproduces O5c exactly. `oracle_O5` predates that revision.
 | `oracle_O5` | O5 | 100 | -238.56 | 48.04 | 77.0 |
 | `oracle_O5c` | O5 (rev. 2026-09-13) | 100 | -246.05 | 65.56 | 77.0 |
 | `o2e_b77` | O2e, budget 77 | 100 | -256.48 | 53.46 | 77.0 |
+| `o2f_b77` | O2f, budget 77 (corrected latch) | 100 | -262.71 | | 77.0 |
 | `oracle_O8` | O8 | 100 | -253.27 | 197.27 | 154.0 |
 | `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
 | `oracle_O1_n100` | O1 | 100 | -520.29 | 93.43 | 401.8 |
@@ -426,6 +428,11 @@ adversary; the defender is unchanged and at deployment competence.
 | `wo_O2er_b77` | KEEP sampled | unset | O2er | 77 | -1202.02 | 335.55 | 77.0 | 106.4 |
 | `wo_O2ew_b77` | KEEP sampled | unset | O2ew | 77 | -1184.93 | 348.62 | 77.0 | 63.9 |
 | `latch_wrecker` | KEEP sampled | unset | O2e | 77 | -1178.65 | 326.33 | 77.0 | 108.6 |
+| `wo_O2f_b77` | KEEP sampled | unset | O2f | 77 | -1080.73 | | 77.0 | 80.5 |
+| `wo_O2fr_b77` | KEEP sampled | unset | O2fr | 77 | -1104.42 | | 77.0 | 80.8 |
+| `wo_O2fw_b77` | KEEP sampled | unset | O2fw | 77 | -1104.42 | | 77.0 | 51.1 |
+| `wo_O2f_bmax` | KEEP sampled | unset | O2f | 100000 | -1158.58 | | 292.4 | 7.8 |
+| `wo_O2f_g32` | KEEP sampled | unset | O2f, gap 32 | 99999 | -1127.15 | | 63.6 | 10.0 |
 | `wo_O1_g32` | KEEP sampled | unset | O1, gap 32 | 99999 | -663.38 | 174.23 | 52.3 | 0.0 |
 | `wo_O2s_g32` | KEEP sampled | unset | O2s, gap 32 | 99999 | -1059.73 | 290.19 | 4.5 | 2.7 |
 | `wo_O10_g32` | KEEP sampled | unset | O10, gap 32 | 99999 | -988.35 | 276.10 | 61.2 | 9.6 |
@@ -525,6 +532,7 @@ same environment seeds, from `tools_paired.py`.
 | `hm_wo_O13_g32` | FSRedAgentWrecker | O13 | ep | -804.14 | 252.39 | +38.6 | 55/100 | 0.37 | 44.7 analyses | 10.3 |
 | `hm_wo_O14_g32` | FSRedAgentWrecker | O14 | ep | -880.27 | 298.60 | -37.5 | 43/100 | 0.23 | 57.8 gate flips | 293.1 |
 | `hm_wo_O2e_g32` | FSRedAgentWrecker | O2e | ep | -993.01 | 307.02 | -150.2 | 36/100 | 0.007 | 72.3 restores | 9.6 |
+| `hm_wo_O2f_g32` | FSRedAgentWrecker | O2f | ep | -1007.49 | | -164.7 | 31/100 | <0.001 | 71.6 restores | 9.6 |
 | `hm_s_none` | FiniteStateRedAgent | none | ep | -136.43 | 49.60 | control | | | 0 | |
 | `hm_s_none_p9000` | FiniteStateRedAgent | none | 9000+ep | -136.36 | 48.56 | +0.1 | 51/100 | 0.92 | 0 | |
 | `hm_so_O1_g32` | FiniteStateRedAgent | O1 | ep | -160.69 | 38.29 | -24.3 | 22/100 | 1.6e-08 | 53.1 restores | 0.0 |
@@ -570,6 +578,7 @@ raw keys `tp` / `fp` / `fn` / `own`, later traces also under `latch_*`):
 | Arm | Latch | tp | fp | fn | Precision | Recall |
 |---|---|---|---|---|---|---|
 | `hm_wo_O2e_g32` | passive | 12,078 | 126,572 | 630,311 | 0.087 | 0.019 |
+| `hm_wo_O2f_g32` | passive, corrected | | | | 0.174 | 0.016 |
 | `hm_wo_O10_g32` | strict | 6,322 | 2 | 640,313 | 1.000 | 0.010 |
 | `hm_wo_O13_g32` | strict | 5,375 | 1 | 640,557 | 1.000 | 0.008 |
 | `wo_O10_g32y` (KEEP) | strict | 13,775 | 875 | 704,425 | 0.940 | 0.019 |
@@ -969,7 +978,8 @@ five episodes).
 
 Gates. The O2e smoke reproduced after each of the three patch versions
 (`o2e_smoke_r1`, `o2e_smoke_r4`, `o2e_smoke_r41`: -327.00, 87.68, 77.0 /
-108.5), the H-MARL compat gate after the first (`hm_compat_gate3r`,
+108.5) and after `tools_add_O2f.py` (`o2e_smoke_f`), the H-MARL compat
+gate after the first and the last (`hm_compat_gate3r`, `hm_compat_gate3f`,
 -902.67, sd 420.22). Determinism: `rd_R4_w_none` and `rerun_rd_R4_w_none`
 are identical on every core key over all 100 footers.
 
@@ -1178,24 +1188,26 @@ not been run.
 
 ## Known issues
 
-- **The O2e-family latch is seeded by the reset listing.** The observation
-  at step 0 names every owned host with a substantive entry (71 hosts),
-  and the evidence latch (`O2e`, `O2er`, `O2ew`, and the confusion table
-  in RESULTS.md "The evidence latch is uninformative") counted it. Every
-  host therefore starts flagged, clears only on its own Restore or Remove,
-  and "oldest flag first" is dictionary order. The 48 to 52 percent flag
-  rate and the 0.24 precision (the base rate) are this seeding, not the
-  stream. Consequences: the O2e arms at budget 77 and unbounded never
-  tested the evidence criterion, the statement that the latch is 1.2x
-  chance under both reds is not established, and the claim that Wrecker
-  "changes what compromise costs, not what it looks like" rests on it (the
-  single-episode diagnostic above finds the stream half as precise and a
-  look a quarter as productive under Wrecker). The rule defenders exclude
-  the listing (`t == 1` in the harness's step count) and the echo of their
-  own action. Rerun the O2e family under a new rule name that excludes the
-  listing, on KEEP under both reds, and recompute the confusion table,
-  before "Observable evidence does not recover the ground-truth gain" is
-  cited.
+- **The O2e-family latch was seeded by the reset listing. Resolved
+  2026-09-26.** The observation at step 0 names every owned host with a
+  substantive entry (71 hosts), and the evidence latch (`O2e`, `O2er`,
+  `O2ew`, and the confusion table in RESULTS.md "The evidence latch is
+  uninformative") counted it, along with the echo of the agent's own action
+  on a host the step before (so a restored host was re-flagged by its own
+  Restore result). Every host therefore started flagged, "oldest flag
+  first" was dictionary order, and the listing accounted for about a third
+  of the flags in the 48 to 52 percent flag rate. Found while building the
+  rule defenders, which exclude both. `tools_add_O2f.py` adds `O2f`, `O2fr`
+  and `O2fw` with the two exclusions and leaves the originals untouched; a
+  scripted stream test shows the original rules' decisions unchanged by
+  the patch. Rerun the same day, seven arms (`wo_O2f_b77`, `wo_O2fr_b77`,
+  `wo_O2fw_b77`, `wo_O2f_bmax`, `wo_O2f_g32`, `o2f_b77`, `hm_wo_O2f_g32`):
+  every KEEP arm moved 20 to 80 points toward zero and stayed inside the
+  band (best +34.9 at 54/100), the H-MARL arm went from -150 to -165, and
+  the corrected latch is 0.28 precise at 0.48 recall over a third of the
+  network (1.4x chance) under both reds. The conclusions stand with the
+  corrected figures, which are now the ones cited. `tools_latch_sum.py`
+  recomputes the confusion from footers.
 - **R4's first version looped on Remove** (`tools_add_R1.py` v3): alerts
   were cleared on Remove and re-fired every `REMOVE_WINDOW`, 1,424 Removes
   in three episodes. Fixed in v3.1 (one Remove per alert, `st["last"][h]

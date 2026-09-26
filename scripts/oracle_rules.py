@@ -131,9 +131,10 @@ except ImportError:
         BlockTrafficZone = AllowTrafficZone = None
 
 KNOWN_RULES = {"none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
-               "O2e", "O2er", "O2ew", "O2s", "O10", "O11", "O12", "O13", "O14"}
-DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "RT")
-ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2}   # monitor alerts since the last eviction
+               "O2e", "O2er", "O2ew", "O2s", "O10", "O11", "O12", "O13", "O14",
+               "O2f", "O2fr", "O2fw"}
+DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT")
+ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2}   # monitor alerts since the last eviction
 RESTORE_WINDOW = 30      # O8's window: do not restore the same host twice within it
 REMOVE_WINDOW = 10       # do not remove from the same host twice within it
 ANALYSE_WINDOW = 10      # do not analyse the same host twice within it
@@ -179,6 +180,7 @@ def make_defender(cyborg, kind, stats, decoys):
            confirmed file; first alert Remove, second alert Restore; idle steps deploy a decoy
            on the owned host with the fewest (servers first, up to DECOYS_PER_HOST); else sleep
       R4p  posture only, then sleep                     (ablation)
+      R4t  R4 with Analyse on the first alert in place of Remove   (ablation)
       R4d  posture and decoys, no eviction              (ablation)
       RT   restore a ground-truth-compromised owned host; else sleep (perfect eyes)
     Counts go to stats under d_*; per-step reasons to stats["dact"] when the harness keeps it."""
@@ -186,11 +188,11 @@ def make_defender(cyborg, kind, stats, decoys):
         raise ValueError(f"unknown defender {kind}")
     META = {"success", "action", "message"}
     need = ALERTS_TO_RESTORE.get(kind, 10**9)
-    posture = kind in ("R4", "R4p", "R4d")
-    evict = kind in ("R1", "R2", "R2d", "R3", "R4")
+    posture = kind in ("R4", "R4p", "R4d", "R4t")
+    evict = kind in ("R1", "R2", "R2d", "R3", "R4", "R4t")
     escalate = kind == "R4"                      # Remove on the first alert
-    triage = kind in ("R1", "R2", "R2d")         # Analyse once-alerted hosts
-    decoy = kind in ("R2d", "R4", "R4d")
+    triage = kind in ("R1", "R2", "R2d", "R4t")  # Analyse once-alerted hosts
+    decoy = kind in ("R2d", "R4", "R4d", "R4t")
     mem = {}
 
     def _st(agent_name):
@@ -424,7 +426,7 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                     return Sleep()
                 stats["agree"] += 1
             return act
-        if rule in ("O2e", "O2er", "O2ew", "O2s", "O10", "O12", "O13"):
+        if rule in ("O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13"):
             obs = cyborg.get_observation(agent_name) or {}
             st = flagged.setdefault(agent_name, {"t": 0, "h": {}})   # h: host -> [first_seen, last_seen]
             st["t"] += 1
@@ -435,15 +437,20 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                         _fl = v.get("Files") or []
                         if not any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl):
                             continue
+                    if rule in ("O2f", "O2fr", "O2fw"):
+                        _fl = v.get("Files") or []
+                        _conf = any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl)
+                        if not _conf and (t == 1 or st.get("acted") == (h, t - 1)):
+                            continue           # the reset listing, or the echo of this agent's own action
                     if h in st["h"]:
                         st["h"][h][1] = t
                     else:
                         st["h"][h] = [t, t]; stats["flags_new"] = stats.get("flags_new", 0) + 1
             own = set(owned_hosts(cyborg, agent_name))
             live = {h: fl for h, fl in st["h"].items() if h in own}
-            if rule == "O2ew":
+            if rule in ("O2ew", "O2fw"):
                 live = {h: fl for h, fl in live.items() if t - fl[1] <= 30}
-            if rule == "O2e":
+            if rule in ("O2e", "O2f"):
                 ecomp = sorted(live, key=lambda h: live[h][0])       # oldest flag first
             else:
                 ecomp = sorted(live, key=lambda h: -live[h][1])      # most recently seen first
@@ -595,6 +602,9 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
                 _k = "exec_" + type(res).__name__
                 stats[_k] = stats.get(_k, 0) + 1
                 stats.setdefault("ovr", []).append([agent_name, _fmt(act), _fmt(res)])
+        if agent_name in flagged:                # O2f family: the executed action's host, for the echo test
+            _h = getattr(res, "hostname", None)
+            flagged[agent_name]["acted"] = (_h, flagged[agent_name]["t"]) if _h else None
         if defender is not None:
             defender.note(agent_name, res)       # whatever runs, the rule remembers it
         return res
