@@ -133,8 +133,8 @@ except ImportError:
 KNOWN_RULES = {"none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
                "O2e", "O2er", "O2ew", "O2s", "O10", "O11", "O12", "O13", "O14",
                "O2f", "O2fr", "O2fw"}
-DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT")
-ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2}   # monitor alerts since the last eviction
+DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "R4t3", "R4tn", "RT")
+ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2, "R4t3": 3, "R4tn": 2}   # monitor alerts since the last eviction
 RESTORE_WINDOW = 30      # O8's window: do not restore the same host twice within it
 REMOVE_WINDOW = 10       # do not remove from the same host twice within it
 ANALYSE_WINDOW = 10      # do not analyse the same host twice within it
@@ -181,6 +181,8 @@ def make_defender(cyborg, kind, stats, decoys):
            on the owned host with the fewest (servers first, up to DECOYS_PER_HOST); else sleep
       R4p  posture only, then sleep                     (ablation)
       R4t  R4 with Analyse on the first alert in place of Remove   (ablation)
+      R4t3 R4t with Restore on the third alert instead of the second (ablation)
+      R4tn R4t without posture: decoys, triage, two-alert Restore, no blocks (ablation)
       R4d  posture and decoys, no eviction              (ablation)
       RT   restore a ground-truth-compromised owned host; else sleep (perfect eyes)
     Counts go to stats under d_*; per-step reasons to stats["dact"] when the harness keeps it."""
@@ -188,11 +190,11 @@ def make_defender(cyborg, kind, stats, decoys):
         raise ValueError(f"unknown defender {kind}")
     META = {"success", "action", "message"}
     need = ALERTS_TO_RESTORE.get(kind, 10**9)
-    posture = kind in ("R4", "R4p", "R4d", "R4t")
-    evict = kind in ("R1", "R2", "R2d", "R3", "R4", "R4t")
+    posture = kind in ("R4", "R4p", "R4d", "R4t", "R4t3")
+    evict = kind in ("R1", "R2", "R2d", "R3", "R4", "R4t", "R4t3", "R4tn")
     escalate = kind == "R4"                      # Remove on the first alert
-    triage = kind in ("R1", "R2", "R2d", "R4t")  # Analyse once-alerted hosts
-    decoy = kind in ("R2d", "R4", "R4d", "R4t")
+    triage = kind in ("R1", "R2", "R2d", "R4t", "R4t3", "R4tn")  # Analyse alerted hosts below the threshold
+    decoy = kind in ("R2d", "R4", "R4d", "R4t", "R4t3", "R4tn")
     mem = {}
 
     def _st(agent_name):

@@ -1005,6 +1005,8 @@ doubled, divided by decoy load), then alert count and recency.
 | `R4` | second alert or confirmed file | block a disallowed inbound zone pair for this phase (one per step) or re-allow one; Remove a once-alerted host; a decoy on the least-decoyed owned host up to three | the analyst playbook |
 | `R4p` | never | posture only | ablation |
 | `R4t` | second alert or confirmed file | posture; Analyse a once-alerted host (as R2); a decoy on the least-decoyed owned host up to three | R4 with triage in place of Remove (ablation, `tools_add_R4t.py`, 2026-09-26) |
+| `R4t3` | third alert or confirmed file | as R4t | R4t with one more alert before a Restore (`tools_add_R4t3.py`) |
+| `R4tn` | second alert or confirmed file | as R4t without posture (no blocks) | R4t minus posture (`tools_add_R4tn.py`) |
 | `R4d` | never | posture, then decoys | ablation |
 | `RT` | any ground-truth-compromised owned host | sleep | perfect eyes, the same hands |
 
@@ -1081,6 +1083,8 @@ reset listing included and is to be redone (Known issues).
 | `R3` | -989.54 | 514.06 | -3341.76 | 718.95 |
 | `R4` | -1294.34 | 582.75 | -3564.25 | 726.18 |
 | `R4t` | -954.63 | 477.40 | -2763.38 | 633.39 |
+| `R4t3` | | | -2956.92 | |
+| `R4tn` | | | -2766.20 | |
 | `R4p` | -6507.40 | 1315.60 | -5263.93 | 871.89 |
 | `R4d` | -6011.80 | 1376.12 | -4993.63 | 682.58 |
 | `RT` | -168.60 | 36.29 | -348.90 | 76.33 |
@@ -1100,6 +1104,8 @@ Supervisors, paired against the same kind's control under the same red:
 | `rd_R1_s_O1_g32` | | stock | -299.90 | +694.7 | 94/100 | <1e-3 | 59.3 |
 | `rd_RT_w_O1_g32` | RT + O1 gap 32 | Wrecker | -343.75 | +5.2 | 50/100 | 1.0 | 43.1 |
 | `rd_R4t_w_O1_g32` | R4t + O1 gap 32 | Wrecker | -1256.04 | +1507.3 | 92/100 | <1e-3 | 59.2 |
+| `rd_R4t3_w_O1_g32` | R4t3 + O1 gap 32 | Wrecker | -1264.91 | +1692.0 | | | 59.0 |
+| `rd_R4tn_w_O1_g32` | R4tn + O1 gap 32 | Wrecker | -1193.23 | +1573.0 | | | 58.9 |
 | `rd_R2_w_O10_g32` | R2 + O10 gap 32 | Wrecker | -1906.84 | +1252.1 | 94/100 | <1e-3 | 65.7 analyses, 13.3 agreements |
 | `rd_R2_s_O10_g32` | | stock | -436.41 | +450.0 | 85/100 | <1e-3 | 69.1, 19.4 |
 | `rd_R4_w_O10_g32` | R4 + O10 gap 32 | Wrecker | -2330.17 | +1234.1 | 91/100 | <1e-3 | 67.2, 7.9 |
@@ -1194,8 +1200,25 @@ playbook's other parts, three decoys per host on top of posture, are
 worth about 400 under Wrecker once the Remove is gone and nothing under
 stock (R4t against R2d: -182 stock, +384 Wrecker). With O1 on top the
 order reverses: R4t + O1 is -1256 against R2 + O1's -950, fraction 0.83
-against 0.97, and 592 behind KEEP + O1 at 7/100. What the decoys buy
-without a supervisor they do not buy with one; not attributed.
+against 0.97, and 592 behind KEEP + O1 at 7/100. Two more ablations
+locate the reversal without explaining it. R4t3 (a third alert before a
+Restore) brings R4t's own restores under O1 down from 167 to 86 per
+episode, R2's count, and the gap to R2 + O1 stays at 315 (-1265,
+28/100), so the ladder's use of the decoys' alerts is not the cost; alone
+it gives up 194 against R4t (43/100, inside the band). R4tn (no
+posture) equals R4t alone (-2.8, 50/100) and under O1 is -1193, 244
+behind R2 + O1 (26/100), so posture is worth nothing in either regime
+and the decoys are the cost under supervision. Footers per episode,
+R4tn + O1 against R2 + O1: alerts 389 against 214, analyses 175 against
+122, own restores 157 against 78, decoys 773 against 0, compromised
+host-steps 5,422 against 4,932; without a supervisor the same comparison
+is 8,461 against 9,242. Three decoys per host are worth +400 when the
+defender is alone against Wrecker and -244 when a supervisor names the
+target every 32 steps, and the network carries 8 percent fewer
+compromised host-steps with them in the first case and 10 percent more
+in the second. The mechanism is in what red does on a decoyed host once
+hosts are being restored on ground truth, which the `red_action` step
+records can show and no further arm can.
 
 ---
 

@@ -156,8 +156,8 @@ def main():
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--rule", default="O1",
                    choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O11", "O10", "O12", "O13",
-                            "R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT",
-                            "R1+O1", "R2+O1", "R2+O10", "R3+O1", "R4+O1", "R4+O10", "R4+O13", "R4+O2s", "R4d+O1", "R4t+O1", "RT+O1"],
+                            "R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "R4t3", "R4tn", "RT",
+                            "R1+O1", "R2+O1", "R2+O10", "R3+O1", "R4+O1", "R4+O10", "R4+O13", "R4+O2s", "R4d+O1", "R4t+O1", "R4t3+O1", "R4tn+O1", "RT+O1"],
                    help="a supervisor rule on KEEP, or a rule defender (R1 to R4, RT), optionally with a supervisor rule on top (R4+O1)")
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)

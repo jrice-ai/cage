@@ -3489,6 +3489,8 @@ compat, footer-identical rerun) all reproduce.
 | R1 | -994.58 | -3294.39 |
 | R4 | -1294.34 | -3564.25 |
 | R4t (R4, Analyse for Remove) | -954.63 | -2763.38 |
+| R4tn (R4t, no posture) | | -2766.20 |
+| R4t3 (R4t, third alert) | | -2956.92 |
 | R4d | -6011.80 | -4993.63 |
 | R4p | -6507.40 | -5263.93 |
 | do nothing | -6592.68 | |
@@ -3523,8 +3525,10 @@ its keep under the adversary: R4t is 396 ahead of R2 under Wrecker
 stock, so three decoys per host are worth about 400 against a targeting
 red and nothing against a spreading one. For the human trial this is
 worth knowing before an interface is designed around a runbook: in CC4
-the analyst's block scores nothing, the analyst's remove costs 400, and
-the analyst's decoys pay only against the adversary that targets.
+the analyst's block scores nothing (R4tn, the playbook without it, is
+R4t to within 3 points), the analyst's remove costs 400, and the
+analyst's decoys pay only against the adversary that targets, and only
+while no one is supplying the target (below).
 
 ### The same supervisor on six kinds of policy
 
@@ -3656,9 +3660,15 @@ uninformative").
 - Done 2026-09-26: the O2e family rerun as O2f with the listing and echo
   excluded, seven arms. Conclusion unchanged; figures corrected in place.
 - Done 2026-09-26: R4t attributes the playbook's 400 to the Remove.
-  Unexplained: with O1 on top R4t (-1256) falls behind R2 (-950) though
-  it leads R2 by 396 without one; what three decoys per host buy
-  without a supervisor they do not buy with one.
+  The reversal under O1 (R4t -1256 against R2 -950, though R4t leads
+  R2 by 396 alone) is located and not explained: R4t3 holds the gap at
+  R2's own restore count, so it is not the ladder's use of the decoys'
+  alerts; R4tn holds it without posture, so it is the decoys. Three
+  decoys per host are +400 alone and -244 supervised, and the network
+  carries 8 percent fewer compromised host-steps with them alone and 10
+  percent more supervised. What red does on a decoyed host once hosts
+  are restored on ground truth is in the `red_action` step records and
+  is the next analysis, not the next arm.
 - Split the O10 response latency by the look's outcome (`flags_new` at
   the step), and rerun `wo_O10_g32` under the current harness so the KEEP
   arm carries the flags.

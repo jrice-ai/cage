@@ -24,25 +24,34 @@ def edit(path, fn):
 
 def patch_rules(src):
     assert 'and st["last"][h] > st["removed"].get(h, -10**9)),' in src, "tools_add_R1.py v3.1 is not installed"
+    # (old, new, key): key is the part of new that proves the edit is present, and survives later
+    # kinds being appended to the same line (R4t3 and any after it)
     steps = [
         ('DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "RT")',
-         'DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT")'),
+         'DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT")',
+         'DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t",'),
         ('ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2}',
-         'ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2}'),
+         'ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2}',
+         '"R4": 2, "R4t": 2'),
         ('    posture = kind in ("R4", "R4p", "R4d")\n',
-         '    posture = kind in ("R4", "R4p", "R4d", "R4t")\n'),
+         '    posture = kind in ("R4", "R4p", "R4d", "R4t")\n',
+         '    posture = kind in ("R4", "R4p", "R4d", "R4t"'),
         ('    evict = kind in ("R1", "R2", "R2d", "R3", "R4")\n',
-         '    evict = kind in ("R1", "R2", "R2d", "R3", "R4", "R4t")\n'),
+         '    evict = kind in ("R1", "R2", "R2d", "R3", "R4", "R4t")\n',
+         '    evict = kind in ("R1", "R2", "R2d", "R3", "R4", "R4t"'),
         ('    triage = kind in ("R1", "R2", "R2d")         # Analyse once-alerted hosts\n',
-         '    triage = kind in ("R1", "R2", "R2d", "R4t")  # Analyse once-alerted hosts\n'),
+         '    triage = kind in ("R1", "R2", "R2d", "R4t")  # Analyse once-alerted hosts\n',
+         '    triage = kind in ("R1", "R2", "R2d", "R4t"'),
         ('    decoy = kind in ("R2d", "R4", "R4d")\n',
-         '    decoy = kind in ("R2d", "R4", "R4d", "R4t")\n'),
+         '    decoy = kind in ("R2d", "R4", "R4d", "R4t")\n',
+         '    decoy = kind in ("R2d", "R4", "R4d", "R4t"'),
         ('      R4p  posture only, then sleep                     (ablation)\n',
          '      R4p  posture only, then sleep                     (ablation)\n'
-         '      R4t  R4 with Analyse on the first alert in place of Remove   (ablation)\n'),
+         '      R4t  R4 with Analyse on the first alert in place of Remove   (ablation)\n',
+         '      R4t  R4 with Analyse on the first alert in place of Remove'),
     ]
-    for old, new in steps:
-        if new in src:
+    for old, new, key in steps:
+        if key in src:
             continue
         assert src.count(old) == 1, f"not found: {old.strip()[:60]}"
         src = src.replace(old, new)
@@ -52,11 +61,12 @@ def patch_rules(src):
 def patch_oracle(src):
     steps = [
         ('"R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "RT",\n',
-         '"R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT",\n'),
-        ('"R4d+O1", "RT+O1"]', '"R4d+O1", "R4t+O1", "RT+O1"]'),
+         '"R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "RT",\n',
+         '"R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t",'),
+        ('"R4d+O1", "RT+O1"]', '"R4d+O1", "R4t+O1", "RT+O1"]', '"R4d+O1", "R4t+O1",'),
     ]
-    for old, new in steps:
-        if new in src:
+    for old, new, key in steps:
+        if key in src:
             continue
         assert src.count(old) == 1, f"not found: {old.strip()[:60]}"
         src = src.replace(old, new)
