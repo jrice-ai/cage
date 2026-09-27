@@ -3865,10 +3865,66 @@ value is the sensor's yield, and executing the look does not change the
 yield.
 
 Every arm captured before this flag is the "attempted" condition and is
-kept as such; every result section above carries its attempted figures
-until its arms are rerun. The axis, the ceilings at the sweep points,
-the retraining endpoint line and the R2d control are rerunning overnight
-(`queue_C.sh`); the Trident reds and the remaining rule kinds follow.
+kept as such; every result section above carries its attempted figures.
+The axis, the ceilings, the retraining endpoints and the Trident reds
+were rerun under the flag overnight (`queue_C.sh`, `queue_D.sh`, 62
+arms in two lanes with four segfault reruns; ARMS.md "Waiting-directive
+arms").
+
+### The axis under the flag
+
+RT itself gains 20 to 75 at every point once it stops wasting proposals
+(stock -148, Q04 -147, Q16 -176, Q32 -217, Q48 -246, ConvOnly -175,
+Wrecker -275), so every share below is against the moved ceiling.
+
+| Adversary | KEEP control / +O1 / closed | H-MARL control / +O1 / closed | R2 control / +O1 / closed |
+|---|---|---|---|
+| Q04 | -325 / -201 / 0.70 [0.61, 0.77] | -239 / -149 / 0.97 [0.86, 1.12] | -332 / -193 / 0.75 [0.69, 0.80] |
+| Q16 | -539 / -281 / 0.71 [0.66, 0.76] | -440 / -228 / 0.80 [0.75, 0.85] | -589 / -244 / 0.84 [0.80, 0.87] |
+| Q32 | -773 / -379 / 0.71 [0.65, 0.76] | -586 / -305 / 0.76 [0.69, 0.82] | -855 / -295 / 0.88 [0.85, 0.90] |
+| Q48 | -928 / -418 / 0.75 [0.71, 0.79] | -738 / -376 / 0.74 [0.66, 0.80] | -1,225 / -338 / 0.91 [0.89, 0.92] |
+| Q64 (Wrecker) | -1,116 / -491 / 0.74 [0.71, 0.78] | -843 / -428 / 0.73 [0.65, 0.80] | -1,851 / -373 / 0.94 [0.93, 0.95] |
+| ConvOnly | -317 / -217 / 0.71 [0.61, 0.79] | -233 / -174 / 1.01 [0.83, 1.21] | |
+
+Three policies, one supervisor, three shapes, all between 0.7 and 0.95.
+KEEP is flat at 0.70 to 0.75; H-MARL drifts down from the mild end,
+where its gap to RT is under a hundred and its share is at or above 1;
+R2 rises with concentration from 0.75 to 0.94. The attempted condition's
+spread (0.14 to 1.37 across the three) was the busy share and the
+phantom bookkeeping, and the hump in H-MARL's line is gone. Two more
+things in the table. R2, booking only what it does, is within a tenth of
+KEEP up to Q32 (-332 against -325, -589 against -539, -855 against
+-773) and falls behind only as the adversary concentrates; under a
+waiting supervisor it is ahead of KEEP at every point (-193 against
+-201 at Q04, -373 against -491 at Wrecker). And the supervised endpoints
+of all three policies sit within 60 points of one another at Q04 and
+within 120 at Wrecker.
+
+The six KEEP policies of the retraining test close 0.69 to 0.75 (shipped
+0.74, seeds 0.71, 0.75, 0.70, the long run 0.69, the gentle rate 0.75),
+with endpoints -491, -494, -446, -518, -600, -480 on a line of slope
+0.38 (r 0.93) against the attempted 0.186: with its directives executed,
+the supervisor's endpoint moves with the policy about twice as much as
+it seemed to. R2d equals R2 (-1,864 against -1,851; -381 against -373
+under O1), so a decoy per server does nothing under Wrecker once the
+bookkeeping is right.
+
+### Trident under the flag
+
+RT ceilings: TargetA and variants -67, TargetB and variants -89 to -91,
+Combined -106, FailureTracker -142, Impacter -79, Degrader -128. The
+sign-of-gap rule holds and softens. On the seven reds that leave KEEP
+better off than stock, KEEP + O1 reads -9 to +21 against -8 to -25
+attempted, six intervals crossing zero (shares -0.33 to +0.11) and
+Combined at +21 (58/100, p 0.05, share 0.34 [0.13, 0.50] on a gap of
+60), and H-MARL + O1 reads -14 to +1
+against -24 to -30, with H-MARL still above RT on all seven. Where a
+gap exists: KEEP closes 0.74 [0.67, 0.79] on Impacter (+110), 0.75
+[0.69, 0.80] on Degrader (+106) and 0.39 [0.16, 0.56] on FailureTracker
+(+25); H-MARL closes 0.94 [0.79, 1.09]
+on Degrader (+61) and 1.14 [1.06, 1.27] on Impacter (+62), above
+perfect eyes with a blunt hand, which is the hands result again. The
+attempted condition had H-MARL at 0.01 and 0.03 on those two.
 
 ## Sizing the human trial
 

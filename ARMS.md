@@ -1432,6 +1432,66 @@ The directed look over executed looks (`tools_investigate.py`):
 gate-flip test reads the tick after the look, which under the flag is the
 look's own busy tick, hence 0.0%; to be read at the completion tick).
 
+`queue_C.sh` (2026-09-26 22:19 to 23:29, 26 arms, two segfaults rerun in
+D) and `queue_D.sh` (2026-09-27 00:10 to 01:08 after a phantom launch
+without Docker access at 23:38 that left 31 `exit 1` lines; 36 arms, two
+segfaults rerun at 10:12 into root-owned directories). Ceilings under the
+flag (`rd_RT_<red>_none_wb`): stock -148.10, Q04 -146.84, Q16 -176.41,
+Q32 -216.83, Q48 -245.92, ConvOnly -175.04, Wrecker -274.88;
+TargetARestricted -66.57, TargetAOperational -67.15, TargetA -67.73,
+TargetB -88.87, TargetBRestricted -90.59, TargetBOperational -90.57,
+FailureTracker -142.35, Impacter -79.07, Degrader -127.70, Combined
+-106.1 (rerun 10:12).
+
+| Directory | Policy | Red | Mean | Against | Delta | Wins | Closed | 95% CI |
+|---|---|---|---|---|---|---|---|---|
+| `o1_g32_FSRedAgentWreckerQ04_wb` | KEEP | Q04 | -200.80 | `red_FSRedAgentWreckerQ04` | +124.3 | 89/100 | 0.697 | [0.612, 0.774] |
+| `o1_g32_FSRedAgentWreckerQ16_wb` | KEEP | Q16 | -280.75 | control | +258.4 | 95/100 | 0.712 | [0.664, 0.757] |
+| `o1_g32_FSRedAgentWreckerQ32_wb` | KEEP | Q32 | -379.19 | control | +393.9 | 95/100 | 0.708 | [0.649, 0.757] |
+| `o1_g32_FSRedAgentWreckerQ48_wb` | KEEP | Q48 | -418.20 | control | +510.0 | 97/100 | 0.747 | [0.705, 0.785] |
+| `o1_g32_FSRedAgentConvOnly_wb` | KEEP | ConvOnly | -216.50 | control | +100.1 | 75/100 | 0.707 | [0.607, 0.789] |
+| `hm_WreckerQ04_O1_g32_wb` | H-MARL | Q04 | -149.38 | `hm_WreckerQ04_none_g0` | +89.8 | 84/100 | 0.972 | [0.855, 1.116] |
+| `hm_WreckerQ16_O1_g32_wb` | H-MARL | Q16 | -228.28 | control | +212.0 | 97/100 | 0.803 | [0.754, 0.849] |
+| `hm_WreckerQ32_O1_g32_wb` | H-MARL | Q32 | -305.21 | control | +280.6 | 92/100 | 0.760 | [0.692, 0.823] |
+| `hm_WreckerQ48_O1_g32_wb` | H-MARL | Q48 | -376.47 | control | +361.6 | 90/100 | 0.735 | [0.656, 0.799] |
+| `hm_ConvOnly_O1_g32_wb` | H-MARL | ConvOnly | -174.47 | control | +58.5 | 74/100 | 1.010 | [0.829, 1.212] |
+| `rd_R2_WreckerQ04_none_wb` | R2 | Q04 | -332.17 (sd 160.22) | | | | | |
+| `rd_R2_WreckerQ16_none_wb` | R2 | Q16 | -588.80 (276.88) | | | | | |
+| `rd_R2_WreckerQ32_none_wb` | R2 | Q32 | -854.59 (374.31) | | | | | |
+| `rd_R2_WreckerQ48_none_wb` | R2 | Q48 | -1224.66 (525.86) | | | | | |
+| `rd_R2_WreckerQ04_O1_g32_wb` | R2 | Q04 | -193.43 | R2 control | +138.7 | 91/100 | 0.749 | [0.685, 0.804] |
+| `rd_R2_WreckerQ16_O1_g32_wb` | R2 | Q16 | -244.40 | control | +344.4 | 100/100 | 0.835 | [0.800, 0.865] |
+| `rd_R2_WreckerQ32_O1_g32_wb` | R2 | Q32 | -295.45 | control | +559.1 | 100/100 | 0.877 | [0.852, 0.898] |
+| `rd_R2_WreckerQ48_O1_g32_wb` | R2 | Q48 | -338.40 | control | +886.3 | 100/100 | 0.906 | [0.890, 0.919] |
+| `rd_R2d_w_none_wb` | R2d | Wrecker | -1864.18 (634.66) | | | | | |
+| `rd_R2d_w_O1_g32_wb` | R2d | Wrecker | -380.56 | R2d control | +1483.6 | 100/100 | 0.934 | [0.922, 0.944] |
+| `k_kft_Wrecker_s1000_final_w_O1_g32_wb` | KEEP seed 1000 | Wrecker | -494.19 | its control | +526.0 | 98/100 | 0.706 | [0.659, 0.749] |
+| `k_kft_Wrecker_s1001_final_w_O1_g32_wb` | seed 1001 | Wrecker | -446.19 | control | +502.3 | 99/100 | 0.746 | [0.709, 0.779] |
+| `k_kft_Wrecker_s1002_final_w_O1_g32_wb` | seed 1002 | Wrecker | -517.98 | control | +568.7 | 97/100 | 0.701 | [0.653, 0.746] |
+| `k_kft_Wrecker_s1000_long_final_w_O1_g32_wb` | 10,000 ep | Wrecker | -599.95 | control | +729.0 | 99/100 | 0.692 | [0.654, 0.727] |
+| `k_kft_Wrecker_s1000_lr01_final_w_O1_g32_wb` | 0.1x rate | Wrecker | -480.36 | control | +616.4 | 98/100 | 0.750 | [0.712, 0.785] |
+
+Six KEEP policies: endpoints -490.72, -494.19, -446.19, -517.98, -599.95,
+-480.36 against controls -1115.65, -1020.23, -948.46, -1086.71,
+-1328.96, -1096.79; least squares `endpoint = -87 + 0.38 x control`, r
+0.93 (attempted: `-458 + 0.186 x control`).
+
+Trident under the flag, O1 at gap 32, delta against the defender's own
+control, share against `rd_RT_<red>_none_wb`:
+
+| Red agent | KEEP +O1 wb | delta | wins | closed | H-MARL +O1 wb | delta | wins | closed |
+|---|---|---|---|---|---|---|---|---|
+| TargetARestricted | -105.98 | -7.5 | 33/100 | -0.23 [-0.74, 0.11] | -63.71 | -13.7 | 16/100 | above RT |
+| TargetAOperational | -106.14 | -6.2 | 25/100 | -0.19 [-0.57, 0.08] | -64.37 | -9.8 | 21/100 | above RT |
+| TargetA | -103.98 | +0.2 | 29/100 | 0.01 [-0.30, 0.24] | -65.70 | -13.8 | 14/100 | above RT |
+| TargetB | -123.49 | -7.2 | 35/100 | -0.26 [-0.90, 0.09] | -77.76 | -5.0 | 26/100 | above RT |
+| TargetBRestricted | -126.94 | -9.0 | 28/100 | -0.33 [-0.97, 0.01] | -76.73 | -5.2 | 30/100 | above RT |
+| TargetBOperational | -123.31 | +4.0 | 33/100 | 0.11 [-0.41, 0.39] | -78.63 | -0.3 | 36/100 | above RT |
+| Combined | -145.31 | +20.6 | 58/100 | 0.34 [0.13, 0.50] | -96.60 | +0.8 | 37/100 | above RT (gap -9) |
+| FailureTracker | -180.78 | +24.9 | 52/100 | 0.39 [0.16, 0.56] | -135.06 | +4.2 | 42/100 | above RT (gap -3) |
+| Impacter | -118.36 | +110.4 | 87/100 | 0.74 [0.67, 0.79] | -71.33 | +62.2 | 66/100 | 1.14 [1.06, 1.27] |
+| Degrader | -163.22 | +105.6 | 91/100 | 0.75 [0.69, 0.80] | -131.39 | +60.7 | 65/100 | 0.94 [0.79, 1.09] |
+
 Reading. With directives executed, O1 at gap 32 is +625 on KEEP (from
 +452) and +415 on H-MARL (from +99); the two learned defenders close the
 same share of their distance to RT (0.74, 0.73), so the earlier
@@ -1494,6 +1554,21 @@ with the same latency distribution.
   accepts any `<defender>+<rule>` (the hand-written list lacked `R2d+O1`,
   which cost the 2026-09-26 concurrency test). Without the flag every
   path is unchanged. The rerun set is `queue_B.sh`.
+- **Partial directories after a segfault.** A worker `SIGSEGV` leaves the
+  arm's directory with whatever episodes had finished (six in
+  `rd_RT_WreckerQ32_none_wb`, none in two others) and the pairing tools
+  pair on whatever is there, printing `n 6` and nothing louder. Before
+  any read, list every directory with fewer than 100 footers (`read_D.sh`
+  has the loop) and rerun those; the directories the crashed run created
+  are root-owned and need `sudo rm`, though the container overwrites
+  them without it. Two-lane segfault count: 5 in 81 arms (B 1/19, C 2/26,
+  D 2/36); single lane, none in about 70 the same day.
+- **A launch without Docker access writes phantom exit lines.** `queue_D.sh`
+  launched once at 23:38 on 2026-09-26 from an environment that could not
+  see the rootless Docker socket; every `bin/run` failed in the same
+  second and wrote `exit 1` and `queue_D done` to `ft_runs.log`. The
+  second launch a minute later was the real one. Read `ft_runs.log` by
+  timestamp, and the definitive check is the footer count per directory.
 - **Two evaluation lanes at once.** Tested 2026-09-26 (`queue_B.sh`,
   `queue_C.sh`): two `bin/run` containers at six workers each take 4.5 to
   6.2 minutes an arm against 4.6 alone, so a queue runs in 55 to 60 percent
