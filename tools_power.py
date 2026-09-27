@@ -37,6 +37,11 @@ def footers(d):
                 continue
             if rec.get("record") == "footer":
                 out[os.path.basename(f)] = rec["total_reward"]
+    _n_files = len(glob.glob(os.path.join(d, "ep_*.jsonl")))
+    if _n_files and len(out) < _n_files:
+        print(f"warning: {os.path.basename(d.rstrip('/'))}: {len(out)} footers in {_n_files} files, a partial arm (segfault?); rerun it before reading", file=sys.stderr)
+    elif _n_files and _n_files < 100:
+        print(f"warning: {os.path.basename(d.rstrip('/'))}: only {_n_files} episodes on disk", file=sys.stderr)
     return out
 
 

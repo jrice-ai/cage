@@ -4015,6 +4015,41 @@ The stock red is the wrong place to run a trial: effects there are 8 to
 share episode names with `corpus_v1` and is not in the table; the stock
 sampling band is +/-15 from "Interpretation floor".
 
+### Re-based on waiting directives (2026-09-27)
+
+The table above was computed on the attempted-condition arms. On the
+`_wb` arms (`read_power_wb.sh`, `data/read_power_wb.txt`):
+
+| Comparison | Mean delta | sd | Smallest effect at 80% power, N = 10 / 20 / 30 / 50 / 100 |
+|---|---|---|---|
+| KEEP + O1 against KEEP, Wrecker | +625 | 301 | 285 / 191 / 156 / 118 / 84 |
+| KEEP + O10 against KEEP, Wrecker | +188 | 323 | 312 / 206 / 167 / 129 / 90 |
+| KEEP + O13 against KEEP, Wrecker | +167 | 368 | 379 / 243 / 197 / 149 / 104 |
+| O1 against O10, Wrecker | +437 | 240 | 232 / 156 / 124 / 95 / 67 |
+| O13 against O10, Wrecker | -22 | 309 | 306 / 203 / 167 / 125 / 87 |
+| O1 waiting against O1 dropped, Wrecker | +173 | 201 | 195 / 132 / 105 / 81 / 57 |
+| KEEP + O2 against KEEP, stock | +12 | 64 | 61 / 40 / 32 / 25 / 17 |
+| H-MARL + O1 against H-MARL, Wrecker | +415 | 368 | 348 / 236 / 190 / 147 / 104 |
+| H-MARL + O10 against H-MARL, Wrecker | +87 | 406 | 393 / 263 / 209 / 159 / 114 |
+| R2 + O1 against R2, Wrecker | +1,479 | 599 | 578 / 390 / 309 / 238 / 169 |
+| R2 + O1 against R2, stock | +29 | 80 | 60 / 42 / 35 / 28 / 20 |
+
+What changes. The noise fell a little and every effect grew, so the
+full substitution effect on KEEP is seen at N = 10, a half-precision
+human (+300) at N = 20 (1.00 / 0.94), +200 at N = 30 (0.96 / 0.68), and
++100 still needs a hundred. The substitute and the look separate at
+N = 10 (+437 at sd 240). H-MARL is a viable trial policy for the first
+time: +415 is seen at N = 10 with power 0.92 where +98 was invisible at
+any budget. The interface requirement is itself a trial condition:
+waiting against dropped directives on the same seeds is +173 at sd 201,
+separable in twenty episodes, which is the cheapest condition pair the
+trial can run and the one with the clearest design implication. R2's
+case as a high-signal first stage weakens (signal-to-noise 2.5 against
+KEEP's 2.1 once both execute); it stays as the information-supply
+calibration, not as the cheaper sample. Under the stock red nothing
+changes: 12 to 29 points on a noise of 64 to 80, the wrong place for a
+trial.
+
 ## What the simulator ran
 
 Every supervisor arm in this study counted an override as executed when

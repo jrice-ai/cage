@@ -101,8 +101,14 @@ def analyse(d):
                 seen[k] = seen.get(k, 0) + 1
                 if "expert_mode" in s:
                     rec["gate_t"] = s["expert_mode"].get(agent)
-                    nxt = by_t.get(t + 1)
-                    rec["gate_t1"] = nxt["expert_mode"].get(agent) if nxt and "expert_mode" in nxt else None
+                    # the gate can only answer the look once its result is in the observation: at t+1
+                    # when the look ran at t, at t+2 when it ran at t+1 (Analyse takes two ticks and
+                    # under --wait-busy the tick after the look is the look's own busy tick), so take
+                    # Recover at either of the next two steps as the flip
+                    g1 = by_t.get(t + 1); g2 = by_t.get(t + 2)
+                    m1 = g1["expert_mode"].get(agent) if g1 and "expert_mode" in g1 else None
+                    m2 = g2["expert_mode"].get(agent) if g2 and "expert_mode" in g2 else None
+                    rec["gate_t1"] = "recover" if "recover" in (m1, m2) else (m1 if m1 is not None else m2)
                 pat = re.compile(r"(Restore|Remove)\s+" + re.escape(host) + r"(?!\w)")
                 for u in range(t + 1, T + 1):
                     su = by_t.get(u)
@@ -131,7 +137,7 @@ def analyse(d):
         fa, na = flip(inv); ff, nf = flip(first); fr, nr = flip(rep)
         already = sum(1 for r in inv if r["gate_t"] == "recover")
         print(f"  gate: already Recover at the look {pct(already, N):.1f}%; "
-              f"flip Investigate->Recover at next step {pct(fa, na):.1f}% of {na} "
+              f"flip Investigate->Recover within two steps {pct(fa, na):.1f}% of {na} "
               f"(first looks {pct(ff, nf):.1f}% of {nf}, repeat looks {pct(fr, nr):.1f}% of {nr})")
 
     resp = [r["resp"] for r in inv if r["resp"] is not None]
