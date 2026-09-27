@@ -3503,7 +3503,9 @@ compat, footer-identical rerun) all reproduce.
 | do nothing | -6592.68 | |
 
 Three things in the table. First, the whole of the adversary's effect on
-the learned defenders is detection. A one-line rule with ground truth
+the learned defenders is detection (under the adversary; under mild reds
+H-MARL's selective hand beats RT's blunt one by about thirty, "Distance
+to the ceiling" below). A one-line rule with ground truth
 scores -349 under Wrecker, 767 better than KEEP and 494 better than
 H-MARL, and under the stock red it is within 20 of KEEP and 32 worse than
 H-MARL. Given the target, the hands the environment offers are enough;
@@ -3636,24 +3638,42 @@ without beating perfect eyes. RT was run under every adversary in the
 study (seventeen ceilings, ARMS.md "RT ceilings across adversaries";
 `tools_ceiling.py`), and the axis reads differently on it.
 
-| Adversary | KEEP gap to RT | KEEP closed | R2 gap | R2 closed | R4 closed |
-|---|---|---|---|---|---|
-| stock | 19 | -0.86 | 718 | 0.87 | |
-| Q04 | 151 | 0.49 [0.36, 0.61] | 625 | 0.82 [0.79, 0.85] | 0.48 |
-| Q16 | 323 | 0.51 [0.41, 0.58] | 1,585 | 0.79 [0.75, 0.82] | 0.55 |
-| Q32 | 511 | 0.51 [0.44, 0.58] | 2,184 | 0.79 [0.76, 0.81] | 0.59 |
-| Q48 | 616 | 0.57 [0.50, 0.62] | 2,463 | 0.80 [0.77, 0.83] | 0.59 |
-| Q64 (Wrecker) | 767 | 0.59 [0.53, 0.64] | 2,810 | 0.79 [0.76, 0.81] | 0.62 |
+| Adversary | H-MARL gap to RT | H-MARL closed | KEEP gap | KEEP closed | R2 gap | R2 closed | R4 closed |
+|---|---|---|---|---|---|---|---|
+| stock | -32 | above RT (O1 -24) | 19 | -0.86 | 718 | 0.87 | |
+| Q04 | 65 | 0.14 [-0.26, 0.41] | 151 | 0.49 [0.36, 0.61] | 625 | 0.82 [0.79, 0.85] | 0.48 |
+| Q16 | 224 | 0.33 [0.19, 0.44] | 323 | 0.51 [0.41, 0.58] | 1,585 | 0.79 [0.75, 0.82] | 0.55 |
+| Q32 | 324 | 0.43 [0.33, 0.52] | 511 | 0.51 [0.44, 0.58] | 2,184 | 0.79 [0.76, 0.81] | 0.59 |
+| Q48 | 426 | 0.34 [0.22, 0.45] | 616 | 0.57 [0.50, 0.62] | 2,463 | 0.80 [0.77, 0.83] | 0.59 |
+| Q64 (Wrecker) | 494 | 0.20 [0.03, 0.35] | 767 | 0.59 [0.53, 0.64] | 2,810 | 0.79 [0.76, 0.81] | 0.62 |
 
 O1 at gap 32 closes four fifths of R2's distance to perfect eyes at every
 point on the axis and under the stock red, half of KEEP's rising slowly
-with concentration, and half to three fifths of R4's. The fraction's
+with concentration, half to three fifths of R4's, and a fifth to two
+fifths of H-MARL's, peaking at Q32. The six KEEP policies of the
+retraining test sit at 0.49 to 0.63 on this measure (shipped 0.59), so
+within an architecture the share still holds and across architectures it
+still does not. The fraction's
 decline on the rules was its denominator moving; the share of what a
 supervisor can do that this supervisor does is flat on the policy that
 has no eyes of its own and nearly flat on the one that has. What
 concentration changes is the size of the gap, not the supervisor's
 reach into it. The directed look on Wrecker closes 0.17 of KEEP's gap
 (O10) and 0.20 (O13), and 0.45 of R2's.
+
+One caution before the reds. RT is perfect eyes with one fixed hand,
+restore whatever is compromised as soon as it is seen, and under mild
+adversaries that hand is not the best one: H-MARL sits 32 above RT under
+the stock red and 28 to 39 above it under the eight Trident reds that
+leave it better off than stock, because its IoC-gated Recover leaves
+low-value compromises alone and saves the restore cost. KEEP is below
+RT under every adversary. So the metric reads wherever RT is above the
+policy, which is every adversary that produces a deficit, and where a
+policy is at or above RT the supervisor's share is undefined and its
+delta is negative (H-MARL -24 to -30 on those nine, KEEP -8 to -25), the
+same statement either way. Detection is the whole game under the
+adversary; under a mild red, selectivity of response is worth thirty
+points over perfect detection with a blunt one.
 
 The ceiling also settles the seven Trident reds that the fraction
 could not read. Under TargetA, TargetB and their variants, and Combined,

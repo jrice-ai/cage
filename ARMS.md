@@ -1218,6 +1218,46 @@ Rule defenders, O1 at gap 32 unless stated:
 | R4 | Q64 | 3,215.4 | +1,983.2 | 0.617 | |
 | R4t | Q64 | 2,414.5 | +1,507.3 | 0.624 | [0.573, 0.670] |
 
+H-MARL Expert (`read_hm_ceiling.sh`, 2026-09-26; controls `hm_<red>_none_g0`,
+`hm_s_none`, `hm_w_none`; arms at gap 32). Where the control is above RT
+the gap is negative and no share is given; the delta is still reported.
+
+| Adversary | H-MARL control | Gap to RT | O1 delta | O1 closed | 95% CI | O10 delta | O10 closed | 95% CI |
+|---|---|---|---|---|---|---|---|---|
+| stock | -136.43 | -32.2 | -24.3 | above RT | | +7.2 | above RT | |
+| Q04 | -239.10 | 64.8 | +8.9 | 0.138 | [-0.258, 0.405] | +33.2 | 0.512 | [0.242, 0.727] |
+| Q16 | -440.29 | 223.6 | +72.9 | 0.326 | [0.192, 0.439] | +60.5 | 0.270 | [0.131, 0.395] |
+| Q32 | -585.79 | 323.6 | +138.9 | 0.429 | [0.326, 0.523] | +74.2 | 0.229 | [0.086, 0.357] |
+| Q48 | -738.05 | 425.7 | +144.6 | 0.340 | [0.218, 0.446] | +102.3 | 0.240 | [0.116, 0.349] |
+| Q64 (Wrecker) | -842.76 | 493.9 | +98.5 | 0.200 | [0.025, 0.346] | +100.9 | 0.204 | [0.076, 0.315] |
+| ConvOnly | -232.99 | 31.2 | -10.4 | -0.334 | [-2.149, 0.292] | +15.7 | 0.502 | [-0.248, 1.018] |
+| TargetARestricted | -50.0 | -35.2 | -30.1 | above RT | | -0.6 | above RT | |
+| TargetAOperational | -54.5 | -28.1 | -29.1 | above RT | | +2.0 | above RT | |
+| TargetA | -51.9 | -28.4 | -26.4 | above RT | | +2.9 | above RT | |
+| TargetB | -72.7 | -36.5 | -23.8 | above RT | | +6.6 | above RT | |
+| TargetBRestricted | -71.6 | -37.9 | -23.4 | above RT | | +8.1 | above RT | |
+| TargetBOperational | -78.4 | -38.7 | -24.7 | above RT | | +6.4 | above RT | |
+| Combined | -97.4 | -31.7 | -25.8 | above RT | | -2.1 | above RT | |
+| FailureTracker | -139.3 | -30.9 | -26.1 | above RT | | +9.8 | above RT | |
+| Impacter | -133.5 | 15.3 | +0.2 | 0.014 | [-6.2, 1.9] | +18.7 | 1.22 | [-0.09, 9.8] |
+| Degrader | -192.1 | 46.2 | +1.2 | 0.025 | [-1.09, 0.53] | +14.1 | 0.305 | [-0.50, 0.72] |
+
+Under Wrecker the rest of H-MARL's ladder: O13 +38.6, 0.078 [-0.069,
+0.202]; O14 -37.5, -0.076; O2f -164.7, -0.334 [-0.533, -0.168].
+
+The five KEEP retrains under Wrecker, O1 at gap 32 against `rd_RT_w_none`:
+seed 1000 0.587 [0.530, 0.638], seed 1001 0.485 [0.398, 0.558], seed 1002
+0.558 [0.492, 0.620], 10,000 episodes 0.628 [0.571, 0.678], learning rate
+0.1x 0.613 [0.557, 0.663]; shipped 0.590.
+
+RT is a reference, not a ceiling, for H-MARL under mild adversaries: it
+sits 28 to 39 above RT on the eight Trident reds that leave it better off
+than stock, and 32 above under the stock red itself, so restoring every
+ground-truth-compromised host at once is a worse hand than H-MARL's
+IoC-gated one where detection is not the binding constraint. KEEP is
+below RT everywhere. Under Wrecker RT is 494 above H-MARL and 767 above
+KEEP.
+
 R2's controls along the axis (`rd_R2_<Q>_none`): Q04 -798.9, Q16
 -1801.3, Q32 -2446.5, Q48 -2774.9, Q64 -3158.98; its O1 endpoints -286.0,
 -549.6, -729.8, -802.9, -949.63. The fraction of excess loss on the same
