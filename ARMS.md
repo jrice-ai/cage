@@ -1492,6 +1492,46 @@ control, share against `rd_RT_<red>_none_wb`:
 | Impacter | -118.36 | +110.4 | 87/100 | 0.74 [0.67, 0.79] | -71.33 | +62.2 | 66/100 | 1.14 [1.06, 1.27] |
 | Degrader | -163.22 | +105.6 | 91/100 | 0.75 [0.69, 0.80] | -131.39 | +60.7 | 65/100 | 0.94 [0.79, 1.09] |
 
+`queue_E.sh` (2026-09-27 10:47 to 11:54, 22 arms, one segfault, O10 at Q48,
+rerun at 14:45, complete). The rule ladder under the flag, 100 episodes each,
+paired against the attempted-condition arm of the same kind:
+
+| Kind | stock mean (sd) | against attempted | Wrecker mean (sd) | against attempted |
+|---|---|---|---|---|
+| `R1` | -190.43 (118.62) | +804.1 (98/100) | -1867.39 (570.93) | +1427.0 (98/100) |
+| `R2` | -222.70 (77.38) | +663.7 | -1851.15 (618.45) | +1307.8 (96/100) |
+| `R2d` | | | -1864.18 (634.66) | |
+| `R3` | -311.17 (87.67) | +678.4 (98/100) | -1923.54 (665.58) | +1418.2 (93/100) |
+| `R4` | -490.19 (315.23) | +804.1 (92/100) | -3325.32 (652.26) | +238.9 (60/100, p 0.057) |
+| `R4t` | -287.70 (160.17) | +666.9 (92/100) | -2388.51 (703.42) | +374.9 (65/100) |
+| `R4p` | -6507.40 (1315.60) | +0.0 (0/100 differ) | -5263.93 (871.89) | +0.0 (0/100 differ) |
+| `R4d` | -5564.57 (1349.93) | +447.2 (67/100) | -4672.61 (764.79) | +321.0 (60/100) |
+| `RT` | -148.10 (31.00) | +20.5 | -274.88 (34.58) | +74.0 (90/100) |
+
+`R4p` issues no multi-tick action and is byte-identical under the flag, a
+determinism check for free. Reference: KEEP -187.32 / -1115.65, H-MARL
+-136.43 / -842.76.
+
+The directed look along the axis on KEEP under the flag
+(`o10_g32_FSRedAgent<red>_wb`, `o13_g32_FSRedAgent<red>_wb`), delta against
+the KEEP control, share against `rd_RT_<red>_none_wb`:
+
+| Adversary | O10 mean | delta | wins | closed | O13 mean | delta | wins | closed |
+|---|---|---|---|---|---|---|---|---|
+| Q04 | -280.12 | +45.0 | 63/100 | 0.252 [0.082, 0.390] | -278.44 | +46.7 | 64/100 | 0.262 [0.087, 0.404] |
+| Q16 | -473.43 | +65.7 | 58/100 | 0.181 [0.058, 0.290] | -475.07 | +64.1 | 61/100 | 0.177 [0.064, 0.276] |
+| Q32 | -624.47 | +148.6 | 66/100 | 0.267 [0.173, 0.352] | -629.16 | +143.9 | 69/100 | 0.259 [0.160, 0.347] |
+| Q48 | -777.12 | +151.0 | 73/100 | 0.221 [0.122, 0.312] | -829.92 | +98.2 | 58/100 | 0.144 [0.025, 0.253] |
+| Q64 (Wrecker) | -927.30 | +188.3 | 73/100 | 0.224 [0.156, 0.285] | -949.10 | +166.6 | 69/100 | 0.198 [0.119, 0.270] |
+| ConvOnly | -264.81 | +51.8 | 63/100 | 0.366 [0.202, 0.501] | -282.65 | +34.0 | 59/100 | 0.240 [0.020, 0.403] |
+
+Executed looks 99.9% at Q16 (median response 30, 16.7% within 10, 23.0%
+never). H-MARL's gate flip read at the completion tick
+(`hm_wo_O10_g32_wb`): Investigate to Recover within two steps of the look
+14.4% (first looks 20.4%, repeats 10.9%); host recovered within 50 steps
+93.5% when the gate flipped, 36.5% when it did not; never 4.0% against
+39.9%.
+
 Reading. With directives executed, O1 at gap 32 is +625 on KEEP (from
 +452) and +415 on H-MARL (from +99); the two learned defenders close the
 same share of their distance to RT (0.74, 0.73), so the earlier

@@ -3909,6 +3909,44 @@ it seemed to. R2d equals R2 (-1,864 against -1,851; -381 against -373
 under O1), so a decoy per server does nothing under Wrecker once the
 bookkeeping is right.
 
+### The rule ladder under the flag
+
+| Defender | stock | Wrecker |
+|---|---|---|
+| RT | -148 | -275 |
+| R1 (confirmed file only; analyse alerted hosts) | -190 | -1,867 |
+| KEEP | -187 | -1,116 |
+| R2 (second alert) | -223 | -1,851 |
+| R4t (playbook, Analyse for Remove) | -288 | -2,389 |
+| R3 (first alert) | -311 | -1,924 |
+| R4 (playbook) | -490 | -3,325 |
+| R4d (posture and decoys) | -5,565 | -4,673 |
+| R4p (posture) | -6,507 | -5,264 |
+
+Once a rule books only what it does, a rule that restores only on a
+confirmed file and analyses alerted hosts in its idle steps equals KEEP
+under the stock red. Under Wrecker the three evidence ladders converge
+within 70 points of one another whatever their threshold, because the
+stream is the limit there; under stock the threshold is the whole
+difference, 120 points from files-only to first-alert, the cost of false
+restores. The playbook's Remove is unchanged as a finding (R4 gains 239
+from the fix and stays 1,470 behind R2), posture is the floor and is
+byte-identical under the flag, and decoys alone execute now and are
+worth 320 to 450 over posture.
+
+### The look along the axis
+
+O10 closes 0.25, 0.18, 0.27, 0.22, 0.22 of KEEP's distance to RT from
+Q04 to Wrecker and 0.37 under ConvOnly; O13 0.26, 0.18, 0.26, 0.14,
+0.20 and 0.24. Flat within wide intervals, the two look rules
+indistinguishable at every point, a fifth to a quarter against the
+substitute's three quarters. On H-MARL, with the gate flip read at the
+look's completion tick, a look flips the gate 14 percent of the time (20
+percent of first looks) and when it does the host is recovered within
+fifty steps 93.5 percent of the time against 36.5 when it does not: the
+hit rate is the sensor's, and the policy acts on a hit as reliably as a
+rule.
+
 ### Trident under the flag
 
 RT ceilings: TargetA and variants -67, TargetB and variants -89 to -91,
