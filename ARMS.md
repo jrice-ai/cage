@@ -1363,6 +1363,12 @@ records can show and no further arm can.
 
 ## Known issues
 
+- **Trial sizing tools.** `tools_power.py CONTROL ARM...` and
+  `tools_power.py --pair A B` resample per-episode paired deltas into
+  power curves (paired t and sign test) and the smallest detectable effect
+  at each N; `read_power.sh` runs the set reported in RESULTS.md "Sizing
+  the human trial" (2026-09-26). `keep_null` does not share episode file
+  names with `corpus_v1` (an early capture naming) and cannot be paired.
 - **The O2e-family latch was seeded by the reset listing. Resolved
   2026-09-26.** The observation at step 0 names every owned host with a
   substantive entry (71 hosts), and the evidence latch (`O2e`, `O2er`,

@@ -3754,3 +3754,92 @@ uninformative").
   KEEP the two reds look alike (1.2x chance); under a blind defender the
   stock red is the more visible (repeated namings 0.68 against 0.5, a
   look confirming one in seven against one in twelve).
+
+## Sizing the human trial
+
+The arms already contain what a power analysis needs: for every
+supervised condition, one hundred per-episode paired deltas against the
+policy alone on the same seeds, whose spread is the environment's and
+the policy's own episode-to-episode noise. `tools_power.py` resamples
+those deltas at each candidate N with the mean shifted to a hypothetical
+effect and reports the power of the paired t-test and of the sign test
+at alpha 0.05, and the smallest effect detectable at 80 percent power.
+A human supervisor adds variance the oracle does not have (attention,
+latency, error), so every N below is a floor. Read 2026-09-26
+(`read_power.sh`, `data/read_power.txt`).
+
+| Comparison | Mean delta | sd of paired deltas | Smallest effect at 80% power, N = 10 / 20 / 30 / 50 / 100 |
+|---|---|---|---|
+| KEEP + O1 against KEEP, Wrecker | +452 | 328 | 319 / 216 / 170 / 131 / 90 |
+| KEEP + O10 against KEEP, Wrecker | +127 | 384 | 372 / 250 / 199 / 154 / 109 |
+| KEEP + O13 against KEEP, Wrecker | +155 | 345 | 356 / 232 / 186 / 141 / 96 |
+| sampling nulls against KEEP, Wrecker | -81, +9 | 393, 409 | 396 to 421 / 265 to 273 / 212 to 218 / 161 to 169 / 110 to 115 |
+| O1 against O10 (two conditions, paired on seeds), Wrecker | +325 | 315 | 291 / 198 / 160 / 123 / 86 |
+| O13 against O10, Wrecker | +28 | 355 | 345 / 230 / 186 / 139 / 100 |
+| O1 against O2, Wrecker | +17 | 151 | 165 / 106 / 86 / 61 / 44 |
+| KEEP + O2 against KEEP, stock | -16 | 79 | 80 / 56 / 43 / 32 / 23 |
+| KEEP + O10 against KEEP, stock | +8 | 70 | 65 / 45 / 36 / 28 / 19 |
+| H-MARL + O1 against H-MARL, Wrecker | +98 | 450 | 462 / 304 / 242 / 187 / 129 |
+| H-MARL + O10 against H-MARL, Wrecker | +101 | 344 | 324 / 215 / 176 / 140 / 95 |
+| R2 + O1 against R2, Wrecker | +2,209 | 594 | 613 / 411 / 320 / 245 / 172 |
+
+Power for particular effects, KEEP under Wrecker, condition against
+policy alone (paired t / sign): the full substitution effect of +450 is
+seen at N = 10 (0.99 / 0.91); +300 at N = 20 (0.98 / 0.73); +200 at
+N = 30 (0.92 / 0.64); +100 needs N = 100 (0.88 / 0.31). Between two
+conditions: a 300-point difference at N = 20 (0.99 / 0.89), 200 at
+N = 30 (0.95 / 0.77), 100 at N = 100 (0.90 / 0.17).
+
+Five things follow for the design.
+
+**The trial can be sized for substitution-sized effects and not for
+look-sized ones.** Under Wrecker the per-episode noise on KEEP is about
+330 points, so a condition has to move the score by 170 to be seen in
+30 episodes and by 90 in 100. Naming the target is worth up to +452
+and is visible in ten; directing a look is worth +127 to +155 and needs
+a hundred. A human whose information is the target, delivered at half
+O1's precision, lands near +200 and is visible in 30. A human whose
+contribution is where to look is not measurable at any budget a trial
+can afford. The trial measures target supply, which is what the
+framework says the supervisor is for.
+
+**Interface comparisons need 200-point separations.** Two conditions
+that differ by 100 need a hundred paired episodes; by 200, thirty; by
+300, twenty. O13 against O10 (28 points, the size of a plausible
+display tweak) would need about 1,300. So conditions have to differ in
+what information reaches the human, not in how it is drawn, unless the
+drawing changes what they find.
+
+**The sign test is the wrong statistic at trial sizes.** It is what the
+study reports on 100-episode arms, where it is conservative and
+sufficient, but at N = 30 it has half the paired t-test's power for a
+200-point effect (0.64 against 0.92) because a third of episodes under
+Wrecker go the wrong way even under O1 (95 wins of 100 is the best any
+arm achieves; O10 wins 66). The trial pre-registers the paired t-test
+or Wilcoxon on per-episode deltas with seeds fixed and reports the sign
+test alongside.
+
+**The rule defender is the cheap first stage.** On R2 the same
+supervisor is worth +2,209 at a sd of 594, a signal-to-noise of 3.7
+against KEEP's 1.4, so a human's effect on R2 is measurable at N = 10
+with room and interface conditions 320 apart separate at N = 30. A
+two-stage design uses R2 to validate that the interface delivers the
+target (the information question, cheap and high-signal) and KEEP to
+answer the real question (does the human improve a competent policy),
+with the KEEP stage sized from the human effect observed on R2 rather
+than from the oracle's.
+
+**Episodes are the budget, and a human's are slow.** At gap 32 a
+supervisor makes about 78 decisions an episode (five agents, 500
+steps); at ten seconds a decision that is a quarter of an hour of
+attention per episode, so thirty episodes is a working day per
+participant per condition. The choice between few participants with
+many episodes and many participants with few is the next design
+decision, and it needs the between-participant variance that no oracle
+arm can supply; the numbers above are the within-participant floor for
+either.
+
+The stock red is the wrong place to run a trial: effects there are 8 to
+16 points and mostly costs, on a noise of 70 to 80. `keep_null` does not
+share episode names with `corpus_v1` and is not in the table; the stock
+sampling band is +/-15 from "Interpretation floor".
