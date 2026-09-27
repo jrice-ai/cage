@@ -221,7 +221,7 @@ def make_defender(cyborg, kind, stats, decoys):
                 st["strict"][h] = t
             if t == 1:                                   # reset listing, not evidence
                 continue
-            if st["acted"].get(h) == t - 1 and not confirmed:   # echo of our own action
+            if h == st.get("echo") and not confirmed:              # the result of our own last action on this host
                 continue
             st["alerts"][h] = st["alerts"].get(h, 0) + 1
             st["last"][h] = t
@@ -314,6 +314,7 @@ def make_defender(cyborg, kind, stats, decoys):
         name = type(executed).__name__; h = getattr(executed, "hostname", None)
         if h:
             st["acted"][h] = t
+        st["echo"] = h if h else None
         if name == "Restore" and h:
             st["restored"][h] = t
             st["strict"].pop(h, None); st["alerts"].pop(h, None); st["last"].pop(h, None)
@@ -329,11 +330,16 @@ def make_defender(cyborg, kind, stats, decoys):
         elif name == "AllowTrafficZone":
             st["blocked"].discard((getattr(executed, "from_subnet", None), getattr(executed, "to_subnet", None)))
 
+    def observe(agent_name):
+        st = _st(agent_name); st["t"] += 1
+        _latch(agent_name, st)
+
     propose.note = note
+    propose.observe = observe
     return propose
 
 
-def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
+def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False):
     """Return intercept(agent_name, act) -> act. Rule bodies are verbatim from oracle.py.install_oracle."""
     if decoys is None:
         decoys = {}
@@ -587,9 +593,24 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
     def _fmt(a):
         return f"{type(a).__name__}:{getattr(a, 'hostname', '')}"
 
+    def _busy(agent_name):
+        # the controller's own test: an action handed to an agent whose previous action still has
+        # ticks remaining is dropped
+        try:
+            return cyborg.environment_controller.actions_in_progress.get(agent_name) is not None
+        except AttributeError:
+            return False
+
     _tick = {}; _last = {}
     def intercept(agent_name, act):
         stats["calls"] += 1
+        if wait_busy and _busy(agent_name):
+            stats["busy"] = stats.get("busy", 0) + 1
+            _tick[agent_name] = _tick.get(agent_name, 0) + 1
+            if defender is not None:
+                defender.observe(agent_name)
+                return Sleep()
+            return act
         if defender is not None:
             act = defender(agent_name, act)      # the rule defender's proposal replaces the policy's
         _tick[agent_name] = _tick.get(agent_name, 0) + 1

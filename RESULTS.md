@@ -2681,9 +2681,16 @@ recoverable from the step records and is the next analysis.
 
 ### Why investigation is worth a third of substitution
 
-(Attempt counts, 2026-09-26: 6,125 looks were handed to the agents and
-about 3,770 ran; "What the simulator ran". The latency and yield below
-are recomputed over executed looks after the `--wait-busy` rerun.)
+(Recomputed 2026-09-26 over executed looks, "What the simulator ran":
+3,774 of the 6,125 looks handed to the agents ran, 37.7 per episode,
+and over those the response is median 33, 16.4 percent within ten
+steps, 22.7 percent never, against 36 / 15.3 / 22.4 over attempts; the
+dropped looks' hosts were recovered by KEEP anyway 78 percent of the
+time. The figures below stand with the executed denominator, 3.4
+points per executed look. On a rule defender the same looks split in
+two: the 11 to 13 percent that found a file were followed by a Restore
+in a median of five ticks, 98 percent within ten, and the rest by a
+median of 50 with half never; KEEP's distribution is that mixture.)
 
 From `wo_O10_g32`'s step records, 6,125 executed investigations:
 
@@ -2868,6 +2875,13 @@ generalization arm, with too little headroom under Wrecker (+98 against a
 size.
 
 ## H-MARL Expert through the ladder
+
+(Captured with dropped directives; H-MARL's agents are busy 53 percent of
+ticks and O1 executed 22 of its 57 overrides per episode. With waiting
+directives O1 is +415 (92/100) and closes 0.73 of the distance to RT,
+KEEP's share; "Waiting directives". The ladder's order and the
+mechanism-test conclusions stand; the size of the target's value here
+does not.)
 
 The second defender through the same rules, the same schedule and the same
 paired design, so that the adversary and authority findings are about a class
@@ -3452,6 +3466,13 @@ by evaluation, not by episode count.
 
 ## A defender that was never trained
 
+(Every arm in this section was captured with dropped directives and
+rule defenders that booked proposals as actions; "What the simulator
+ran" and "Waiting directives" below. The rule scores here are those of
+handicapped rules, the supervised gains are lower bounds, and the
+six-kinds ordering between KEEP and H-MARL does not survive the rerun.
+The section is kept as the record of what was measured on 2026-09-26.)
+
 The mechanism test left the supervisor's value measured on two learned
 defenders and six retrains of one of them, and the cleanest statement it
 produced, that O1 at gap 32 recovers a constant fraction of whatever
@@ -3613,6 +3634,16 @@ policy does with the time: the rules gain 0.55 of their excess from the
 looks because the looks are most of the evidence they will ever get;
 KEEP gains 0.14 because it was already looking.
 
+Measured directly the same evening, over the looks that the simulator
+ran (ARMS.md, "The directed look, from the step records"): on R2, 11
+percent of executed looks found a file and were followed by a Restore in
+a median of five ticks, 99 percent within ten; the other 89 percent were
+followed by a median of 53 and half never. On R4, 13 percent, five,
+98 percent; 87 percent, 50, 45 percent never. KEEP over its executed
+looks: median 33, 16 percent within ten, 23 percent never, which is that
+mixture with the same hit rate. The yield per executed look at a
+compromised host is one in eight or nine, not one in five.
+
 ### Along the targeting axis
 
 R4 at Q04, Q16, Q32, Q48 and Q64 (Wrecker), O1 fractions n/a (no
@@ -3753,6 +3784,91 @@ uninformative").
   KEEP the two reds look alike (1.2x chance); under a blind defender the
   stock red is the more visible (repeated namings 0.68 against 0.5, a
   look confirming one in seven against one in twelve).
+
+## Waiting directives: the study's condition from here
+
+`--wait-busy` holds a supervisor's directive until the agent is free and
+makes a rule defender sleep while busy and book only what it does. Both
+gates reproduce with the flag off, a three-episode pilot with it on
+executed 99 percent of overrides, and the core arms were rerun the same
+evening (`queue_B.sh`, nineteen arms in two lanes, 48 minutes; ARMS.md
+"Waiting-directive arms"). Execution shares with the flag: overrides
+0.99 on every policy, rule proposals 0.92 to 0.96 (the remainder is
+`replace_action_if_invalid`, the environment declining an action on its
+own terms, which is not a drop).
+
+| Arm, Wrecker unless stated | Attempted (dropped) | Waiting | Paired, waiting against dropped |
+|---|---|---|---|
+| KEEP + O1 gap 32 | -663.38, +452 (95/100) | -490.72, +625 (100/100) | +173 (79/100) |
+| KEEP + O10 gap 32 | -988.35, +127 (66/100) | -927.30, +188 (73/100) | +61 (61/100, p 0.035) |
+| KEEP + O13 gap 32 | -960.57, +155 (71/100) | -949.10, +167 (69/100) | |
+| KEEP + O2 gap 32, stock | -203.42, -16 (39/100) | -175.11, +12 (61/100) | |
+| KEEP + O10 gap 32, stock | -179.75, +8 | -184.97, +2 | |
+| H-MARL + O1 gap 32 | -744.22, +99 (65/100) | -427.96, +415 (92/100) | |
+| H-MARL + O10 gap 32 | -741.90, +101 (55/100) | -756.18, +87 (60/100) | |
+| RT alone | -348.90 | -274.88 | +74 (90/100) |
+| R2 alone | -3158.98 | -1851.15 | +1,308 (96/100) |
+| R2 alone, stock | -886.41 | -222.70 | |
+| R4tn alone | -2766.20 | -2267.33 | +499 (71/100) |
+| R2 + O1 gap 32 | -949.63 | -372.64 | |
+| R4tn + O1 gap 32 | -1193.23 | -413.37 | |
+| RT + O1 gap 32 | -343.75 | -276.91 (-2 against RT, 38/100) | |
+| R2 + O1 gap 32, stock | -264.65 | -193.67 (+29 against R2, 57/100) | |
+
+Distance to the ceiling closed, with RT under the flag (-274.88) as the
+ceiling: KEEP O1 0.743 [0.706, 0.777], O10 0.224, O13 0.198; H-MARL O1
+0.730 [0.652, 0.795], O10 0.152; R2 0.938 [0.928, 0.947]; R4tn 0.930
+[0.917, 0.943]; R2 under stock 0.537 on a gap of 54. Points per executed
+override: KEEP 13.1, H-MARL 9.2, R2 31, R4tn 38.
+
+What the rerun changes, in order of size.
+
+**The supervisor's value was understated by 38 percent on KEEP and by a
+factor of four on H-MARL.** The same rule at the same cadence, with its
+directives executed instead of two fifths of them dropped, is +625 on
+KEEP and +415 on H-MARL. The cost of the drops on the human trial's
+interface is now a number: 173 points of 625 on KEEP and 316 of 415 on
+H-MARL if the interface lets a directive fall on a busy agent.
+
+**The two learned defenders close the same share of their distance to
+perfect eyes.** KEEP 0.74, H-MARL 0.73. "H-MARL recovers a fifth where
+KEEP recovers half" ("H-MARL Expert through the ladder", "The same
+supervisor on six kinds of policy") was the busy share, 0.53 against
+0.39, not the architecture; and the claim in "What the simulator ran"
+that the architecture difference survives per executed restore is
+retracted with it, since H-MARL's value per executed restore doubled
+once the restores stopped landing only on the ticks a busy agent
+happened to be free. What survives of the six-kinds ordering is the
+rules above the learned defenders (0.93 to 0.94 against 0.73 to 0.74)
+and RT with nothing to add.
+
+**The rule defenders, once they book only what they do, are different
+defenders.** R2 under the stock red is -223, 36 behind KEEP and 54
+behind RT, where it had been 700 behind; under Wrecker -1,851. Half of
+R2's "alerts" had been the results of its own multi-tick actions and a
+fifth of its restores had never run.
+
+**Under a waiting supervisor the endpoints turn over.** R2 + O1 -373,
+H-MARL + O1 -428, KEEP + O1 -491, RT -275: a two-alert ladder with a
+ground-truth supervisor beats both learned defenders with the same
+supervisor, because its own 67 evictions an episode now happen and the
+learned defenders' own evictions are partly what the supervisor would
+have done anyway. Controls from -843 to -2,267 land within 118 points
+of one another. "The supervisor compresses but does not equalise" was
+true of dropped directives; with waiting ones it very nearly equalises,
+and the order among the equalised is the rule's.
+
+**The look did not move.** Executing every look adds 61 points on KEEP
+and nothing on H-MARL, and the latency over executed looks is what it
+was (median 34, 16 percent within ten, 23 percent never). The look's
+value is the sensor's yield, and executing the look does not change the
+yield.
+
+Every arm captured before this flag is the "attempted" condition and is
+kept as such; every result section above carries its attempted figures
+until its arms are rerun. The axis, the ceilings at the sweep points,
+the retraining endpoint line and the R2d control are rerunning overnight
+(`queue_C.sh`); the Trident reds and the remaining rule kinds follow.
 
 ## Sizing the human trial
 

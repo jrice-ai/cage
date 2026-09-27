@@ -1296,7 +1296,21 @@ of the investigated host by the investigating agent.
 A rule defender restores the step after a confirmed file by construction,
 so its latency distribution is the look's outcome: the share within 10
 steps is the yield, and the rest is the wait for the next passive alert.
-KEEP's is the same shape with the same median.
+KEEP's is the same shape with the same median. Recomputed 2026-09-26
+over executed looks (an Analyse of the host by the agent within three
+steps of the override; `tools_investigate.py`), measured from the tick
+the look ran:
+
+| Arm | Looks executed | Median | Within 10 | Never | Found a file | Response given a hit | Response given a miss |
+|---|---|---|---|---|---|---|---|
+| `wo_O10_g32` (KEEP) | 3,774 of 6,125 (61.6%) | 33 | 16.4% | 22.7% | | | |
+| `wo_O13_g32` (KEEP) | 2,746 of 4,554 (60.3%) | 32 | 16.3% | 23.1% | | | |
+| `rd_R2_w_O10_g32` | 5,566 of 6,573 (84.7%) | 37 | 13.5% | 45.3% | 625 (11.2%) | median 5, 98.7% within 10 | median 53, 50.9% never |
+| `rd_R4_w_O10_g32` | 4,817 of 6,721 (71.7%) | 37 | 17.5% | 38.9% | 632 (13.1%) | median 5, 97.6% within 10 | median 50, 44.6% never |
+
+A hit is the rule's own strict Restore of the host within three steps of
+the look. The dropped looks' hosts were later recovered by the same
+agent anyway 78% (KEEP O10), 75% (O13), 50% (R2), 63% (R4) of the time.
 
 ### Reading
 
@@ -1363,6 +1377,74 @@ episode to R2's 41.
 
 ---
 
+## Waiting-directive arms
+
+From 2026-09-26 22:00 the harness runs with `--wait-busy` (`tools_add_wait.py`;
+header `wait_busy`, footer `busy_skips`; `run_rd.sh` with `WAIT=1`;
+directories suffixed `_wb`). Gates with the flag off: `o2e_smoke_wb0`
+(-327.00, 87.68, 77.0 / 108.5) and `hm_compat_gate3wb` (-902.67, 420.22).
+Pilot with the flag on: `pilot_rd_R2_w_O1_g32_wb`, three episodes, override
+share 0.986, rule shares 0.93, `busy_skips` 579 per episode. `queue_B.sh`,
+nineteen arms in two lanes, 21:25 to 22:13: arms took 4.5 to 6.2 minutes
+each side by side against 4.6 alone, so two lanes are the default for
+evaluation queues; one worker `SIGSEGV` in nineteen (`rd_R2d_w_none_wb`,
+rerun in `queue_C.sh`). Execution shares (`tools_dropped.py`, 30
+episodes): overrides 0.990 to 0.998 on KEEP, H-MARL and the rules; rule
+proposals 0.92 to 0.96, the remainder being `replace_action_if_invalid`.
+Busy shares with the flag: KEEP 0.39, H-MARL 0.54, R2 0.23, R4tn 0.41
+(its decoys now execute, 427 per episode), RT 0.12.
+
+| Directory | Policy | Red | Rule | Mean | sd | Against | Delta | Wins | Sign p | Executed/ep |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `wo_O1_g32_wb` | KEEP | Wrecker | O1 gap 32 | -490.72 | | `red_FSRedAgentWrecker` | +624.9 | 100/100 | <1e-3 | 48.1 restores |
+| | | | | | | `wo_O1_g32` | +172.7 | 79/100 | <1e-3 | |
+| `wo_O10_g32_wb` | KEEP | Wrecker | O10 gap 32 | -927.30 | | control | +188.3 | 73/100 | <1e-3 | 58.6 analyses, 11.4 agreements |
+| | | | | | | `wo_O10_g32` | +61.0 | 61/100 | 0.035 | |
+| `wo_O13_g32_wb` | KEEP | Wrecker | O13 gap 32 | -949.10 | | control | +166.6 | 69/100 | <1e-3 | 40.8, 11.0 |
+| `o2_g32_wb` | KEEP | stock | O2 gap 32 | -175.11 | | `corpus_v1` | +12.2 | 61/100 | 0.027 | 47.2, 23.0 |
+| `o10_g32_wb` | KEEP | stock | O10 gap 32 | -184.97 | | `corpus_v1` | +2.4 | 56/100 | 0.23 | 59.0, 9.0 |
+| `hm_wo_O1_g32_wb` | H-MARL | Wrecker | O1 gap 32 | -427.96 | | `hm_w_none` | +414.8 | 92/100 | <1e-3 | 46.4 restores; 133.2 Recover steps |
+| `hm_wo_O10_g32_wb` | H-MARL | Wrecker | O10 gap 32 | -756.18 | | `hm_w_none` | +86.6 | 60/100 | 0.057 | 57.3, 12.3 |
+| `rd_R2_w_none_wb` | R2 | Wrecker | none | -1851.15 | 618.45 | `rd_R2_w_none` | +1307.8 | 96/100 | <1e-3 | |
+| `rd_RT_w_none_wb` | RT | Wrecker | none | -274.88 | 34.58 | `rd_RT_w_none` | +74.0 | 90/100 | <1e-3 | |
+| `rd_R4tn_w_none_wb` | R4tn | Wrecker | none | -2267.33 | 619.16 | `rd_R4tn_w_none` | +498.9 | 71/100 | <1e-3 | |
+| `rd_R2d_w_none_wb` | R2d | Wrecker | none | worker SIGSEGV | | | | | | rerun in queue C |
+| `rd_R2_s_none_wb` | R2 | stock | none | -222.70 | 77.38 | | | | | |
+| `rd_R2_w_O1_g32_wb` | R2 | Wrecker | O1 gap 32 | -372.64 | | `rd_R2_w_none_wb` | +1478.5 | 100/100 | <1e-3 | 48.7 |
+| `rd_RT_w_O1_g32_wb` | RT | Wrecker | O1 gap 32 | -276.91 | | `rd_RT_w_none_wb` | -2.0 | 38/100 | 0.82 | 36.2 |
+| `rd_R4tn_w_O1_g32_wb` | R4tn | Wrecker | O1 gap 32 | -413.37 | | `rd_R4tn_w_none_wb` | +1854.0 | 100/100 | <1e-3 | 48.2 |
+| `rd_R2d_w_O1_g32_wb` | R2d | Wrecker | O1 gap 32 | | | (control pending) | | | | |
+| `rd_R2_s_O1_g32_wb` | R2 | stock | O1 gap 32 | -193.67 | | `rd_R2_s_none_wb` | +29.0 | 57/100 | 0.13 | 50.4 |
+
+Distance to the ceiling closed, ceiling `rd_RT_w_none_wb` (-274.88) under
+Wrecker and `rd_RT_s_none` under stock: `wo_O1_g32_wb` 0.743 [0.706,
+0.777], `wo_O10_g32_wb` 0.224 [0.156, 0.285], `wo_O13_g32_wb` 0.198
+[0.119, 0.270], `hm_wo_O1_g32_wb` 0.730 [0.652, 0.795], `hm_wo_O10_g32_wb`
+0.152 [0.016, 0.270], `rd_R2_w_O1_g32_wb` 0.938 [0.928, 0.947],
+`rd_R4tn_w_O1_g32_wb` 0.930 [0.917, 0.943], `rd_R2_s_O1_g32_wb` 0.537
+[0.354, 0.673]. Points per executed override: KEEP 13.1, H-MARL 9.2, R2
+31.1, R4tn 37.6.
+
+The directed look over executed looks (`tools_investigate.py`):
+`wo_O10_g32_wb` 5,841 of 5,856 looks ran, median 34, 15.5% within 10,
+23.1% never; `wo_O13_g32_wb` 4,073 of 4,080, 34, 15.3%, 25.0%;
+`hm_wo_O10_g32_wb` 5,714 of 5,730, median 25, 19.3%, 34.8% (the tool's
+gate-flip test reads the tick after the look, which under the flag is the
+look's own busy tick, hence 0.0%; to be read at the completion tick).
+
+Reading. With directives executed, O1 at gap 32 is +625 on KEEP (from
++452) and +415 on H-MARL (from +99); the two learned defenders close the
+same share of their distance to RT (0.74, 0.73), so the earlier
+difference between them was the busy share (0.39 against 0.53); the
+rules close 0.93 to 0.94; the rule defenders themselves are 660 to 1,300
+better once they book only what they do (R2 under stock -223, 36 behind
+KEEP); and under a waiting supervisor the endpoints sit within 118 of
+one another with R2 + O1 (-373) above H-MARL + O1 (-428) and KEEP + O1
+(-491). The look gains 61 on KEEP from execution and nothing on H-MARL,
+with the same latency distribution.
+
+---
+
 ## Known issues
 
 - **Directives to a busy agent are dropped by the simulator; every "executed"
@@ -1412,6 +1494,19 @@ episode to R2's 41.
   accepts any `<defender>+<rule>` (the hand-written list lacked `R2d+O1`,
   which cost the 2026-09-26 concurrency test). Without the flag every
   path is unchanged. The rerun set is `queue_B.sh`.
+- **Two evaluation lanes at once.** Tested 2026-09-26 (`queue_B.sh`,
+  `queue_C.sh`): two `bin/run` containers at six workers each take 4.5 to
+  6.2 minutes an arm against 4.6 alone, so a queue runs in 55 to 60 percent
+  of its sequential time. One worker `SIGSEGV` in nineteen arms
+  (`rd_R2d_w_none_wb`), the same flakiness as the single-container entry
+  above; the arm is rerun, not the lane. Training runs still may not
+  share the machine.
+- **Attempted against waiting directives.** Every arm before 2026-09-26
+  22:00 was captured with directives that the simulator dropped when the
+  agent was busy (first entry above); they are the "attempted"
+  condition and pair only with one another. Arms with `wait_busy: true`
+  in the header (directories `_wb`) are the study's condition from here
+  and pair only with one another and with unsupervised controls.
 - **Trial sizing tools.** `tools_power.py CONTROL ARM...` and
   `tools_power.py --pair A B` resample per-episode paired deltas into
   power curves (paired t and sign test) and the smallest detectable effect

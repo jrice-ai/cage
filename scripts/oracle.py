@@ -39,16 +39,16 @@ from oracle_rules import (make_oracle, note_impacts, owned_hosts, compromised_by
                           _IMPACT_SEEN, _HOSTS_CACHE)
 
 
-def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0):
+def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False):
     """Wrap action_translator so overrides slot in before execution."""
-    intercept = make_oracle(cyborg, rule, stats, budget, decoys, min_gap)
+    intercept = make_oracle(cyborg, rule, stats, budget, decoys, min_gap, wait_busy)
     original = env.action_translator
     def patched(agent_name, a_id):
         return intercept(agent_name, original(agent_name, a_id))
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False):
     seed = base_seed + ep
     torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
 
@@ -67,7 +67,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     stats = Counter()
     stats["dact"] = []      # rule defender's per-step reasons; emptied into each step record
     decoys = {}
-    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap)
+    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap, wait_busy)
     if rule == "O11":
         stats["probs"] = {}
         for _n, _ag in agents.items():
@@ -93,7 +93,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "red_agent": _rc.__name__, "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -135,6 +135,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "total_reward": total, "overrides": stats["override"], "translator_calls": stats["calls"],
             "agreements": stats["agree"],
             "deferred": stats.get("deferred", 0),
+            "busy_skips": stats.get("busy", 0),
             "analyses": stats.get("exec_Analyse", 0), "restores": stats.get("exec_Restore", 0),
             "removes": stats.get("exec_Remove", 0), "sleeps": stats.get("exec_Sleep", 0),
             "flags_new": stats.get("flags_new", 0),
@@ -151,13 +152,19 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     return total, stats["override"], stats["agree"], time.time() - t0
 
 
+def _rule_arg(s):
+    from oracle_rules import KNOWN_RULES, DEFENDERS
+    d, _, r = s.partition("+")
+    if s in KNOWN_RULES or (d in DEFENDERS and (r == "" or r in KNOWN_RULES)):
+        return s
+    raise argparse.ArgumentTypeError(f"unknown rule {s}")
+
+
 def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
-    p.add_argument("--rule", default="O1",
-                   choices=["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s", "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O11", "O10", "O12", "O13",
-                            "R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "R4t3", "R4tn", "RT",
-                            "R1+O1", "R2+O1", "R2+O10", "R3+O1", "R4+O1", "R4+O10", "R4+O13", "R4+O2s", "R4d+O1", "R4t+O1", "R4t3+O1", "R4tn+O1", "RT+O1"],
+    p.add_argument("--wait-busy", action="store_true", help="a directive to a busy agent waits for its next free tick instead of being dropped by the simulator; rule defenders sleep while busy")
+    p.add_argument("--rule", default="O1", type=_rule_arg,
                    help="a supervisor rule on KEEP, or a rule defender (R1 to R4, RT), optionally with a supervisor rule on top (R4+O1)")
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
@@ -172,7 +179,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]

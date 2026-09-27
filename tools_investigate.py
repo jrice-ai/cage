@@ -16,6 +16,13 @@ From the step records (overrides whose replacement is an Analyse):
                           that host: median, p90, share within 10 and 50 steps, never
   recover-mode latency    H-MARL only: steps to this agent's next executed Recover-mode
                           step
+  executed looks          (2026-09-26) a look counts as executed when an Analyse of that host
+                          by that agent appears in the executed-action record within three
+                          steps (Analyse takes two ticks; a look handed to a busy agent is
+                          dropped by CC4); the response latency is then re-reported over
+                          executed looks only, measured from the tick the look ran, and for
+                          rule-defender arms split by whether the rule's own "strict" Restore
+                          of that host followed within three steps (the look found a file)
 """
 import glob, json, os, re, sys
 from statistics import median
@@ -51,9 +58,10 @@ def analyse(d):
     print(f"\n{d}: {n} episodes")
     print(f"  footer: analyses/ep {analyses / n:.1f}, flags_new/ep {flags / n:.2f}, "
           f"yield flags_new/analyses {flags / analyses if analyses else float('nan'):.3f}")
-    tp = sum(f.get("latch_tp", 0) or 0 for f in foots)
-    fp = sum(f.get("latch_fp", 0) or 0 for f in foots)
-    fn = sum(f.get("latch_fn", 0) or 0 for f in foots)
+    g = lambda f, k: f.get("latch_" + k, f.get(k, 0)) or 0     # oracle.py names them latch_*, early capture_hmarl traces tp/fp/fn
+    tp = sum(g(f, "tp") for f in foots)
+    fp = sum(g(f, "fp") for f in foots)
+    fn = sum(g(f, "fn") for f in foots)
     if tp + fp + fn:
         print(f"  latch: tp {tp} fp {fp} fn {fn}  precision {tp / (tp + fp) if tp + fp else float('nan'):.3f}  "
               f"recall {tp / (tp + fn) if tp + fn else float('nan'):.3f}")
@@ -79,7 +87,17 @@ def analyse(d):
                 k = (agent, host)
                 rec = {"ep": name, "agent": agent, "host": host, "t": t,
                        "repeat": k in seen, "gate_t": None, "gate_t1": None,
-                       "resp": None, "recov": None}
+                       "resp": None, "recov": None, "exec": None, "found": False}
+                apat = re.compile(r"Analyse\s+" + re.escape(host) + r"(?!\w)")
+                for u in range(t, min(T, t + 3) + 1):
+                    su = by_t.get(u)
+                    if su is not None and akey and apat.search(str(su.get(akey, {}).get(agent, ""))):
+                        rec["exec"] = u - t; break
+                if rec["exec"] is not None:
+                    for u in range(t + rec["exec"] + 1, min(T, t + rec["exec"] + 3) + 1):
+                        su = by_t.get(u)
+                        if su and any(x[0] == agent and x[1] == "strict" and x[2] == host for x in (su.get("defender") or [])):
+                            rec["found"] = True; break
                 seen[k] = seen.get(k, 0) + 1
                 if "expert_mode" in s:
                     rec["gate_t"] = s["expert_mode"].get(agent)
@@ -99,11 +117,11 @@ def analyse(d):
                 inv.append(rec)
 
     if not inv:
-        print("  steps: no executed investigations in the step records"); return
+        print("  steps: no attempted investigations in the step records"); return
     N = len(inv)
     rep = [r for r in inv if r["repeat"]]
     first = [r for r in inv if not r["repeat"]]
-    print(f"  steps: {N} executed investigations, {N / n:.1f}/ep, repeat share {pct(len(rep), N):.1f}%")
+    print(f"  steps: {N} attempted investigations (overrides handed to the agent), {N / n:.1f}/ep, repeat share {pct(len(rep), N):.1f}%")
 
     if any(r["gate_t"] is not None for r in inv):
         def flip(rs):
@@ -118,9 +136,25 @@ def analyse(d):
 
     resp = [r["resp"] for r in inv if r["resp"] is not None]
     never = N - len(resp)
-    print(f"  response (Restore/Remove on that host by that agent): median {median(resp) if resp else float('nan'):.0f}, "
+    print(f"  response over attempts (Restore/Remove on that host by that agent): median {median(resp) if resp else float('nan'):.0f}, "
           f"p90 {q(resp, 0.9):.0f}, within 10 {pct(sum(1 for x in resp if x <= 10), N):.1f}%, "
           f"within 50 {pct(sum(1 for x in resp if x <= 50), N):.1f}%, never {pct(never, N):.1f}%")
+    ex = [r for r in inv if r["exec"] is not None]
+    if ex:
+        er = [r["resp"] - r["exec"] for r in ex if r["resp"] is not None]
+        print(f"  executed looks: {len(ex)} of {N} ({pct(len(ex), N):.1f}%), {len(ex) / n:.1f}/ep; response from the tick the look ran: "
+              f"median {median(er) if er else float('nan'):.0f}, p90 {q(er, 0.9):.0f}, within 10 {pct(sum(1 for x in er if x <= 10), len(ex)):.1f}%, "
+              f"within 50 {pct(sum(1 for x in er if x <= 50), len(ex)):.1f}%, never {pct(len(ex) - len(er), len(ex)):.1f}%")
+        dr = [r for r in inv if r["exec"] is None]
+        dn = sum(1 for r in dr if r["resp"] is None)
+        print(f"  dropped looks: {len(dr)}; host later recovered by that agent anyway {pct(len(dr) - dn, len(dr)):.1f}%")
+        fd = [r for r in ex if r["found"]]
+        if fd:
+            nf_ = [r for r in ex if not r["found"]]
+            for lab, rs in (("look found a file (rule's strict Restore followed)", fd), ("look found nothing", nf_)):
+                rr = [r["resp"] - r["exec"] for r in rs if r["resp"] is not None]
+                print(f"    {lab}: n {len(rs)} ({pct(len(rs), len(ex)):.1f}% of executed), response median {median(rr) if rr else float('nan'):.0f}, "
+                      f"within 10 {pct(sum(1 for x in rr if x <= 10), len(rs)):.1f}%, never {pct(len(rs) - len(rr), len(rs)):.1f}%")
     if has_mode:
         rec_ = [r["recov"] for r in inv if r["recov"] is not None]
         print(f"  recover mode (next executed Recover-mode step by that agent): median {median(rec_) if rec_ else float('nan'):.0f}, "

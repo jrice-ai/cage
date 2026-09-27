@@ -180,7 +180,7 @@ def _o14(env, cyborg, obs, stats, min_gap, t, last):
 def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, out_dir, hdr):
     agents = _submission().AGENTS
     holder["intercept"] = make_oracle(cyborg, "none" if rule == "O14" else rule,
-                                      stats, budget, {}, min_gap)
+                                      stats, budget, {}, min_gap, hdr.get("wait_busy", False))
     holder["space"].clear()
     o14_last = {}
     expert = {}
@@ -242,7 +242,7 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
             "record": "footer", "episode": ep, "seed": seed, "total_reward": total,
             "env_steps": t,
             "overrides": stats["override"], "agreements": stats["agree"],
-            "translator_calls": stats["calls"], "deferred": stats["deferred"],
+            "translator_calls": stats["calls"], "deferred": stats["deferred"], "busy_skips": stats.get("busy", 0),
             "exhausted": stats["exhausted"],
             "analyses": stats["exec_Analyse"], "restores": stats["exec_Restore"],
             "removes": stats["exec_Remove"], "sleeps": stats["exec_Sleep"],
@@ -269,7 +269,7 @@ def capture_episode(ep, a):
     cyborg, env = _make_env(seed, _red_class(a["red"]))
     holder = _install(env)
     hdr = {"red_agent": a["red"], "seed_mode": "episode", "policy_seed": pseed,
-           "workers": a["workers"]}
+           "workers": a["workers"], "wait_busy": a["wait_busy"]}
     foot = _run_episode(ep, seed, cyborg, env, holder, a["rule"], Counter(),
                         a["budget"], a["min_gap"], a["out"], hdr)
     print(f"episode {ep} seed {seed} total {foot['total_reward']:.2f} "
@@ -286,7 +286,7 @@ def capture_compat(a):
     holder = _install(env)
     foots = []
     for ep in range(a["episodes"]):
-        hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0}
+        hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0, "wait_busy": a["wait_busy"]}
         foots.append(_run_episode(ep, s, cyborg, env, holder, a["rule"], Counter(),
                                   a["budget"], a["min_gap"], a["out"], hdr))
         tot = [x["total_reward"] for x in foots]
@@ -304,6 +304,7 @@ def main():
                     help="per-episode mode: reseed sampling with this+ep while the environment keeps base+ep")
     ap.add_argument("--budget", type=int, default=77)
     ap.add_argument("--min-gap", type=int, default=0)
+    ap.add_argument("--wait-busy", action="store_true", help="a directive to a busy agent waits for its next free tick")
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--compat", action="store_true", help="mirror evaluation.py seeding, sequential")
     ap.add_argument("--out", required=True)
