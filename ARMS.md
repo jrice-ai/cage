@@ -1042,33 +1042,38 @@ it covers almost nothing.
 
 ### What the observation supports
 
-`tools_diag_eyes.py`, one episode each, seed 0, the reset listing
-excluded. "Passive" is the alert criterion above; precision is the share
-of host-namings that name a compromised host; coverage is the share of
+`tools_diag_eyes.py`, twenty episodes each (seeds 0-19, counts summed;
+`queue_A.sh`, 2026-09-26), the reset listing excluded. "Passive" is a
+substantive observation entry naming an owned host; unlike the defender's
+alert it does not exclude the echo of the agent's own action, so KEEP's
+own Analyses count as namings here. Precision is the share of namings
+that name a compromised host; the base rate is the compromised share of
+owned host-steps (71 hosts, 499 steps); coverage is the share of
 compromised host-steps on which the host had been named at least k times
-since its last Restore. Under KEEP (`--rule none`) compromise is kept
-near a fifth of owned host-steps; under R1 it accumulates to two fifths,
-which raises every precision figure.
+since its last Restore or Remove. Under KEEP compromise is kept near a
+fifth of owned host-steps; under R1 it accumulates to a third, which
+raises every precision figure.
 
-| Acting policy | Adversary | Namings | Precision | by count 1 / 2 / 3 / 4 / 5+ | Coverage >=1 / >=2 / >=3 | Analyses | Confirmed files |
-|---|---|---|---|---|---|---|---|
-| KEEP | one of the two | 383 | 0.230 | 0.19 / 0.25 / 0.21 / 0.13 / 0.33 | 0.56 / 0.30 / 0.15 | KEEP's own | 5 |
-| KEEP | the other | 393 | 0.178 | 0.13 / 0.23 / 0.23 / 0.28 / 0.11 | 0.59 / 0.36 / 0.18 | KEEP's own | 4 |
-| R1 | Wrecker | 178 | 0.354 | 0.27 / 0.48 / 0.42 / 0.20 / 0.31 | 0.55 / 0.25 / 0.06 | 235 | 8 |
-| R1 | stock | 357 | 0.566 | 0.30 / 0.53 / 0.73 / 0.80 / 0.87 | 0.94 / 0.58 / 0.36 | 368 | 49 |
+| Acting policy | Adversary | Namings | Precision | Base rate | by count 1 / 2 / 3 / 4 / 5+ | Coverage >=1 / >=2 / >=3 | Analyses | Confirmed files, compromised / clean |
+|---|---|---|---|---|---|---|---|---|
+| KEEP | Wrecker | 7,618 | 0.257 | 0.207 | 0.21 / 0.26 / 0.32 / 0.32 / 0.30 | 0.61 / 0.33 / 0.18 | KEEP's own | 173 / 5 |
+| KEEP | stock | 7,886 | 0.264 | 0.220 | 0.18 / 0.26 / 0.32 / 0.35 / 0.39 | 0.64 / 0.38 / 0.23 | KEEP's own | 158 / 29 |
+| R1 | Wrecker | 4,350 | 0.395 | 0.294 | 0.25 / 0.43 / 0.51 / 0.52 / 0.47 | 0.70 / 0.38 / 0.17 | 3,960 | 333 / 0 |
+| R1 | stock | 6,002 | 0.497 | 0.340 | 0.26 / 0.53 / 0.64 / 0.68 / 0.68 | 0.86 / 0.54 / 0.27 | 5,172 | 698 / 0 |
 
-(The two KEEP rows were pasted without their headers; which red is which
-is not recoverable from the paste and does not matter for the reading.)
-Confirmed files sit on compromised hosts (65 of 66 results with Density
->= 0.9 across the four runs; the one exception is a clean-host result in
-one KEEP run).
-Under the stock red the alert count separates compromised from clean
-hosts (precision 0.30 at one naming, 0.87 at five) and a look at an
-alerted host confirms a file one time in seven; under Wrecker the count
-separates nothing (0.27 to 0.31) and a look confirms one time in thirty.
-Single episodes, indicative only; the twenty-episode confusion table in
-RESULTS.md ("The evidence latch is uninformative") was computed with the
-reset listing included and is to be redone (Known issues).
+As KEEP operates the network the stream is 1.2x chance under both reds
+and the count of namings lifts it to 0.3 or 0.4 at best; the two reds
+look alike, which is what the corrected O2f latch (1.4x under both) also
+says. Under a defender that evicts almost nothing the stream is more
+informative and the reds separate: repeated namings reach 0.68 under
+stock and 0.5 under Wrecker, and a look at an alerted host confirms a
+file one time in 7.4 under stock (698 of 5,172) and one time in 12 under
+Wrecker (333 of 3,960). A confirmed file under R1 is always on a
+compromised host (1,031 of 1,031); under KEEP 29 of 187 confirmed files
+under stock and 5 of 178 under Wrecker sit on hosts with no live red
+session, hosts red has been removed from but not restored. The
+single-episode runs of the morning (precision 0.18 to 0.57, a look
+confirming one time in thirty under Wrecker) are superseded by these.
 
 ### Arms
 
@@ -1112,7 +1117,8 @@ Supervisors, paired against the same kind's control under the same red:
 | `rd_R4_s_O10_g32` | | stock | -882.75 | +411.6 | 72/100 | <1e-3 | 69.2, 10.2 |
 
 The targeting axis on R4 (`rd_R4_<Q>_none`, `rd_R4_<Q>_O1_g32`; Q64 is
-Wrecker) and R2 at Q32:
+Wrecker) and R2 (`rd_R2_<Q>_none`, `rd_R2_<Q>_O1_g32`; Q04, Q16 and Q48
+from `queue_A.sh`, 2026-09-26):
 
 | Kind | Red | Control | O1 gap 32 | Delta | Excess over own stock | Fraction | 95% CI |
 |---|---|---|---|---|---|---|---|
@@ -1121,7 +1127,10 @@ Wrecker) and R2 at Q32:
 | `R4` | Q32 | -2954.6 | -1370.1 | +1584.5 | -1660.3 | 0.954 | [0.874, 1.044] |
 | `R4` | Q48 | -3303.6 | -1526.5 | +1777.1 | -2009.3 | 0.884 | [0.807, 0.970] |
 | `R4` | Q64 | -3564.25 | -1581.07 | +1983.2 | -2269.9 | 0.874 | [0.806, 0.948] |
+| `R2` | Q04 | -798.9 | -286.0 | +512.9 | +87.5 | n/a (no deficit) | |
+| `R2` | Q16 | -1801.3 | -549.6 | +1251.7 | -914.9 | 1.368 | [1.236, 1.543] |
 | `R2` | Q32 | -2446.5 | -729.8 | +1716.7 | -1560.1 | 1.100 | [1.029, 1.187] |
+| `R2` | Q48 | -2774.9 | -802.9 | +1972.0 | -1888.5 | 1.044 | [0.983, 1.110] |
 | `R2` | Q64 | -3158.98 | -949.63 | +2209.3 | -2272.6 | 0.972 | [0.923, 1.026] |
 | `R4t` | Q64 | -2763.38 | -1256.04 | +1507.3 | -1808.8 | 0.833 | [0.762, 0.904] |
 | `R1` | Q64 | -3294.39 | -915.58 | +2378.8 | -2299.8 | 1.034 | [0.981, 1.092] |
@@ -1133,6 +1142,87 @@ exact figures.) KEEP on the same axis (`o1_g32_FSRedAgentWreckerQ*`):
 
 O10 fractions under Wrecker: R2 0.551 [0.491, 0.610], R4 0.544 [0.479,
 0.609]; KEEP 0.137, H-MARL 0.14.
+
+### RT ceilings across adversaries
+
+`queue_A.sh`, 2026-09-26: RT (Restore any ground-truth-compromised owned
+host, else sleep) under every adversary KEEP has been run on, 100
+episodes, seeds 0-99 (`rd_RT_<red>_none`). With the two of the afternoon:
+
+| Adversary | RT mean | sd | KEEP control | KEEP's gap to RT |
+|---|---|---|---|---|
+| stock | -168.60 | 36.29 | -187.32 | 18.7 |
+| Q04 | -174.34 | 61.31 | -325.11 | 150.8 |
+| Q16 | -216.63 | 54.10 | -539.17 | 322.5 |
+| Q32 | -262.18 | 65.22 | -773.08 | 510.9 |
+| Q48 | -312.34 | 69.12 | -928.16 | 615.8 |
+| Q64 (Wrecker) | -348.90 | 76.33 | -1115.65 | 766.8 |
+| ConvOnly | -201.74 | 46.95 | -316.62 | 114.9 |
+| TargetARestricted | -85.18 | 58.99 | -98.52 | 13.3 |
+| TargetAOperational | -82.59 | 61.94 | -99.89 | 17.3 |
+| TargetA | -80.38 | 60.09 | -104.18 | 23.8 |
+| TargetB | -109.24 | 62.10 | -116.25 | 7.0 |
+| TargetBRestricted | -109.51 | 60.64 | -117.93 | 8.4 |
+| TargetBOperational | -117.03 | 71.22 | -127.31 | 10.3 |
+| Combined | -129.04 | 25.73 | -165.87 | 36.8 |
+| FailureTracker | -170.18 | 44.47 | -205.66 | 35.5 |
+| Impacter | -118.22 | 120.35 | -228.73 | 110.5 |
+| Degrader | -145.90 | 30.36 | -268.80 | 122.9 |
+
+### Distance to the ceiling closed
+
+`tools_ceiling.py CEILING CONTROL ARM`: closed = (arm - control) /
+(ceiling - control), paired bootstrap interval, seed 0, 10,000 resamples.
+The ceiling is RT under the same adversary. Unlike the fraction of
+excess loss it is defined whenever the policy is below RT, and it does
+not exceed 1 unless the arm beats perfect eyes.
+
+KEEP, O1 at gap 32 (`o1_g32_FSRedAgent<red>`, `wo_O1_g32`; stock is O2
+at gap 32, `o2_g32`, which is O1's twin at this cadence):
+
+| Adversary | Gap | O1 delta | Closed | 95% CI | O10 delta | O10 closed |
+|---|---|---|---|---|---|---|
+| stock | 18.7 | -16.1 | -0.86 | | | |
+| Q04 | 150.8 | +74.5 | 0.494 | [0.360, 0.607] | | |
+| Q16 | 322.5 | +163.0 | 0.505 | [0.413, 0.583] | | |
+| Q32 | 510.9 | +262.3 | 0.513 | [0.444, 0.575] | | |
+| Q48 | 615.8 | +348.7 | 0.566 | [0.504, 0.621] | | |
+| Q64 | 766.8 | +452.3 | 0.590 | [0.533, 0.643] | +127.3 | 0.166 [0.073, 0.251]; O13 +155.1, 0.202 [0.119, 0.277] |
+| ConvOnly | 114.9 | +48.4 | 0.422 | [0.193, 0.587] | | |
+| TargetARestricted | 13.3 | -12.2 | -0.92 | [-4.60, -0.23] | +4.4 | 0.33 [-0.32, 1.09] |
+| TargetAOperational | 17.3 | -24.8 | -1.43 | [-5.68, -0.56] | -3.5 | -0.20 |
+| TargetA | 23.8 | -19.3 | -0.81 | [-1.87, -0.32] | +5.8 | 0.24 [-0.13, 0.57] |
+| TargetB | 7.0 | -17.9 | -2.55 | [-29.5, -0.52] | +2.3 | 0.33 |
+| TargetBRestricted | 8.4 | -17.0 | -2.02 | [-26.7, -0.32] | -0.4 | -0.05 |
+| TargetBOperational | 10.3 | -8.2 | -0.80 | [-13.7, 0.35] | +12.2 | 1.18 [-0.08, 8.19] |
+| Combined | 36.8 | -2.4 | -0.07 | [-0.82, 0.30] | +16.0 | 0.44 [-0.07, 0.71] |
+| FailureTracker | 35.5 | +1.0 | 0.03 | [-0.74, 0.38] | +12.5 | 0.35 [-0.34, 0.73] |
+| Impacter | 110.5 | +69.3 | 0.627 | [0.454, 0.863] | +26.5 | 0.24 [-0.17, 0.55] |
+| Degrader | 122.9 | +58.3 | 0.474 | [0.322, 0.593] | -1.9 | -0.02 [-0.34, 0.24] |
+
+Rule defenders, O1 at gap 32 unless stated:
+
+| Defender | Adversary | Gap | Delta | Closed | 95% CI |
+|---|---|---|---|---|---|
+| R2 | stock | 717.8 | +621.8 | 0.866 | [0.829, 0.896] |
+| R2 | Q04 | 624.5 | +512.9 | 0.821 | [0.785, 0.854] |
+| R2 | Q16 | 1,584.7 | +1,251.7 | 0.790 | [0.754, 0.822] |
+| R2 | Q32 | 2,184.3 | +1,716.7 | 0.786 | [0.758, 0.813] |
+| R2 | Q48 | 2,462.5 | +1,972.0 | 0.801 | [0.771, 0.827] |
+| R2 | Q64 | 2,810.1 | +2,209.3 | 0.786 | [0.757, 0.813] |
+| R2, O10 | Q64 | 2,810.1 | +1,252.1 | 0.446 | [0.399, 0.489] |
+| R4 | Q04 | 998.8 | +475.3 | 0.476 | [0.388, 0.557] |
+| R4 | Q16 | 2,023.0 | +1,106.0 | 0.547 | [0.500, 0.589] |
+| R4 | Q32 | 2,692.5 | +1,584.5 | 0.589 | [0.545, 0.630] |
+| R4 | Q48 | 2,991.3 | +1,777.1 | 0.594 | [0.555, 0.632] |
+| R4 | Q64 | 3,215.4 | +1,983.2 | 0.617 | |
+| R4t | Q64 | 2,414.5 | +1,507.3 | 0.624 | [0.573, 0.670] |
+
+R2's controls along the axis (`rd_R2_<Q>_none`): Q04 -798.9, Q16
+-1801.3, Q32 -2446.5, Q48 -2774.9, Q64 -3158.98; its O1 endpoints -286.0,
+-549.6, -729.8, -802.9, -949.63. The fraction of excess loss on the same
+arms: n/a (excess +87.5), 1.368 [1.236, 1.543], 1.100 [1.029, 1.187],
+1.044 [0.983, 1.110], 0.972 [0.923, 1.026].
 
 ### Against the learned defenders, O1 at gap 32 under Wrecker
 
@@ -1175,10 +1265,19 @@ to +2,379 on the rule defenders, in inverse order of what the policy can
 do on its own under the adversary, and it recovers a share of the excess
 loss that rises from 0.14 through 0.49 to about 1 in the same order. The
 share is constant across retrains of one architecture (0.38 to 0.54) and
-not across architectures; it exceeds 1 on R4 at Q16 and R2 at Q32, where
-the rule's stock control is not a ceiling, so for policies far from
-competent the distance to RT closed is the measure that keeps its
-meaning (0.20, 0.59, 0.62, 0.79, 0.81). Endpoints keep the controls'
+not across architectures; it exceeds 1 on R4 at Q16 and R2 at Q16 to
+Q48, where the rule's stock control is not a ceiling, so for policies far
+from competent the distance to RT closed is the measure that keeps its
+meaning (0.20, 0.59, 0.62, 0.79, 0.81). On that measure the targeting
+axis reads cleanly where the fraction did not: O1 at gap 32 closes 0.79
+to 0.82 of R2's distance to perfect eyes at every point from Q04 to Q64
+and 0.87 under stock, 0.49 to 0.59 of KEEP's rising slowly with
+concentration, and 0.48 to 0.62 of R4's. Under the seven Trident reds
+that leave KEEP better off than stock, KEEP sits 7 to 37 points below RT
+and O1 closes a negative share (-0.8 to -2.5, intervals excluding zero on
+five): a supervisor with perfect information costs where the policy is
+already at the ceiling, which is the stock-red result (-16 against a gap
+of 19) seen seven more times. Endpoints keep the controls'
 order to within swaps of neighbours (KEEP passes H-MARL, R1 passes R2,
 R2 and R1 pass R4t) and compress the spread by three fifths, four fifths
 without R4. RT

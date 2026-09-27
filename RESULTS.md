@@ -3150,6 +3150,13 @@ not a result for the papers. A red agent that is both action-biased and
 targeting-concentrated, which none of Trident's twelve or the Q sweep is,
 would be the pairing to test it on.
 
+(Added 2026-09-26. RT under each of the ten reds puts a ceiling under
+this table: KEEP is 7 to 37 points below perfect eyes on the seven
+easier-than-stock reds and on FailureTracker, 110 below on Impacter and
+123 on Degrader, and O1 closes -0.8 to -2.5 of the first group's gap,
+0.63 and 0.47 of the last two. "A defender that was never trained",
+"Distance to the ceiling".)
+
 ### What this does to the study
 
 KEEP stays the study defender. Its ceilings, +452 substitute and +155
@@ -3504,11 +3511,13 @@ what the learned defenders lose under Wrecker is the target. Second, the
 observation stream on its own carries a rule nine tenths of the way from
 doing nothing to KEEP under the stock red and half of the way under
 Wrecker. The best evidence ladder (R2, look twice then restore) lands at
--886 and -3159, against a floor of -6593 and about -5264 (R4p). The single-episode diagnostic says why: under the stock red the
-alert count separates compromised from clean hosts (precision 0.30 at
-one alert, 0.87 at five) and a look at an alerted host confirms a file
-one time in seven; under Wrecker the count separates nothing (0.27 to
-0.31) and a look confirms one time in thirty. The flagged set the rules
+-886 and -3159, against a floor of -6593 and about -5264 (R4p). The twenty-episode diagnostic says why (ARMS.md, "What the observation
+supports"): as KEEP operates the network the stream is 1.2x chance under
+both reds and repeated namings lift it to 0.3 or 0.4 at best; under a
+blind defender the stream is richer and the reds separate, repeated
+namings reaching 0.68 under stock and 0.5 under Wrecker, and a look at an
+alerted host confirms a file one time in seven under stock and one time
+in twelve under Wrecker. The flagged set the rules
 act on is precise enough (tp 111 against fp 94 under stock) and covers
 almost nothing (10,500 compromised host-steps unflagged in three
 episodes). Third, the playbook's Remove is its deficit. Posture alone is the
@@ -3602,14 +3611,60 @@ KEEP gains 0.14 because it was already looking.
 
 R4 at Q04, Q16, Q32, Q48 and Q64 (Wrecker), O1 fractions n/a (no
 deficit: R4 does 121 better against Q04 than against the stock red),
-1.17, 0.95, 0.88, 0.87; R2 at Q32, 1.10. KEEP on the same points 0.54,
-0.46, 0.45, 0.47, 0.49. The rule's share declines with the adversary's
-concentration while KEEP's does not, and both endpoints fall with it
-(R4 from -698 at Q04 to -1581 at Q64, KEEP from -251 to -663). A
+1.17, 0.95, 0.88, 0.87; R2 on the same points n/a, 1.37, 1.10, 1.04,
+0.97. KEEP 0.54, 0.46, 0.45, 0.47, 0.49. The rules' share declines with
+the adversary's concentration while KEEP's does not, and every endpoint
+falls with it (R4 from -698 at Q04 to -1581 at Q64, R2 from -286 to
+-950, KEEP from -251 to -663). The next section shows that the decline
+is an artefact of the fraction's denominator. A
 supervisor that names the target every 32 steps per agent is worth
 proportionally less against an adversary that does its damage between
 namings, and a blind policy feels that more than one that fills the
 gaps itself.
+
+### Distance to the ceiling
+
+The fraction of excess loss divides the supervisor's gain by the
+adversary's cost to the policy, and for a policy whose stock score is far
+from the environment's best that denominator is the wrong one: R2's
+stock control is -886, so a supervisor that lifts it past that under Q16
+scores 1.37. RT supplies the right denominator. It is a policy with
+perfect eyes and the same hands, run under the same adversary on the
+same seeds, so the share of the distance to RT that a supervised arm
+closes is defined whenever the policy is below RT and cannot pass 1
+without beating perfect eyes. RT was run under every adversary in the
+study (seventeen ceilings, ARMS.md "RT ceilings across adversaries";
+`tools_ceiling.py`), and the axis reads differently on it.
+
+| Adversary | KEEP gap to RT | KEEP closed | R2 gap | R2 closed | R4 closed |
+|---|---|---|---|---|---|
+| stock | 19 | -0.86 | 718 | 0.87 | |
+| Q04 | 151 | 0.49 [0.36, 0.61] | 625 | 0.82 [0.79, 0.85] | 0.48 |
+| Q16 | 323 | 0.51 [0.41, 0.58] | 1,585 | 0.79 [0.75, 0.82] | 0.55 |
+| Q32 | 511 | 0.51 [0.44, 0.58] | 2,184 | 0.79 [0.76, 0.81] | 0.59 |
+| Q48 | 616 | 0.57 [0.50, 0.62] | 2,463 | 0.80 [0.77, 0.83] | 0.59 |
+| Q64 (Wrecker) | 767 | 0.59 [0.53, 0.64] | 2,810 | 0.79 [0.76, 0.81] | 0.62 |
+
+O1 at gap 32 closes four fifths of R2's distance to perfect eyes at every
+point on the axis and under the stock red, half of KEEP's rising slowly
+with concentration, and half to three fifths of R4's. The fraction's
+decline on the rules was its denominator moving; the share of what a
+supervisor can do that this supervisor does is flat on the policy that
+has no eyes of its own and nearly flat on the one that has. What
+concentration changes is the size of the gap, not the supervisor's
+reach into it. The directed look on Wrecker closes 0.17 of KEEP's gap
+(O10) and 0.20 (O13), and 0.45 of R2's.
+
+The ceiling also settles the seven Trident reds that the fraction
+could not read. Under TargetA, TargetB and their variants, and Combined,
+KEEP sits 7 to 37 points below RT, and O1 at gap 32 closes a negative
+share (-0.8 to -2.5, five of seven intervals excluding zero): each
+override is a Restore the policy would not have made, on a network with
+almost nothing left to recover. That is the stock-red result (KEEP 19
+below RT, O1 -16) seen seven more times, and it is the operational
+statement of "the sign of supervision's value is the sign of the
+deficit". Where a gap exists, Impacter (110) and Degrader (123), O1
+closes 0.63 and 0.47, KEEP's usual half.
 
 ### What this does to the framework and the trial
 
@@ -3621,7 +3676,10 @@ the excess on H-MARL, half on KEEP, all of it on a policy with no eyes.
 The claim to carry forward is not "the supervisor recovers half the
 deficit" but "the supervisor recovers the part of the deficit that is
 the information it supplies, and how much of the deficit that is depends
-on the policy". Under Wrecker, for every policy tested, that part is the
+on the policy", and the measure to carry it in is the share of the
+distance to the ground-truth ceiling closed, which reads the same on a
+blind policy as on a trained one and turns negative where the policy is
+already at the ceiling. Under Wrecker, for every policy tested, that part is the
 target. A gate flip, posture and decoys are worth nothing, and the one
 other thing worth anything, the directed look, is worth what the policy
 makes of it: as much as the substitution on H-MARL (+101 against +98), a
@@ -3672,5 +3730,7 @@ uninformative").
 - Split the O10 response latency by the look's outcome (`flags_new` at
   the step), and rerun `wo_O10_g32` under the current harness so the KEEP
   arm carries the flags.
-- The single-episode eyes diagnostic at twenty episodes per red, with the
-  corrected latch, to put numbers on how much less visible Wrecker is.
+- Done 2026-09-26: the eyes diagnostic at twenty episodes per red. Under
+  KEEP the two reds look alike (1.2x chance); under a blind defender the
+  stock red is the more visible (repeated namings 0.68 against 0.5, a
+  look confirming one in seven against one in twelve).
