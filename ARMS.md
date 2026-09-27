@@ -1355,14 +1355,63 @@ is 8,461 against 9,242. Three decoys per host are worth +400 when the
 defender is alone against Wrecker and -244 when a supervisor names the
 target every 32 steps, and the network carries 8 percent fewer
 compromised host-steps with them in the first case and 10 percent more
-in the second. The mechanism is in what red does on a decoyed host once
-hosts are being restored on ground truth, which the `red_action` step
-records can show and no further arm can.
+in the second. The mechanism was found the same evening and is not in
+red's behaviour: deploying decoys keeps the agent busy, and a
+supervisor's directive to a busy agent is dropped by the simulator (Known
+issues, first entry); R4tn under O1 executed 32 ground-truth restores per
+episode to R2's 41.
 
 ---
 
 ## Known issues
 
+- **Directives to a busy agent are dropped by the simulator; every "executed"
+  count in the study is an attempt count. Found 2026-09-26.** CC4 actions
+  have durations (`Restore` 5 ticks, `Remove` 3, `Analyse` 2, `DeployDecoy`
+  2, `ExploitRemoteService` 4 on the red side) and
+  `SimulationController.step` sets `actions_in_progress[agent]` only when
+  it is empty, with no else branch: an action handed to an agent that is
+  mid-action is discarded, the agent executes `Sleep` for each remaining
+  tick and its observation carries `IN_PROGRESS`. The harness counted an
+  override as executed when the intercept returned it, so the entry above
+  that resolved attempts against executions at `d974f69` resolved the
+  wrong boundary. Measured from the step records (`tools_dropped.py`: an
+  override is executed if an action of its type on its host by its agent
+  appears in `get_last_action` within the duration), share of overrides
+  the simulator ran and the agents' busy share of ticks:
+
+  | Arm | Busy share | Overrides/ep attempted | executed | share | Points per executed |
+  |---|---|---|---|---|---|
+  | `wo_O1_g32` (KEEP, Wrecker) | 0.385 | 52.3 | 33.8 | 0.645 | 13.4 |
+  | `wo_O10_g32` | 0.377 | 61.2 | 37.7 | 0.616 | 3.4 |
+  | `wo_O13_g32` | 0.378 | 45.5 | 27.5 | 0.603 | 5.6 |
+  | `o2_g32` (KEEP, stock) | 0.390 | 52.9 | 32.7 | 0.619 | -0.5 |
+  | `hm_wo_O1_g32` (H-MARL, 20 ep) | 0.529 | 56.5 | 22.3 | 0.395 | 4.4 |
+  | `hm_wo_O10_g32` (20 ep) | 0.526 | 57.6 | 28.2 | 0.490 | 3.6 |
+  | `rd_R2_w_O1_g32` (O1 on R2) | 0.185 | 55.9 | 41.2 | 0.737 | 53.6 |
+  | `rd_R4tn_w_O1_g32` (O1 on R4tn) | 0.317 | 58.9 | 32.1 | 0.544 | 49.0 |
+
+  The rule defenders booked every proposal as executed (`note()`), so
+  they cleared alerts on hosts never restored and counted decoys never
+  deployed: R2 alone executed 61 of 76 Restores and 86 of 112 Analyses,
+  RT 73 of 96 Restores, R4tn 168 of 607 decoys. Consequences: (1) paired
+  scores and everything computed from them stand; (2) "executed",
+  "points per override", "decisions per episode", the O2 budget sweep's
+  budgets (77 attempts is about 48 executions) and the investigate
+  ceiling's "45 decisions" are attempt figures; (3) the O10 latency and
+  yield analysis counted attempted looks, a third of which never ran, and
+  is to be recomputed over executed looks; (4) every supervised gain is a
+  lower bound, by 35 to 60 percent of the intended interventions; (5) the
+  decoy reversal under O1 (R4t, R4tn) is this: decoys occupy the agent
+  and the supervisor's directive is dropped, 32.1 executed against R2's
+  41.2. `tools_add_wait.py` adds `--wait-busy` to both harnesses (a
+  directive waits for the agent's next free tick; a rule sleeps while
+  busy and reads its observation without booking; the rule's echo test
+  becomes host-based so a multi-tick action's result is excluded), the
+  header records `wait_busy`, the footer `busy_skips`, and `--rule`
+  accepts any `<defender>+<rule>` (the hand-written list lacked `R2d+O1`,
+  which cost the 2026-09-26 concurrency test). Without the flag every
+  path is unchanged. The rerun set is `queue_B.sh`.
 - **Trial sizing tools.** `tools_power.py CONTROL ARM...` and
   `tools_power.py --pair A B` resample per-episode paired deltas into
   power curves (paired t and sign test) and the smallest detectable effect

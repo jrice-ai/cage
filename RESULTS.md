@@ -2681,6 +2681,10 @@ recoverable from the step records and is the next analysis.
 
 ### Why investigation is worth a third of substitution
 
+(Attempt counts, 2026-09-26: 6,125 looks were handed to the agents and
+about 3,770 ran; "What the simulator ran". The latency and yield below
+are recomputed over executed looks after the `--wait-busy` rerun.)
+
 From `wo_O10_g32`'s step records, 6,125 executed investigations:
 
 - **Response is slow and incomplete.** KEEP recovers an investigated host at
@@ -3737,16 +3741,11 @@ uninformative").
 
 - Done 2026-09-26: the O2e family rerun as O2f with the listing and echo
   excluded, seven arms. Conclusion unchanged; figures corrected in place.
-- Done 2026-09-26: R4t attributes the playbook's 400 to the Remove.
-  The reversal under O1 (R4t -1256 against R2 -950, though R4t leads
-  R2 by 396 alone) is located and not explained: R4t3 holds the gap at
-  R2's own restore count, so it is not the ladder's use of the decoys'
-  alerts; R4tn holds it without posture, so it is the decoys. Three
-  decoys per host are +400 alone and -244 supervised, and the network
-  carries 8 percent fewer compromised host-steps with them alone and 10
-  percent more supervised. What red does on a decoyed host once hosts
-  are restored on ground truth is in the `red_action` step records and
-  is the next analysis, not the next arm.
+- Done 2026-09-26: R4t attributes the playbook's 400 to the Remove, and
+  the reversal under O1 is attributed the same evening to dropped
+  directives ("What the simulator ran"): decoys keep the agent busy and
+  the supervisor's Restore is discarded, 32 executed per episode on R4tn
+  against 41 on R2.
 - Split the O10 response latency by the look's outcome (`flags_new` at
   the step), and rerun `wo_O10_g32` under the current harness so the KEEP
   arm carries the flags.
@@ -3843,3 +3842,61 @@ The stock red is the wrong place to run a trial: effects there are 8 to
 16 points and mostly costs, on a noise of 70 to 80. `keep_null` does not
 share episode names with `corpus_v1` and is not in the table; the stock
 sampling band is +/-15 from "Interpretation floor".
+
+## What the simulator ran
+
+Every supervisor arm in this study counted an override as executed when
+the harness handed it to the environment. On 2026-09-26 a rule
+defender's footer showed 817 decoys proposed and 234 executed in one
+episode, and the reason is in CC4's controller: actions have durations
+(Restore five ticks, Remove three, Analyse two, DeployDecoy two), and an
+action handed to an agent that is mid-action is discarded without
+notice; the agent sleeps for the remaining ticks and its observation
+reads `IN_PROGRESS`. Measured over the step records (ARMS.md, Known
+issues, first entry):
+
+| Arm | Agents busy | Overrides attempted / executed per episode | Share run | Points per executed override |
+|---|---|---|---|---|
+| KEEP + O1, Wrecker | 0.385 | 52.3 / 33.8 | 0.645 | 13.4 |
+| KEEP + O10, Wrecker | 0.377 | 61.2 / 37.7 | 0.616 | 3.4 |
+| KEEP + O13, Wrecker | 0.378 | 45.5 / 27.5 | 0.603 | 5.6 |
+| KEEP + O2, stock | 0.390 | 52.9 / 32.7 | 0.619 | -0.5 |
+| H-MARL + O1, Wrecker | 0.529 | 56.5 / 22.3 | 0.395 | 4.4 |
+| H-MARL + O10, Wrecker | 0.526 | 57.6 / 28.2 | 0.490 | 3.6 |
+| R2 + O1, Wrecker | 0.185 | 55.9 / 41.2 | 0.737 | 53.6 |
+| R4tn + O1, Wrecker | 0.317 | 58.9 / 32.1 | 0.544 | 49.0 |
+
+KEEP's agents are inside a multi-tick action 38 percent of the time and
+H-MARL's 53 percent (Investigate mode is Analyse after Analyse), so the
+supervisor got 60 to 65 percent of its intended interventions on KEEP and
+40 to 50 on H-MARL. The rule defenders booked every proposal as done, so
+they cleared alerts on hosts that were never restored and counted decoys
+that were never deployed.
+
+What this does and does not change. Every paired score stands, and with
+it every conclusion that rests on scores: the sign of the gap, the
+substitution between supervision and competence, retraining as a random
+walk, detection as the game, the ceiling shares, the trial sizing. Every
+count of interventions is an attempt count, and every per-decision figure
+(points per override, the O2 budget sweep's budgets, the investigate
+ceiling's decisions) has the wrong denominator; the right one is in the
+table. Every supervised gain is a lower bound. The O10 latency and yield
+figures were computed over attempted looks, a third of which never
+happened, and are recomputed over executed looks. And the decoy reversal
+is closed: decoys occupy the agent, the supervisor's directive arrives
+while it is busy and is dropped, and R4tn under O1 got 32 executed
+ground-truth restores per episode to R2's 41, at about fifty points each
+on a rule defender. Posture, alert thresholds and the decoys themselves
+were never the cost.
+
+Two things come out of this that are results rather than corrections.
+Drops account for a third of the gap between the two learned defenders'
+shares and not the rest: per ground-truth restore that ran, H-MARL gains
+4.4 points to KEEP's 13.4, so the architecture difference survives the
+correction. And in CC4 a supervisory directive fails two times in five
+unless the supervisor knows whether the agent is free, which is a
+requirement on the interface layer of the framework: the directive has
+to wait for the agent (`--wait-busy`, `tools_add_wait.py`), and a human
+has to be shown that it is waiting. The rerun with waiting directives
+and busy-aware rules is `queue_B.sh`; until it lands, the sections above
+carry their attempt counts and the note that they are attempts.
