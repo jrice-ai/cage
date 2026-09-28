@@ -5,3 +5,4 @@ __pycache__/
 *:Zone.Identifier
 *.bak
 keep_weights/
+commit_msg_*.txt
