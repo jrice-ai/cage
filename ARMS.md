@@ -1545,8 +1545,166 @@ with the same latency distribution.
 
 ---
 
+## Engagement-gate arms
+
+`tools_add_O15.py` (2026-09-27) adds three supervisor rules that hold the
+intervention fixed at O1's and vary the rule for when to engage. Each
+issues O1's Restore (a ground-truth compromised owned host, first in the
+list) only when its signal is at or above `--engage`, otherwise passes the
+policy's action through with the gap clock running; `--min-gap` spaces
+the interventions as it does for O1 and `--wait-busy` holds them.
+
+- `O15r`: team loss over the trailing `--window` (16) simulator steps, from
+  `stats["rew_hist"]`, which the harness now appends each step.
+- `O15a`: alerts on the agent's own hosts over the trailing window, an
+  alert being a substantive observation entry naming an owned host,
+  excluding the reset listing and the echo of the agent's own last action
+  (O2f's test), counted in simulator steps.
+- `O15c`: ground-truth compromised hosts in the agent's zones. At
+  `--engage 1` it is O1.
+
+Header fields `engage` and `window`. Footer fields `engaged` (agent-ticks
+with the gate open), `engaged_hit` (open with a compromised owned host,
+so a Restore was proposed), `quiet_comp` (shut with one present),
+`signal_sum`, `signal_ticks`, `alerts`. Step records carry `"signal":
+{agent: [signal, compromised owned hosts]}` for O15 rules only. Tools:
+`tools_signal.py` (signal distribution split by compromise, recall and
+precision over a threshold grid, from a survey arm), `tools_gate.py`
+(arms against a control, a reference and the ceiling with the gate
+bookkeeping and the share per intervention), `gate_O15.sh`, `svy_O15.sh`,
+`read_svy.sh`, `pilot_O15.sh`, `read_pilot.sh`, `queue_F.sh`,
+`rerun_F.sh`, `read_F.sh`.
+
+Gates (`data/gate_O15.txt`): `o2e_smoke_o15` -327.00, 87.68, 77.0 /
+108.5; `hm_compat_gate3o15` -931.00, -1308.00, -469.00; and
+`gate_wo_O15c_e1_g32_wb`, ten episodes of `O15c --engage 1` under Wrecker
+with the flag, identical to `wo_O1_g32_wb` in total and override count on
+all ten seeds (`engaged_hit` equals overrides plus deferred).
+
+### Survey and pilots
+
+Survey arms (`svy_O15.sh`, ten episodes each, `--engage 1e9`, the policy
+alone with the signal logged): `svy_wo_O15r_wb`, `svy_wo_O15a_wb`,
+`svy_so_O15r_wb`, `svy_so_O15a_wb`, `svy_O15r_FSRedAgentWreckerQ16_wb`,
+`svy_O15a_FSRedAgentWreckerQ16_wb`, `svy_O15r_FSRedAgentWreckerQ32_wb`,
+`svy_O15a_FSRedAgentWreckerQ32_wb`, `svy_hm_wo_O15r_wb`,
+`svy_hm_wo_O15a_wb`. Read in `data/read_svy.txt`; the summary table is in
+RESULTS.md "When to engage". Pilots (`pilot_O15.sh`, ten episodes, seeds
+0 to 9, KEEP under Wrecker, gap 32, held): `pilot_wo_O15r_e{16,24,40}`,
+`pilot_wo_O15a_e{1,2}`, `pilot_wo_O15c_e{2,3,4}`, all `_g32_wb`; read in
+`data/read_pilot.txt`. On ten seeds against `wo_O1_g32_wb` (0.653 of the
+distance to RT on those seeds): O15r 0.666 / 0.623 / 0.479 at 37 / 28 /
+19 interventions, O15a 0.669 / 0.469 at 43 / 27, O15c 0.550 / 0.132 /
+0.047 at 37 / 26 / 18. The pilots chose the queue's thresholds; they are
+not arms.
+
+### Queue F
+
+`queue_F.sh`, 25 arms, two lanes, 15:40 to 16:44; three worker segfaults
+(`wo_O15a_e2_g32_wb` at 12 episodes, `hm_wo_O15r_e10_g32_wb` at 96,
+`hm_wo_O1_g64_wb` at 63) rerun from clean directories by `rerun_F.sh`,
+22:47 to 22:59. All 100 episodes on seeds 0 to 99, `--wait-busy`, gap 32
+for the gate arms, budget 99999, six workers. Read in `data/read_F.txt`.
+Shares are of the distance from the control to RT under the same
+adversary (`rd_RT_*_none_wb`); "per ovr" is that share per intervention
+the gap floor accepted.
+
+KEEP under Wrecker (control `red_FSRedAgentWrecker` -1,115.7, RT -274.9):
+
+| Directory | Rule | Mean | Against control | Interventions / ep | Deferred | Engaged / hit / quiet | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|---|
+| `wo_O1_g32_wb` | O1 gap 32 (reference) | -490.7 | +624.9 | 48.1 | 399 | | 0.743 | 0.0154 |
+| `wo_O1_g64_wb` | O1 gap 64 | -613.6 | +502.1 | 31.3 | 610 | | 0.597 | 0.0191 |
+| `wo_O1_g96_wb` | O1 gap 96 | -691.3 | +424.4 | 23.0 | 710 | | 0.505 | 0.0219 |
+| `wo_O15r_e16_g32_wb` | O15r, 16 | -589.1 | +526.6 | 34.3 | 219 | 803 / 253 / 375 | 0.626 | 0.0183 |
+| `wo_O15r_e24_g32_wb` | O15r, 24 | -646.0 | +469.7 | 27.5 | 149 | 533 / 176 / 536 | 0.559 | 0.0203 |
+| `wo_O15r_e40_g32_wb` | O15r, 40 | -731.4 | +384.2 | 17.4 | 68 | 226 / 85 / 736 | 0.457 | 0.0263 |
+| `wo_O15a_e1_g32_wb` | O15a, 1 | -638.4 | +477.3 | 41.4 | 279 | 680 / 320 / 358 | 0.568 | 0.0137 |
+| `wo_O15a_e2_g32_wb` | O15a, 2 | -776.7 | +339.0 | 26.2 | 116 | 225 / 142 / 733 | 0.403 | 0.0154 |
+| `wo_O15c_e2_g32_wb` | O15c, 2 | -763.6 | +352.0 | 34.3 | 282 | 316 / 316 / 578 | 0.419 | 0.0122 |
+| `wo_O15c_e3_g32_wb` | O15c, 3 | -996.4 | +119.2 | 23.9 | 215 | 238 / 238 / 777 | 0.142 | 0.0059 |
+
+Paired against the cadences: O15r 24 against O1 gap 64 -32.4 (47/100,
+p 0.617); O15r 40 against gap 96 -40.1 (43/100, p 0.193); O15r 16
+against gap 32 -98.3 (27/100, p <0.001); O15a 1 against gap 32 -147.7
+(25/100); O15a 2 against gap 64 -163.1 (27/100); O15c 2 against gap 64
+-150.1 (32/100, p 0.001).
+
+KEEP under stock (control `corpus_v1` -187.3, RT `rd_RT_s_none_wb` -148.1):
+
+| Directory | Rule | Mean | Against control | Interventions / ep | Engaged / hit / quiet | Closed |
+|---|---|---|---|---|---|---|
+| `so_O1_g32_wb` | O1 gap 32 | -174.8 | +12.5 (57/100, p 0.13) | 48.0 | | 0.318 [-0.01, 0.55] |
+| `so_O1_g64_wb` | O1 gap 64 | -169.4 | +17.9 | 30.8 | | 0.457 |
+| `so_O15r_e3_g32_wb` | O15r, 3 | -178.3 | +9.1 | 39.4 | 961 / 306 / 257 | 0.231 |
+| `so_O15c_e2_g32_wb` | O15c, 2 | -195.3 | -7.9 | 34.5 | 323 / 323 / 560 | -0.202 |
+
+`so_O1_g32_wb` is the first O1 arm under the stock red at gap 32; it and
+`o2_g32_wb` (-175.1) are the same arm to within a point. O15r 3 against
+gap 64 -8.9 (44/100, p 0.27); O15c 2 against gap 64 -25.9 (26/100).
+
+KEEP on the axis (controls `red_FSRedAgentWreckerQ16` -539.2, `Q32`
+-773.1; RT -176.4, -216.8):
+
+| Directory | Rule | Mean | Against control | / ep | Engaged / hit / quiet | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|
+| `o15r_e6_g32_FSRedAgentWreckerQ16_wb` | O15r, 6 | -305.1 | +234.1 | 37.0 | 868 / 274 / 328 | 0.645 | 0.0174 |
+| `o15a_e1_g32_FSRedAgentWreckerQ16_wb` | O15a, 1 | -339.4 | +199.7 | 42.1 | 688 / 316 / 331 | 0.551 | 0.0131 |
+| `o15c_e2_g32_FSRedAgentWreckerQ16_wb` | O15c, 2 | -408.8 | +130.4 | 35.2 | 330 / 330 / 570 | 0.360 | 0.0102 |
+| `o1_g64_FSRedAgentWreckerQ16_wb` | O1 gap 64 | -332.6 | +206.6 | 30.9 | | 0.569 | 0.0184 |
+| `o15r_e11_g32_FSRedAgentWreckerQ32_wb` | O15r, 11 | -406.0 | +367.1 | 32.6 | 762 / 231 / 394 | 0.660 | 0.0202 |
+| `o15a_e1_g32_FSRedAgentWreckerQ32_wb` | O15a, 1 | -435.0 | +338.1 | 41.8 | 693 / 318 / 319 | 0.608 | 0.0146 |
+| `o15c_e2_g32_FSRedAgentWreckerQ32_wb` | O15c, 2 | -512.5 | +260.6 | 35.2 | 322 / 322 / 572 | 0.468 | 0.0133 |
+| `o1_g64_FSRedAgentWreckerQ32_wb` | O1 gap 64 | -460.1 | +312.9 | 30.7 | | 0.563 | 0.0183 |
+
+Paired against gap 64: Q16 O15r +27.6 (58/100, p 0.085), O15c -76.2
+(26/100); Q32 O15r +54.2 (62/100, p 0.021), O15c -52.3 (36/100,
+p 0.007). The reference O1 gap 32 arms are `o1_g32_FSRedAgentWrecker{Q16,
+Q32}_wb` (0.712, 0.708).
+
+H-MARL under Wrecker (control `hm_w_none` -842.8, RT -274.9):
+
+| Directory | Rule | Mean | Against control | / ep | Engaged / hit / quiet | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|
+| `hm_wo_O15r_e10_g32_wb` | O15r, 10 | -487.9 | +354.8 | 33.7 | 687 / 236 / 248 | 0.625 | 0.0185 |
+| `hm_wo_O15a_e1_g32_wb` | O15a, 1 | -551.1 | +291.6 | 36.1 | 435 / 230 / 309 | 0.514 | 0.0142 |
+| `hm_wo_O15c_e2_g32_wb` | O15c, 2 | -640.6 | +202.2 | 31.4 | 269 / 269 / 403 | 0.356 | 0.0113 |
+| `hm_wo_O1_g64_wb` | O1 gap 64 | -530.1 | +312.6 | 30.1 | | 0.551 | 0.0183 |
+
+Paired against gap 64: O15r +42.2 (58/100, p 0.133), O15c -110.5
+(33/100, p 0.001). Reference `hm_wo_O1_g32_wb` -428.0, 0.730.
+
+Execution shares (`tools_dropped.py`, 20 episodes): `wo_O15r_e24_g32_wb`
+0.993, `wo_O1_g64_wb` 0.992, `hm_wo_O15r_e10_g32_wb` 0.993. Trial sizing
+(`tools_power.py`): O15r 24 against O1 gap 64, mean -32.4, sd 203.2,
+smallest effect at 80 percent power 141 / 111 / 84 at N = 20 / 30 / 50;
+O15r 24 against the control, +469.7, sd 324.1, 210 / 169 / 129.
+
+Reading. With the intervention fixed, the engagement rule spans 0.14 to
+0.60 of the distance to the ceiling at about thirty interventions an
+episode. A loss thermostat and a fixed cadence are the same at matched
+effort on five pairings; a status count at two hosts is below the cadence
+on every pairing and at three hosts collapses; the alert gate matches the
+cadence's score at a third more effort. Value per intervention rises
+from 0.015 at 48 an episode to 0.026 at 17 on cadence and thermostat
+alike. The full reading is in RESULTS.md "When to engage".
+
+---
+
 ## Known issues
 
+- **Queue F segfaults and the survey reader's grid (2026-09-27).** Three of
+  25 arms lost a worker (`wo_O15a_e2_g32_wb` at 12 episodes,
+  `hm_wo_O15r_e10_g32_wb` at 96, `hm_wo_O1_g64_wb` at 63); the partial
+  directories were removed (`sudo rm -rf`) and the arms rerun from clean
+  directories by `rerun_F.sh`, so every queue F directory holds 100
+  footers. `queue_F.sh` skips an arm whose directory already holds 100
+  files, which a partial directory with 100 files (96 footers) would
+  satisfy; remove partials before any rerun through the queue.
+  `tools_signal.py` first took the integer-valued loss signal for a count
+  and printed thresholds 1 to 12 in `data/read_svy.txt`; the quantiles
+  there are right and the grid rule now applies only to signals whose
+  maximum is 12 or less.
 - **Directives to a busy agent are dropped by the simulator; every "executed"
   count in the study is an attempt count. Found 2026-09-26.** CC4 actions
   have durations (`Restore` 5 ticks, `Remove` 3, `Analyse` 2, `DeployDecoy`

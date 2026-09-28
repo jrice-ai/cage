@@ -4088,6 +4088,195 @@ calibration, not as the cheaper sample. Under the stock red nothing
 changes: 12 to 29 points on a noise of 64 to 80, the wrong place for a
 trial.
 
+## When to engage: the engagement gate
+
+Every supervisor rule so far decides what to do at a fixed cadence: at
+every tick the gap floor allows, O1 restores a compromised host if
+there is one. A person does not work that way. They watch something,
+and they act when it looks bad. O15 (`tools_add_O15.py`, 2026-09-27)
+holds the intervention fixed at O1's (a ground-truth compromised owned
+host, restored, the directive held for the agent) and varies only the
+rule for when to engage. Three signals a person could watch, each with a
+threshold (`--engage`) over a trailing window (`--window`, 16 steps):
+
+- `O15r`, the loss thermostat: engage when the team's loss over the
+  trailing 16 steps is at or above the threshold. The score trace on a
+  dashboard. The same signal for every agent.
+- `O15a`, the alert gate: engage when the agent's own hosts have raised
+  at least the threshold's number of alerts in the window, an alert
+  being a substantive observation entry naming an owned host, excluding
+  the reset listing and the echo of the agent's own last action (O2f's
+  rule). The alert feed, per agent.
+- `O15c`, the status count: engage when at least the threshold's number
+  of the agent's hosts are compromised, by ground truth. A perfect status
+  board. At threshold 1 this is O1, and the harness gate checks that it
+  is (`gate_wo_O15c_e1_g32_wb` against `wo_O1_g32_wb`: the same total and
+  the same override count on all ten seeds).
+
+Below the threshold the policy's action passes through and the gap clock
+keeps running, so an engaged supervisor is spaced exactly as O1 is. The
+footer records agent-ticks with the gate open (`engaged`), open with a
+compromised host present (`engaged_hit`, the ticks on which a Restore was
+proposed), and shut with a compromised host present (`quiet_comp`, the
+gate's misses); the step record carries the signal per agent for O15
+rules. Two matched cadences were added for comparison: O1 at gap 64
+(about 31 interventions an episode) and gap 96 (23).
+
+### What a supervisor would see
+
+Each signal was first surveyed with the threshold set so high that the
+gate never opens (`svy_O15.sh`, ten episodes per pairing, `--engage
+1e9`), which records the signal at every free agent-tick under the policy
+alone, split by whether the agent had a compromised owned host at that
+tick (`tools_signal.py`, `data/read_svy.txt`):
+
+| Pairing | Ticks with a compromised host | Loss over 16 steps, mean (with / without) | Precision of the loss as a cue | Alerts per agent per 16 steps | Alert gate at 1: recall / false / precision |
+|---|---|---|---|---|---|
+| KEEP, Wrecker | 0.70 | 38 (40 / 34) | 0.71 at every threshold | 0.73 | 0.54 / 0.33 / 0.80 |
+| KEEP, Q32 | 0.69 | 25 (24 / 26) | 0.69 | 0.85 | 0.58 / 0.40 / 0.76 |
+| KEEP, Q16 | 0.68 | 17 (17 / 17) | 0.64 to 0.69 | 0.81 | 0.58 / 0.37 / 0.77 |
+| KEEP, stock | 0.66 | 6 (5.5 / 6.7) | 0.66 falling to 0.53 | 0.86 | 0.56 / 0.38 / 0.74 |
+| H-MARL, Wrecker | 0.62 | 22 (23 / 21) | 0.63 | 0.55 | 0.48 / 0.27 / 0.74 |
+
+Precision is the share of ticks at or above a threshold on which the
+agent had a compromised host; the base rate is the first column. The
+loss signal has no precision above the base rate in any pairing, because
+it is team-wide and cannot tell an agent whether its own zone needs it,
+and under the stock red it is anti-informative: the ticks without a
+compromise carry more loss (6.7 against 5.5), since the loss there is
+green's, in other zones. It is a timing cue, not a targeting cue. The
+alert feed does discriminate (0.74 to 0.80 against base rates of 0.62 to
+0.70) but is sparse, under one alert per agent per window, so threshold
+1 is its only usable setting. The count is perfect by construction: the
+share of compromised-host ticks at two or more is about 0.70 in every
+pairing, at three or more about 0.50.
+
+Thresholds were set from the survey at the same recall in every pairing,
+the gate open on about three quarters of the ticks on which O1 would
+have acted under the policy alone, and confirmed by ten-episode pilots
+under Wrecker (`pilot_O15.sh`, `data/read_pilot.txt`), which already
+showed the ordering below. The gate changes the dynamics it reads, so
+the survey's projection of interventions per episode ran high (36
+projected for the thermostat at 24, 28 realized): a thermostat closes as
+the losses it caused to fall, fall.
+
+### The result
+
+Queue F (`queue_F.sh`, 25 arms, two lanes, 16:02 to 16:44 plus three
+segfault reruns; `read_F.sh`, `data/read_F.txt`), every arm 100
+episodes with the directive held, gap 32, against the same controls and
+RT ceilings as the axis. KEEP under Wrecker, with the ceiling at -275:
+
+| When to engage | Interventions / ep | Score | Against control | Share of distance to RT closed | Per intervention |
+|---|---|---|---|---|---|
+| Fixed cadence, gap 32 (O1) | 48.1 | -490.7 | +625 | 0.743 | 0.0154 |
+| Fixed cadence, gap 64 | 31.3 | -613.6 | +502 | 0.597 | 0.0191 |
+| Fixed cadence, gap 96 | 23.0 | -691.3 | +424 | 0.505 | 0.0219 |
+| Loss thermostat, 16 (O15r) | 34.3 | -589.1 | +527 | 0.626 | 0.0183 |
+| Loss thermostat, 24 | 27.5 | -646.0 | +470 | 0.559 | 0.0203 |
+| Loss thermostat, 40 | 17.4 | -731.4 | +384 | 0.457 | 0.0263 |
+| Alert gate, 1 (O15a) | 41.4 | -638.4 | +477 | 0.568 | 0.0137 |
+| Alert gate, 2 | 26.2 | -776.7 | +339 | 0.403 | 0.0154 |
+| Status count, 2 hosts (O15c) | 34.3 | -763.6 | +352 | 0.419 | 0.0122 |
+| Status count, 3 hosts | 23.9 | -996.4 | +119 | 0.142 | 0.0059 |
+
+Paired at matched effort, the thermostat and the cadence are the same
+rule by another name: at 27.5 against 31.3 interventions, -32 (47/100,
+p 0.62); at 17.4 against 23.0, -40 (43/100, p 0.19); at 34.3 against
+O1's 48.1, -98 (27/100), the price of fourteen fewer restores. The
+status count loses to the cadence at matched effort, -150 (32/100,
+p 0.001), and at three hosts collapses to a seventh of the distance
+with 24 interventions an episode that O1 at gap 96 turns into half of
+it. The alert gate at threshold 1 sits 25 behind the gap-64 cadence in the
+mean with a third more interventions (41.4 against 31.3), and at
+threshold 2 loses to it by 163 paired (27/100).
+
+The same on the other pairings, the thermostat and count at the
+survey-matched thresholds against the gap-64 cadence:
+
+| Pairing | Cadence, gap 64: / ep, share | Thermostat: threshold, / ep, share | Thermostat against cadence | Alert gate: / ep, share | Count at 2: / ep, share | Count against cadence |
+|---|---|---|---|---|---|---|
+| KEEP, Wrecker | 31.3, 0.60 | 24, 27.5, 0.56 | -32, 47/100, p 0.62 | 41.4, 0.57 | 34.3, 0.42 | -150, 32/100, p 0.001 |
+| KEEP, Q32 | 30.7, 0.56 | 11, 32.6, 0.66 | +54, 62/100, p 0.02 | 41.8, 0.61 | 35.2, 0.47 | -52, 36/100, p 0.007 |
+| KEEP, Q16 | 30.9, 0.57 | 6, 37.0, 0.65 | +28, 58/100, p 0.09 | 42.1, 0.55 | 35.2, 0.36 | -76, 26/100, p <0.001 |
+| H-MARL, Wrecker | 30.1, 0.55 | 10, 33.7, 0.63 | +42, 58/100, p 0.13 | 36.1, 0.51 | 31.4, 0.36 | -111, 33/100, p 0.001 |
+| KEEP, stock | 30.8, 0.46 | 3, 39.4, 0.23 | -9, 44/100, p 0.27 | not run | 34.5, -0.20 | -26, 26/100, p <0.001 |
+
+Where the thermostat is ahead it also spent a few more interventions (2
+to 6 an episode), so per intervention the two are within five percent
+everywhere: 0.0203 against 0.0191 under Wrecker, 0.0202 against 0.0183
+at Q32, 0.0174 against 0.0184 at Q16, 0.0185 against 0.0183 on H-MARL.
+The count gate is below the cadence on every pairing, by 52 to 150,
+with p at or below 0.011 on all four Wrecker-family pairings. Under the
+stock red the whole question is worth 40 points, the cadence at gap 64
+is the one arm clearly above the control (+18, 0.46 of a 39-point gap,
+better than gap 32's +12 because it restores less), and the count gate
+is the one arm below it (-8). Execution shares with the flag: 0.99 on
+every gate arm checked.
+
+### Reading
+
+Four things.
+
+**When is as large a lever as what.** With the hand held fixed, the
+engagement rule alone spans 0.14 to 0.60 of the distance to the ceiling
+at about thirty interventions an episode, a wider spread than the
+authority rungs (O1, O2, O10, O13) produced between them with the
+cadence fixed. Engagement is a coordinate of the supervisor layer in its
+own right, and it was measured last because every rule before it
+engaged always.
+
+**Damage or a timer; not state, and not alerts.** A supervisor who acts
+when the trailing loss crosses a threshold and one who checks each agent
+on a timer are indistinguishable at matched effort on five pairings.
+Both are open at a random phase relative to the compromise, and the loss
+signal adds nothing to that because it carries no information about
+which agent needs it. A supervisor who waits for two compromised hosts
+does worse than either, and one who waits for three does almost nothing,
+because a state threshold opens when the zone is already lost, restores
+one host, and shuts with the rest still held: the gate's misses (ticks
+shut with a compromised host) run 578 and 777 an episode against the
+thermostat's 375 to 536. It is a thermostat on the wrong variable, and
+it holds the zone at the alarm level. The alert feed is a fair cue by
+precision and a poor one by outcome: its interventions cluster where
+alerts are, which is not where the loss is, and it spends a third more
+of them to match the timer.
+
+**Diminishing returns are clean.** Value per intervention rises from
+0.015 at 48 an episode to 0.026 at 17 on cadence and thermostat alike,
+the same curve for both. Half the effect of O1 at gap 32 is available for
+a third of the decisions, which is the number the trial needs: twenty to
+thirty decisions in a 500-step episode.
+
+**The interface, read off the table.** A periodic prompt ("agent 3, 64
+ticks since your last check") or a score trace is the engagement cue.
+An alert feed is worth having for targeting (the O2f family) but not for
+timing. A status board with a threshold alarm, the design every SOC
+dashboard defaults to, is an anti-pattern here: it engages the
+supervisor when it is too late to matter and disengages them while the
+zone bleeds. This is the pre-registrable prediction for the display
+conditions: timer or score trace, then alert feed, then threshold alarm,
+in that order.
+
+For the trial's sizing, the thermostat against the cadence at matched
+effort is a null to report, not a contrast to test: paired sd 203,
+smallest detectable difference 111 at N = 30 against an observed 32. The
+thermostat against the control is +470 at sd 324, detectable at N = 20
+(210 at 80 percent power). The count gate against the cadence, -150 at
+the same effort, is the contrast a display-condition trial would be
+built on, and it is detectable at N = 30.
+
+### Open items
+
+The thresholds sit at one operating point per pairing, the survey recall
+of Wrecker's 24; the Wrecker ladder shows the shape and the other
+pairings a single rung. `O15a` restores the ground-truth compromised host
+once engaged, not the alerted host, so it is a timing rule with perfect
+eyes like the other two; a variant that restores the alerted host is the
+as-is-eyes version and belongs with the O2f family's ceilings. The loss
+thermostat's window and the alert window are both 16 simulator steps;
+neither was varied.
+
 ## What the simulator ran
 
 Every supervisor arm in this study counted an override as executed when
