@@ -39,16 +39,16 @@ from oracle_rules import (make_oracle, note_impacts, owned_hosts, compromised_by
                           _IMPACT_SEEN, _HOSTS_CACHE)
 
 
-def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False):
+def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False, engage=None, window=16):
     """Wrap action_translator so overrides slot in before execution."""
-    intercept = make_oracle(cyborg, rule, stats, budget, decoys, min_gap, wait_busy)
+    intercept = make_oracle(cyborg, rule, stats, budget, decoys, min_gap, wait_busy, engage, window)
     original = env.action_translator
     def patched(agent_name, a_id):
         return intercept(agent_name, original(agent_name, a_id))
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16):
     seed = base_seed + ep
     torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
 
@@ -67,7 +67,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     stats = Counter()
     stats["dact"] = []      # rule defender's per-step reasons; emptied into each step record
     decoys = {}
-    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap, wait_busy)
+    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap, wait_busy, engage, window)
     if rule == "O11":
         stats["probs"] = {}
         for _n, _ag in agents.items():
@@ -93,7 +93,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "red_agent": _rc.__name__, "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "engage": engage, "window": window, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -115,6 +115,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 
             step_reward = float(rew["blue_agent_0"])
             total += step_reward
+            stats.setdefault("rew_hist", []).append(step_reward)   # O15r reads the trailing window
 
             f.write(json.dumps({
                 "record": "step", "episode": ep, "step": step,
@@ -124,6 +125,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
                 "n_compromised_owned": n_comp,
                 "overrides": stats.pop("ovr", []),
                 "defender": stats.get("dact") or [],
+                **({"signal": stats.pop("sig")} if "sig" in stats else {}),
             }) + "\n")
             stats["dact"] = []
 
@@ -136,6 +138,9 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "agreements": stats["agree"],
             "deferred": stats.get("deferred", 0),
             "busy_skips": stats.get("busy", 0),
+            "engaged": stats.get("engaged", 0), "engaged_hit": stats.get("engaged_hit", 0),
+            "quiet_comp": stats.get("quiet_comp", 0), "signal_sum": stats.get("signal_sum", 0.0),
+            "signal_ticks": stats.get("signal_ticks", 0), "alerts": stats.get("alerts", 0),
             "analyses": stats.get("exec_Analyse", 0), "restores": stats.get("exec_Restore", 0),
             "removes": stats.get("exec_Remove", 0), "sleeps": stats.get("exec_Sleep", 0),
             "flags_new": stats.get("flags_new", 0),
@@ -164,6 +169,8 @@ def main():
     p = argparse.ArgumentParser("Oracle arms")
     p.add_argument("--min-gap", type=int, default=0, help="per-agent minimum steps between overrides")
     p.add_argument("--wait-busy", action="store_true", help="a directive to a busy agent waits for its next free tick instead of being dropped by the simulator; rule defenders sleep while busy")
+    p.add_argument("--engage", type=float, default=None, help="O15 threshold: O15r loss over the window, O15a alerts over the window, O15c compromised owned hosts")
+    p.add_argument("--window", type=int, default=16, help="O15r and O15a trailing window in simulator steps")
     p.add_argument("--rule", default="O1", type=_rule_arg,
                    help="a supervisor rule on KEEP, or a rule defender (R1 to R4, RT), optionally with a supervisor rule on top (R4+O1)")
     p.add_argument("--episodes", type=int, default=100)
@@ -179,7 +186,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]

@@ -132,7 +132,7 @@ except ImportError:
 
 KNOWN_RULES = {"none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
                "O2e", "O2er", "O2ew", "O2s", "O10", "O11", "O12", "O13", "O14",
-               "O2f", "O2fr", "O2fw"}
+               "O2f", "O2fr", "O2fw", "O15r", "O15a", "O15c"}
 DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "R4t3", "R4tn", "RT")
 ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2, "R4t3": 3, "R4tn": 2}   # monitor alerts since the last eviction
 RESTORE_WINDOW = 30      # O8's window: do not restore the same host twice within it
@@ -339,7 +339,7 @@ def make_defender(cyborg, kind, stats, decoys):
     return propose
 
 
-def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False):
+def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False, engage=None, window=16):
     """Return intercept(agent_name, act) -> act. Rule bodies are verbatim from oracle.py.install_oracle."""
     if decoys is None:
         decoys = {}
@@ -351,6 +351,8 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
         defender = make_defender(cyborg, _dk, stats, decoys)
     if rule not in KNOWN_RULES:
         raise ValueError(f"unknown rule {rule}")
+    if rule in ("O15r", "O15a", "O15c") and engage is None:
+        raise ValueError(f"{rule} needs an engagement threshold (--engage)")
 
     flagged = {}   # O2e: agent_name -> hosts named by a substantive obs since last Restore/Remove
     META = {"success", "action", "message"}
@@ -403,6 +405,48 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
             return Restore(session=0, agent=agent_name, hostname=ranked[0])
 
         comp = compromised_by_agent(cyborg).get(agent_name, [])
+
+        if rule in ("O15r", "O15a", "O15c"):
+            # the engagement gate: act (as O1 would) only when a signal a supervisor could watch is
+            # at or above the threshold; the gap floor is intercept's, the wait is the flag's
+            now = int(getattr(cyborg.environment_controller, "step_count", 0) or 0)
+            if rule == "O15r":                  # loss over the trailing window, team-wide
+                hist = stats.get("rew_hist") or []
+                sig = -sum(hist[-window:])
+            elif rule == "O15a":                # alerts on owned hosts over the trailing window
+                obs = cyborg.get_observation(agent_name) or {}
+                st = flagged.setdefault(agent_name, {"t": 0, "h": {}})
+                st["t"] += 1
+                t = st["t"]
+                own = set(owned_hosts(cyborg, agent_name))
+                al = st.setdefault("al", [])
+                for h, v in obs.items():
+                    if h in META or not isinstance(v, dict) or h not in own:
+                        continue
+                    _fl = v.get("Files") or []
+                    _conf = any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl)
+                    if not _conf and (t == 1 or st.get("acted") == (h, t - 1)):
+                        continue           # the reset listing, or the echo of this agent's own action
+                    al.append(now)
+                    stats["alerts"] = stats.get("alerts", 0) + 1
+                while al and al[0] <= now - window:
+                    al.pop(0)
+                sig = len(al)
+            else:                               # compromised owned hosts, ground truth
+                sig = len(comp)
+            stats["signal_sum"] = stats.get("signal_sum", 0.0) + sig
+            stats["signal_ticks"] = stats.get("signal_ticks", 0) + 1
+            stats.setdefault("sig", {})[agent_name] = [sig, len(comp)]
+            if sig < engage:
+                if comp:
+                    stats["quiet_comp"] = stats.get("quiet_comp", 0) + 1
+                return act
+            stats["engaged"] = stats.get("engaged", 0) + 1
+            if not comp:
+                return act
+            stats["engaged_hit"] = stats.get("engaged_hit", 0) + 1
+            stats["override"] += 1
+            return Restore(session=0, agent=agent_name, hostname=comp[0][0])
 
         if rule == "O8":
             if type(act).__name__ == "Restore":

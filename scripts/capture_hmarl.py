@@ -64,7 +64,7 @@ from oracle_rules import (make_oracle, note_impacts, compromised_by_agent,
                           EPISODE_LENGTH, BLUE, RED, HARNESS_SHA, MACHINE)
 
 RULES = ["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
-         "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13", "O14"]
+         "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13", "O14", "O15r", "O15a", "O15c"]
 
 _SUB = None
 
@@ -180,7 +180,7 @@ def _o14(env, cyborg, obs, stats, min_gap, t, last):
 def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, out_dir, hdr):
     agents = _submission().AGENTS
     holder["intercept"] = make_oracle(cyborg, "none" if rule == "O14" else rule,
-                                      stats, budget, {}, min_gap, hdr.get("wait_busy", False))
+                                      stats, budget, {}, min_gap, hdr.get("wait_busy", False), hdr.get("engage"), hdr.get("window", 16))
     holder["space"].clear()
     o14_last = {}
     expert = {}
@@ -227,6 +227,7 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
             note_impacts(cyborg, t)
             r = float(np.mean([v for k, v in rew.items() if "master" not in k]))
             total += r
+            stats.setdefault("rew_hist", []).append(r)     # O15r reads the trailing window
             recover_steps += sum(1 for m in mode.values() if m == "recover")
             executed = {n: str(cyborg.get_last_action(n)) for n in BLUE}
             red = {n: str(cyborg.get_last_action(n)) for n in RED}
@@ -235,6 +236,7 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
                 "record": "step", "step": t, "phase": phase, "n_compromised_owned": n_comp,
                 "mode": mode, "expert_mode": expert, "actions": executed, "red_action": red,
                 "reward": r, "cum_reward": total, "overrides": stats.get("ovr", [])[n0:],
+                **({"signal": stats.pop("sig")} if "sig" in stats else {}),
             }) + "\n")
             t += 1
 
@@ -269,7 +271,7 @@ def capture_episode(ep, a):
     cyborg, env = _make_env(seed, _red_class(a["red"]))
     holder = _install(env)
     hdr = {"red_agent": a["red"], "seed_mode": "episode", "policy_seed": pseed,
-           "workers": a["workers"], "wait_busy": a["wait_busy"]}
+           "workers": a["workers"], "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"]}
     foot = _run_episode(ep, seed, cyborg, env, holder, a["rule"], Counter(),
                         a["budget"], a["min_gap"], a["out"], hdr)
     print(f"episode {ep} seed {seed} total {foot['total_reward']:.2f} "
@@ -286,7 +288,7 @@ def capture_compat(a):
     holder = _install(env)
     foots = []
     for ep in range(a["episodes"]):
-        hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0, "wait_busy": a["wait_busy"]}
+        hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0, "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"]}
         foots.append(_run_episode(ep, s, cyborg, env, holder, a["rule"], Counter(),
                                   a["budget"], a["min_gap"], a["out"], hdr))
         tot = [x["total_reward"] for x in foots]
@@ -305,6 +307,8 @@ def main():
     ap.add_argument("--budget", type=int, default=77)
     ap.add_argument("--min-gap", type=int, default=0)
     ap.add_argument("--wait-busy", action="store_true", help="a directive to a busy agent waits for its next free tick")
+    ap.add_argument("--engage", type=float, default=None, help="O15 threshold (see oracle_rules)")
+    ap.add_argument("--window", type=int, default=16, help="O15r and O15a trailing window in simulator steps")
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--compat", action="store_true", help="mirror evaluation.py seeding, sequential")
     ap.add_argument("--out", required=True)
