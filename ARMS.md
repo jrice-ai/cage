@@ -1693,6 +1693,22 @@ alike. The full reading is in RESULTS.md "When to engage".
 
 ## Known issues
 
+- **The commit history was rewritten on 2026-09-28; `harness_sha` values
+  recorded from 2026-09-18 onward no longer resolve.** 
+  Session trailers were stripped from 30 commit messages with `git
+  filter-branch`, and the two commits that had carried commit-message drafts as
+  repo files were rebuilt without them. No file content changed in the rewrite
+  beyond the removal of those two drafts. The range covers every commit from
+  2026-09-18 onward, beginning with `bin/run: copy red_agents/ into the
+  container's CybORG SimpleAgents`; commits before it keep their SHAs, so the
+  `d974f69` and `dd22fff` citations in this file still resolve. Everything from
+  that boundary forward is renumbered, so a trace captured on or after
+  2026-09-18 carries a `harness_sha` that names a commit the current history
+  does not contain. `sha-map-2026-09-28.txt` maps old to new, one pair per
+  line, oldest first, the boundary commit on the first line. The pre-rewrite
+  history is preserved outside the repository in
+  `~/cage-history-2026-09-28-pre-cleanup.bundle`.
+
 - **Queue F segfaults and the survey reader's grid (2026-09-27).** Three of
   25 arms lost a worker (`wo_O15a_e2_g32_wb` at 12 episodes,
   `hm_wo_O15r_e10_g32_wb` at 96, `hm_wo_O1_g64_wb` at 63); the partial
