@@ -1812,8 +1812,193 @@ Analyse 65.9 of 66.2, 0.996, Restore 4.2 of 4.2, 0.988, busy share
 0.393; `hm_wo_O1_g32_qf_wb` Restore 46.6 of 47.1, 0.990, busy share
 0.538.
 
+## Queue H: a person's eyes and hands
+
+`tools_add_person.py` (2026-09-29) adds five things to the harness, each
+guarded so an unpatched run is unchanged. Run after
+`tools_add_queue.py`.
+
+- `--recall R --false-alarm F` (O1 on a learned policy): O1 sees the
+  truth through a detector. A compromise is shown for its whole life
+  with probability R, drawn when the supervisor first looks at it and
+  redrawn if the host is compromised again; a clean owned host raises a
+  false alarm that shows for 16 steps, at the per-step onset rate F /
+  (16 (1 - F)) that keeps a share F of clean hosts flagged; the
+  supervisor restores one flagged host chosen at random by its own
+  generator, seeded by the episode, so the environment's and the
+  policy's draws are untouched. A restore clears a false alarm on its
+  host. With either flag the pick is random even at R 1, F 0. Footer
+  `eyes_tp`, `eyes_fp`, `eyes_fn`, `eyes_clean` (agent-ticks).
+- `--delay D --wrong W --skip S` (with `--queue first`; O1, O15r,
+  O15c): a person's hands. At a decision, with probability S the prompt
+  passes and the gap clock restarts; otherwise the click lands on
+  another owned host with probability W, and it lands D steps after the
+  decision, held for the agent if it is busy then (a delayed click is
+  a queued directive with a due tick). At D 0, W 0, S 0 the arm is
+  `--queue first` directive for directive. Footer `h_skip`, `h_wrong`.
+- `O16t`: R2's triage at the gate. A private R2 instance reads the
+  agent's observations (on busy ticks too) and proposes as it would as a
+  defender: Restore on a second alert or a confirmed file, Analyse on a
+  first alert. The supervisor offers that proposal when the gap floor
+  is open; a proposal equal to the policy's own action is an agreement.
+  Footer `sup_tp`, `sup_fp`, `sup_fn`, `sup_own`: R2's restore
+  candidates against the truth per tick.
+- `O17` (KEEP only, `--engage T`): the policy's own suspicion. Each
+  owned host is scored by the probability the actor puts on Remove or
+  Restore of it (the O11 wrapper's `stats["probs"]`); at the gate the
+  top host is restored if its score is at least T. At T 1e9 it never
+  acts and the step records carry `"signal": {agent: [top score, top
+  host compromised, best score on a compromised host, best on a clean
+  host, compromised hosts]}`. Footer `o17_clean`, plus the O15 gate
+  fields. The actor pass leaves the policy's sampling untouched
+  (`gate_svy_wo_O17_wb` identical to the control on ten seeds).
+- `--agents 0,4`: the supervisor acts for the listed agents only. All
+  five is O1 (`gate_wo_O1_a01234_g32_wb`, ten seeds identical).
+- Every footer now carries `exec_clean`, restores handed to a free agent
+  on a host that was clean at that tick, and `CAGE_EPISODE_LENGTH` in
+  the environment overrides the 500-step episode (unused).
+
+Gates (`o2e_smoke_person`, `hm_compat_gate3person`,
+`gate_wo_O1h_zero_g32_wb` against `wo_O1_g32_qf_wb`,
+`gate_hm_wo_O1h_zero_g32_wb` against `hm_wo_O1_g32_qf_wb`,
+`gate_wo_O1_a01234_g32_wb` against `wo_O1_g32_wb`, `gate_svy_wo_O17_wb`
+against `red_FSRedAgentWrecker`, and six two-episode smokes): all
+reproduce. The first cut of the patch named `capture_episode`'s new
+parameter `agents`, which the function's own `agents = Submission.AGENTS`
+shadowed, so every KEEP run died writing its header; the parameter is
+`only_agents`, the tool repairs the earlier state in place, and the gate
+directories from the first attempt were overwritten by the rerun.
+
+`queue_H.sh`: 44 arms on two lanes, launched 14:15, done 16:21. An arm
+with fewer than 100 footers is cleared through the container (no sudo)
+and rerun once; `wo_O1n_r050_f005_g32_wb` (15:06) and `wo_O16t_g32_wb`
+(16:04) lost a worker and reran clean. The two O17 arms ran after the
+read, 17:07 to 17:25. `./queue_H.sh read` prints the tables; read in
+`data/read_H.txt`. Shares are of the distance from the control to RT.
+
+The eyes surface (control `red_FSRedAgentWrecker` -1,115.7, RT
+-274.9; `rates` in the read prints the realized per-tick recall and
+false-alarm share from the footers):
+
+| Directory | Recall, false | Mean | Against control | Ovr / ep | Deferred | eyes tp / fp / fn / clean per ep | Closed |
+|---|---|---|---|---|---|---|---|
+| `wo_O1n_r100_f000_g32_wb` | 1, 0 | -466.4 | +649.2 | 47.6 | 402.8 | | 0.772 |
+| `wo_O1n_r075_f000_g32_wb` | 0.75, 0 | -611.1 | +504.6 | 41.2 | 295.2 | | 0.600 |
+| `wo_O1n_r050_f000_g32_wb` | 0.5, 0 | -807.0 | +308.7 | 30.1 | 153.5 | | 0.367 |
+| `wo_O1n_r025_f000_g32_wb` | 0.25, 0 | -958.4 | +157.3 | 14.8 | 33.4 | | 0.187 |
+| `wo_O1n_r100_f002_g32_wb` | 1, 0.02 | -537.6 | +578.0 | 57.4 | 552.0 | | 0.687 |
+| `wo_O1n_r100_f005_g32_wb` | 1, 0.05 | -615.2 | +500.4 | 66.5 | 754.8 | | 0.595 |
+| `wo_O1n_r100_f010_g32_wb` | 1, 0.10 | -696.0 | +419.6 | 73.0 | 964.2 | | 0.499 |
+| `wo_O1n_r100_f020_g32_wb` | 1, 0.20 | -852.5 | +263.2 | 77.6 | 1189.3 | | 0.313 |
+| `wo_O1n_r075_f005_g32_wb` | 0.75, 0.05 | -775.7 | +340.0 | 63.2 | 653.8 | | 0.404 |
+| `wo_O1n_r050_f005_g32_wb` | 0.5, 0.05 | -887.5 | +228.2 | 60.1 | 563.4 | | 0.271 |
+| `wo_O1n_r050_f010_g32_wb` | 0.5, 0.10 | -1021.9 | +93.8 | 70.0 | 841.5 | | 0.112 |
+| `wo_O2f_g32_wb` | the latch | -1011.8 | +103.9 | 45.8 | 62.3 | | 0.124 |
+| `wo_O1n_latch_g32_wb` | 0.010, 0.0058 (void) | -1170.5 | -54.9 | 9.8 | 10.8 | | -0.065 |
+| `hm_wo_O1n_r050_f000_g32_wb` | 0.5, 0 | -669.1 | +173.7 | 29.6 | 129.1 | | 0.306 |
+| `hm_wo_O1n_r100_f005_g32_wb` | 1, 0.05 | -539.5 | +303.3 | 65.0 | 586.2 | | 0.534 |
+| `hm_wo_O1n_r050_f005_g32_wb` | 0.5, 0.05 | -783.6 | +59.2 | 59.3 | 450.4 | | 0.104 |
+
+Per-episode `eyes_*` sums are in the footers; the read's `rates` table
+gives them as rates. `wo_O1n_r100_f000_g32_wb` paired against
+`wo_O1_g32_wb`: +24.3, 58/100, p 0.133.
+
+A person's hands (reference `wo_O1_g32_qf_wb` -491.9, 0.742;
+`hm_wo_O1_g32_qf_wb` -457.8, 0.678):
+
+| Directory | Hands | Mean | Against the reference | Ovr / ep | Queued / stale | h_skip / h_wrong | exec_clean | Closed |
+|---|---|---|---|---|---|---|---|---|
+| `wo_O1h_d2_g32_wb` | delay 2 | -517.7 | -25.8 (53/100, p 0.617) | 46.9 | 47.3 / 2.3 | | 2.3 | 0.711 |
+| `wo_O1h_d4_g32_wb` | delay 4 | -549.9 | -58.0 (36/100, p 0.007) | 45.3 | 45.6 / 3.4 | | 3.4 | 0.673 |
+| `wo_O1h_d8_g32_wb` | delay 8 | -563.3 | -71.4 (29/100, p <0.001) | 42.4 | 43.2 / 4.9 | | 4.9 | 0.657 |
+| `wo_O1h_w10_g32_wb` | wrong 0.10 | -548.2 | -56.3 (32/100, p 0.001) | 49.5 | 19.7 / 3.3 | 0 / 5.3 | 6.2 | 0.675 |
+| `wo_O1h_w25_g32_wb` | wrong 0.25 | -630.6 | -138.7 (23/100) | 52.0 | 21.0 / 5.9 | 0 / 13.3 | 13.2 | 0.577 |
+| `wo_O1h_w50_g32_wb` | wrong 0.50 | -788.4 | -296.5 (9/100) | 55.1 | 21.9 / 10.4 | 0 / 27.5 | 25.6 | 0.389 |
+| `wo_O1h_s25_g32_wb` | skip 0.25 | -590.8 | -98.9 (29/100) | 38.0 | 14.9 / 0.9 | 13.3 / 0 | 0.9 | 0.624 |
+| `wo_O1h_s50_g32_wb` | skip 0.50 | -739.6 | -247.7 (13/100) | 27.4 | 10.3 / 0.7 | 28.2 / 0 | 0.7 | 0.447 |
+| `wo_O1h_typ_g32_wb` | 2, 0.10, 0.20 | -609.8 | -117.9 (24/100) | 40.1 | 40.3 / 5.8 | 10.5 / 4.3 | 5.8 | 0.602 |
+| `wo_O1h_tired_g32_wb` | 4, 0.25, 0.40 | -806.6 | -314.7 (4/100) | 30.9 | 31.3 / 8.6 | 21.6 / 7.9 | 8.6 | 0.368 |
+| `wo_O1h_typ_r075_f005_g32_wb` | typical, detector 0.75 / 0.05 | -856.7 | -364.8 (8/100) | 49.7 | 49.9 / 25.1 | 12.8 / 5.0 | 25.1 | 0.308 |
+| `hm_wo_O1h_typ_g32_wb` | 2, 0.10, 0.20 | -577.8 | -120.0 (28/100) | 39.1 | 39.3 / 5.7 | 10.2 / 4.2 | | 0.467 |
+| `hm_wo_O1h_tired_g32_wb` | 4, 0.25, 0.40 | -677.9 | -220.1 (18/100) | 30.1 | 30.5 / 9.8 | 21.2 / 8.0 | | 0.290 |
+
+The thermostat with the click held:
+
+| Directory | Rule | Mean | Against control | Ovr / ep | Engaged / hit / quiet | Queued / stale | Closed |
+|---|---|---|---|---|---|---|---|
+| `wo_O1_g64_qf_wb` | O1 gap 64, queue first | -616.1 | +499.6 | 31.5 | | 12.3 / 1.0 | 0.594 |
+| `wo_O15r_e24_g32_qf_wb` | O15r 24, queue first | -637.9 | +477.8 | 27.6 | 594 / 179 / 859 | 10.9 / 1.2 | 0.568 |
+| `wo_O15r_e24_g32_typ_wb` | O15r 24, queue first, typical hands | -755.0 | +360.7 | 25.5 | 727 / 292 / 774 | 25.6 / 4.0 | 0.429 |
+| `hm_wo_O15r_e10_g32_qf_wb` | H-MARL O15r 10, queue first | -508.2 | +334.5 | 36.2 | 1031 / 255 / 428 | | 0.589 |
+
+Paired: `wo_O15r_e24_g32_qf_wb` against `wo_O1_g64_qf_wb` -21.8 (48/100,
+p 0.764), against `wo_O15r_e24_g32_wb` +8.1 (37/100, p 0.440);
+`wo_O15r_e24_g32_typ_wb` against `wo_O15r_e24_g32_wb` -109.0 (31/100);
+`hm_wo_O15r_e10_g32_qf_wb` against `hm_wo_O15r_e10_g32_wb` -20.3 (36/100,
+p 0.434).
+
+R2's triage (O16t) and the policy's own suspicion (O17):
+
+| Directory | Pairing | Mean | Against control | Ovr / ep | Analyses / restores | exec_clean | sup tp / fp / fn / own per ep | Closed |
+|---|---|---|---|---|---|---|---|---|
+| `wo_O16t_g32_wb` | KEEP, Wrecker | -990.0 | +125.7 (64/100, p 0.007) | 68.9 | 28.5 / 40.4 | 30.3 | 4.1 / 13.2 / 18.1 / 222 (per tick 0.185 recall, 0.059 false) | 0.149 |
+| `wo_O16t_g8_wb` | KEEP, Wrecker, gap 8 | -863.8 | +251.8 (78/100) | 157.5 | 91.4 / 66.1 | 46.4 | | 0.300 |
+| `so_O16t_g32_wb` | KEEP, stock | -209.1 | -21.8 (28/100, p <0.001) | 69.1 | 26.1 / 43.0 | 32.3 | | -0.555 |
+| `hm_wo_O16t_g32_wb` | H-MARL, Wrecker | -745.6 | +97.2 (56/100, p 0.271) | 67.2 | 21.5 / 45.7 | | | 0.171 |
+| `svy_wo_O17_wb` | KEEP, Wrecker, `--engage 1e9` | -1115.65 | +0.0 (identical to the control) | 0 | | | | |
+| `wo_O17_e00173_g32_wb` | O17 at 0.0173 (the median score) | -924.5 | +191.1 (74/100, p <0.001) | 46.8 | 0 / 46.8 | | engaged 462, hit 128, o17_clean 301, quiet 649, agreements 32.5 | 0.227 |
+| `wo_O17_e00694_g32_wb` | O17 at 0.0694 (the 90th percentile) | -1053.8 | +61.9 (57/100, p 0.193) | 18.9 | 0 / 18.9 | | engaged 72, hit 32, o17_clean 21, quiet 978, agreements 19.1 | 0.074 |
+
+`wo_O16t_g32_wb` against `wo_O16_g32_wb`: +43.1, 51/100, p 0.920. The
+`sup_*` per-episode figures above are the footer sums divided by 100;
+the per-tick rates are what the read prints.
+
+Agent subsets (`--agents`):
+
+| Directory | Agents | Mean | Against control | Ovr / ep | Deferred | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|
+| `wo_O1_a0_g32_wb` | 0 | -1021.6 | +94.0 | 8.8 | 68.2 | 0.112 | 0.0128 |
+| `wo_O1_a1_g32_wb` | 1 | -953.7 | +162.0 | 8.0 | 49.3 | 0.193 | 0.0242 |
+| `wo_O1_a2_g32_wb` | 2 | -1058.7 | +57.0 | 8.8 | 57.5 | 0.068 | 0.0077 |
+| `wo_O1_a3_g32_wb` | 3 | -1034.0 | +81.7 | 7.8 | 46.8 | 0.097 | 0.0124 |
+| `wo_O1_a4_g32_wb` | 4 | -990.7 | +125.0 | 14.9 | 188.0 | 0.149 | 0.0100 |
+| `wo_O1_a04_g32_wb` | 0 and 4, the two O1 acts for most | -885.7 | +230.0 | 23.9 | 256.0 | 0.273 | 0.0115 |
+
+Cut-off reads (no arms; from the step records of the arms above and of
+`red_FSRedAgentWrecker`, `rd_RT_w_none_wb`, `wo_O10_g32_wb`): the O1
+cut-off table, the paired-gain and power table, and the O17 cut-off
+line are in RESULTS.md under "Cut-off episodes and the trial's power";
+the commands are in the conversation log of 2026-09-29 and take a
+minute to rerun.
+
 ## Known issues
 
+- **Queue H: the latch arm is void, H-MARL footers lack `exec_clean`, two
+  reruns (2026-09-29).** `wo_O1n_latch_g32_wb` was meant to run O1
+  through the model at the O2f latch's own recall and false-alarm rate,
+  read from `wo_O2f_g32_wb`'s `latch_*` footer fields; those are
+  per-tick counts, and O2f pops a host from the latch when it restores
+  it, so its per-tick recall reads 0.010 while the model's `--recall`
+  is the share of compromises ever shown. The arm ran at recall 0.01 and
+  says nothing; placing the latch on the surface needs a
+  per-compromise counter in the footer (open item). `capture_hmarl.py`
+  builds its footer from every numeric stat except keys starting
+  `exec_`, so `exec_clean` never reaches H-MARL footers and the read's
+  clean share prints 0.00 for H-MARL arms; the KEEP figures are right.
+  `wo_O1n_r050_f005_g32_wb` (15:06) and `wo_O16t_g32_wb` (16:04) lost a
+  worker and were cleared through the container and rerun by
+  `queue_H.sh` itself; both hold 100 footers.
+- **`tools_add_person.py`, first cut (2026-09-29).** The new
+  `capture_episode` parameter was named `agents` and shadowed by the
+  function's local `agents = Submission.AGENTS`, so the header write
+  raised `TypeError: Object of type InductiveGraphPPOAgent is not JSON
+  serializable` before the first step on every KEEP run; H-MARL was
+  unaffected. Caught by the gate, fixed before any arm ran (the
+  parameter is `only_agents`; rerunning the tool repairs the earlier
+  state), and the patch's offline check now verifies that no function in
+  either harness file reassigns one of its own parameters. Any KEEP trace written between 14:00 and
+  14:05 on 2026-09-29 is a gate directory from the failed attempt and
+  was overwritten by the rerun.
 - **Queue G segfault and the rerun (2026-09-28).** `wo_O1_g8_wb` lost a
   worker at 22:52 (exit 1, SIGSEGV in a worker) and `queue_G.sh` went on
   with the other 24 arms. The partial root-owned directory was removed

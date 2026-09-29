@@ -4506,6 +4506,295 @@ and the hatching comes off it.
 - The prototype's tempo re-derived from wall time, so the person's count
   can be placed on the curve before the pilot.
 
+## A person's eyes and hands: the trial's conditions measured
+
+Queue H (`queue_H.sh`, 44 arms, two lanes, 2026-09-29, 14:15 to 16:21,
+two worker segfaults rerun by the queue itself; `./queue_H.sh read`,
+`data/read_H.txt`) and two O17 arms after it (17:07 to 17:25) measure
+the trial's conditions before the trial: what a display's information
+is worth as a function of its recall and false-alarm rate, what an
+ordinary person's errors cost, whether the trial's own engagement rule
+survives the held click, whether two displays that use no ground truth
+have a ceiling worth testing, and which agents the supervisor's value
+comes from. All arms KEEP under Wrecker unless named, gap 32, directive
+held, 100 episodes on seeds 0 to 99, control -1,115.7 and RT -274.9 as
+on the axis. The harness additions are `tools_add_person.py`
+(2026-09-29): a detector between O1 and the truth (`--recall`,
+`--false-alarm`), a person's hands on the held click (`--delay`,
+`--wrong`, `--skip`, requiring `--queue first`), R2's triage at the
+gate (O16t), the policy's own suspicion (O17, `--engage`), and
+`--agents`. Every existing path is unchanged (84 rule, flag and gap
+combinations against the pre-patch module) and the smoke, the compat
+gate, hands at zero against the held click (10 of 10 KEEP, 4 of 4
+H-MARL), all five agents against O1 (10 of 10) and the O17 survey
+against the control (10 of 10) reproduce.
+
+### The eyes surface
+
+O1 through a detector. Each compromise is shown for its whole life
+with probability `recall`, drawn when the supervisor first looks at it;
+a clean owned host raises a false alarm that shows for 16 steps, at the
+onset rate that keeps a share `false` of clean hosts flagged; the
+supervisor restores one flagged host at random. With either flag given
+the pick is random even at recall 1 and no false alarms, so that arm is
+the surface's own zero.
+
+| Recall | False alarms | Interventions / ep | Mean | Against control | Closed | Restores on clean hosts | Realized per tick, recall / false |
+|---|---|---|---|---|---|---|---|
+| 1 | 0 | 47.6 | -466.4 | +649.2 | 0.772 | 0.00 | 1.000 / 0 |
+| 0.75 | 0 | 41.2 | -611.1 | +504.6 | 0.600 | 0.00 | 0.461 / 0 |
+| 0.50 | 0 | 30.1 | -807.0 | +308.7 | 0.367 | 0.00 | 0.133 / 0 |
+| 0.25 | 0 | 14.8 | -958.4 | +157.3 | 0.187 | 0.00 | 0.017 / 0 |
+| 1 | 0.02 | 57.4 | -537.6 | +578.0 | 0.687 | 0.25 | 1.000 / 0.014 |
+| 1 | 0.05 | 66.5 | -615.2 | +500.4 | 0.595 | 0.41 | 1.000 / 0.042 |
+| 1 | 0.10 | 73.0 | -696.0 | +419.6 | 0.499 | 0.54 | 1.000 / 0.093 |
+| 1 | 0.20 | 77.6 | -852.5 | +263.2 | 0.313 | 0.65 | 1.000 / 0.199 |
+| 0.75 | 0.05 | 63.2 | -775.7 | +340.0 | 0.404 | 0.48 | 0.560 / 0.040 |
+| 0.50 | 0.05 | 60.1 | -887.5 | +228.2 | 0.271 | 0.60 | 0.244 / 0.038 |
+| 0.50 | 0.10 | 70.0 | -1021.9 | +93.8 | 0.112 | 0.69 | 0.309 / 0.089 |
+| the as-is stream (O2f, held) | | 45.8 | -1011.8 | +103.9 | 0.124 | 0.78 | |
+
+On H-MARL: recall 0.5 alone 0.306 (29.6 an episode), false alarms 0.05
+alone 0.534 (65.0), both 0.104 (59.3), each a little below KEEP.
+
+The random pick among the truly compromised hosts is O1 (+24.3,
+58/100, p 0.13), so the surface's zero is O1 itself. Recall and false
+alarms cost about the same in the small (0.75 recall alone and 5
+percent false alarms alone both land at 0.60) and compound: 0.75 with
+5 percent is 0.40, 0.50 with 5 percent is 0.27, 0.50 with 10 percent
+is 0.11, which is where the as-is stream sits (0.12, with 78 percent
+of its restores on clean hosts). The realized per-tick recall lies
+below the parameter because a shown compromise is restored within a
+gap and a missed one lives until the policy finds it, so the missed
+ones accumulate host-ticks; the per-tick figure is what a detector's
+log would show, the parameter is what its designer sets. The arm meant
+to place the O2f latch on the surface at its own rates
+(`wo_O1n_latch_g32_wb`) is void, because the latch's per-tick recall
+(0.010, the latch pops a host when it is restored) is not the
+per-compromise number the model takes; see ARMS.md, Known issues. For
+a display to give a supervisor the thermostat's 0.6 of the distance it
+needs recall of 0.75 with no false alarms, or no misses with false
+alarms held to 5 percent; at 0.75 and 5 percent it gives 0.40.
+
+### A person's hands
+
+The held click with a person on it: a prompt passes with probability
+`skip` and the next comes a gap later; a click lands on another owned
+host with probability `wrong`; and it lands `delay` steps after the
+decision, held for the agent if it is busy then. Against the held
+click without a person (`wo_O1_g32_qf_wb`, -491.9, 0.742):
+
+| Hands | Interventions / ep | Mean | Against the held click | Closed | Restores on clean hosts |
+|---|---|---|---|---|---|
+| delay 2 | 46.9 | -517.7 | -25.8 (53/100, p 0.62) | 0.711 | 0.05 |
+| delay 4 | 45.3 | -549.9 | -58.0 (36/100, p 0.007) | 0.673 | 0.08 |
+| delay 8 | 42.4 | -563.3 | -71.4 (29/100) | 0.657 | 0.12 |
+| wrong 0.10 | 49.5 | -548.2 | -56.3 (32/100) | 0.675 | 0.12 |
+| wrong 0.25 | 52.0 | -630.6 | -138.7 (23/100) | 0.577 | 0.25 |
+| wrong 0.50 | 55.1 | -788.4 | -296.5 (9/100) | 0.389 | 0.46 |
+| skip 0.25 | 38.0 | -590.8 | -98.9 (29/100) | 0.624 | 0.02 |
+| skip 0.50 | 27.4 | -739.6 | -247.7 (13/100) | 0.447 | 0.03 |
+| typical: delay 2, wrong 0.10, skip 0.20 | 40.1 | -609.8 | -117.9 (24/100) | 0.602 | 0.15 |
+| tired: delay 4, wrong 0.25, skip 0.40 | 30.9 | -806.6 | -314.7 (4/100) | 0.368 | 0.28 |
+| typical, on a detector at 0.75 / 0.05 | 49.7 | -856.7 | -364.8 (8/100) | 0.308 | 0.51 |
+
+On H-MARL, against its held click (-457.8, 0.678): typical -577.8,
+-120.0 (28/100), 0.467; tired -677.9, -220.1 (18/100), 0.290.
+
+A two-step delay is free; four steps costs 0.07 of the distance and
+eight 0.09, the stale share of clicks rising from 5 to 12 percent.
+Each tenth of clicks on the wrong host costs about 0.07. Skipping a
+quarter of the prompts costs 0.12 and half of them 0.30, and skipping
+is worse than a slower timer at the same count: 0.45 at 27 decisions
+an episode against the gap-64 timer's 0.60 at 31, because the skips
+are irregular and a concave curve punishes irregular spacing.
+Irregular attention costs more than slow attention. The typical
+profile closes 0.60 on KEEP and 0.47 on H-MARL, the tired one 0.37 and
+0.29, and the typical person on a realistic detector 0.31. The two
+profiles are placeholders until the pilot replaces them with measured
+delays and error rates; the sweep says which of the three matters
+most, and it is skipping.
+
+### The trial's condition: the thermostat with the click held
+
+| Arm | Interventions / ep | Mean | Closed | Paired |
+|---|---|---|---|---|
+| timer, gap 64, held click (`wo_O1_g64_qf_wb`) | 31.5 | -616.1 | 0.594 | +2.5 against the timer without it |
+| thermostat 24, held click (`wo_O15r_e24_g32_qf_wb`) | 27.6 | -637.9 | 0.568 | +8.1 against the thermostat without it (37/100, p 0.44); -21.8 against the timer with it (48/100, p 0.76) |
+| thermostat 24, held click, typical person | 25.5 | -755.0 | 0.429 | -109.0 against the line above (31/100) |
+| H-MARL thermostat 10, held click | 36.2 | -508.2 | 0.589 | -20.3 against the thermostat without it (36/100, p 0.43); +21.9 against the gap-64 timer |
+
+The thermostat with the click held is the thermostat, and is the
+held-click timer, on both defenders. The typical person on it closes
+0.43 at 25.5 decisions. On both engagement rules the typical person
+sits below the effort curve at their own count by about the same
+amount, 0.07 at 40 decisions on the timer and 0.10 at 25.5 on the
+thermostat: the person's error profile is a constant distance below
+the curve whatever the prompt, which is the mechanism the trial's
+judgment measure relies on.
+
+### R2's triage as a supervisor
+
+O16t offers R2's decision at the gate: R2's eyes (alerts per owned
+host since its last restore, the reset listing and the echo of the
+agent's own action excluded, and confirmed files) and R2's choice
+(restore on a second alert or a confirmed file, else look at a host
+alerted once). Ground truth is read for the footer only.
+
+| Pairing | Decisions / ep (looks / restores) | Mean | Against control | Closed | Restores on clean hosts |
+|---|---|---|---|---|---|
+| KEEP, Wrecker, gap 32 | 68.9 (28.5 / 40.4) | -990.0 | +125.7 (64/100, p 0.007) | 0.149 | 0.75 |
+| KEEP, Wrecker, gap 8 | 157.5 (91.4 / 66.1) | -863.8 | +251.8 (78/100) | 0.300 | 0.70 |
+| KEEP, stock red | 69.1 (26.1 / 43.0) | -209.1 | -21.8 (28/100, p <0.001) | -0.555 | 0.75 |
+| H-MARL, Wrecker | 67.2 (21.5 / 45.7) | -745.6 | +97.2 (56/100, p 0.27) | 0.171 | |
+
+Against O16 on KEEP under Wrecker, +43.1 (51/100, p 0.92): the
+second-alert triage is not distinguishable from the as-is supervisor
+at the trial's pace. R2's eyes flag about as many clean hosts as
+compromised ones (per tick, recall 0.19, false-alarm share 0.06 of
+clean hosts, against a base rate of one compromised host in ten), so
+three restores in four land on clean hosts, which is harmless under
+Wrecker and harmful under the stock red. Detectable at 100 seeds, and
+not a display to give anyone.
+
+### The policy's own suspicion
+
+O17 scores each owned host by the probability KEEP's actor puts on
+Remove or Restore of it and, at the gate, restores the top host if its
+score is at least the threshold. Surveyed at a threshold it never
+reaches (`svy_wo_O17_wb`, identical to the control on all 100
+episodes, 157,229 free agent-ticks, 69 percent with a compromised
+owned host): when some host is compromised, the top suspect is one of
+them 38 percent of the time, and some compromised host outscores every
+clean one 37 percent of the time. Over the score's quantiles:
+
+| Threshold at quantile | Score | Ticks engaged | Precision | Recall per tick |
+|---|---|---|---|---|
+| 0.50 | 0.0173 | 0.500 | 0.395 | 0.287 |
+| 0.75 | 0.0335 | 0.250 | 0.481 | 0.174 |
+| 0.90 | 0.0694 | 0.100 | 0.665 | 0.097 |
+| 0.95 | 0.1234 | 0.050 | 0.795 | 0.058 |
+| 0.99 | 0.4465 | 0.010 | 0.919 | 0.013 |
+
+The policy half-knows. Run as a supervisor at the median threshold
+(`wo_O17_e00173_g32_wb`), it closes 0.227 (+191.1, 74/100), 46.8
+restores an episode, 70 percent of them on clean hosts, 32.5 an
+episode agreeing with the policy's own action; at the 90th percentile
+(`wo_O17_e00694_g32_wb`) it fires too rarely to matter (0.074, +61.9,
+57/100, p 0.19). The policy's own suspicion, rendered, is the best
+display that uses no ground truth: 0.23 against the as-is stream's
+0.10 and R2's 0.15, and equal to a look directed by truth (0.22). Its
+value is back-loaded: +13.5 over the first 150 steps (0.06, 57/100),
++25.5 over 200, +191 over 500, while the directed look is
+front-loaded (0.31 at 150) and the as-is rule is flat at zero until
+late (+1.4 at 150). Every display built from evidence the defender
+accumulates is worth about nothing in the first 150 steps.
+
+### Which agents
+
+| Supervised | Interventions / ep | Against control | Closed | Per intervention |
+|---|---|---|---|---|
+| agent 0 alone (restricted zone A) | 8.8 | +94.0 | 0.112 | 0.0128 |
+| agent 1 alone (operational zone A) | 8.0 | +162.0 | 0.193 | 0.0242 |
+| agent 2 alone (restricted zone B) | 8.8 | +57.0 | 0.068 | 0.0077 |
+| agent 3 alone (operational zone B) | 7.8 | +81.7 | 0.097 | 0.0124 |
+| agent 4 alone (HQ, three subnets) | 14.9 | +125.0 | 0.149 | 0.0100 |
+| agents 0 and 4 (the two O1 acts for most) | 23.9 | +230.0 | 0.273 | 0.0115 |
+| all five | 48.1 | +624.9 | 0.743 | 0.0154 |
+
+No single agent carries the value. The best alone is agent 1 at 0.19
+with the highest per-decision value, the top pair by override count is
+0.27, and the five single gains sum to +520 against +625 together: the
+value is spread over the agents and slightly super-additive, since a
+zone cleaned early is a zone red cannot spread from. The screen shows
+all five agents and does not try to point attention.
+
+### Cut-off episodes and the trial's power
+
+The trial cannot run 500-step episodes (50 minutes at six seconds a
+step). From the existing step records, the share of the distance to RT
+closed by O1 at gap 32 with the directive held, at each cut-off:
+
+| Cut-off | Control | O1 held | Gain | Wins | RT | Closed | O1 decisions |
+|---|---|---|---|---|---|---|---|
+| 50 | -118.7 | -83.6 | +35.1 | 96/100 | -73.5 | 0.777 | 4.3 |
+| 100 | -275.2 | -174.1 | +101.1 | 100/100 | -139.9 | 0.747 | 8.8 |
+| 150 | -413.6 | -257.6 | +156.0 | 99/100 | -202.4 | 0.739 | 13.5 |
+| 200 | -543.7 | -306.4 | +237.2 | 100/100 | -228.5 | 0.753 | 18.2 |
+| 300 | -784.3 | -376.7 | +407.6 | 98/100 | -245.0 | 0.756 | 28.1 |
+| 500 | -1115.7 | -490.7 | +624.9 | 100/100 | -274.9 | 0.743 | 48.1 |
+
+The supervisor's value is uniform across the episode, so a session
+that scores the first 150 or 200 steps reads the same quantity as a
+full episode. A natively shorter episode would not:
+`EnterpriseScenarioGenerator._generate_mission_phases(steps)` is
+`divmod(steps, 3)`, the phases are thirds of the episode length (168
+and 335 in every recorded episode), and a 150-step episode compresses
+all three into 50 steps each, a different game with no existing
+controls or ceilings. The trial runs 500-step episodes and stops the
+session at the cut; `CAGE_EPISODE_LENGTH` stays unused.
+
+The paired per-episode gain over the control at the trial's cut, from
+the step records, with the standard deviation of the paired delta and
+the episodes needed for 80 percent power at alpha 0.05, paired,
+two-sided (the recoverable loss over 150 steps is 211 points):
+
+| Arm | Cut 150 | Cut 200 | Cut 500 |
+|---|---|---|---|
+| ceiling, ground truth (O1) | +156.0, sd 68, n 1.5 | +237.2, sd 107, n 1.6 | +624.9, sd 301, n 1.8 |
+| typical person, ground truth | +110.9, sd 64, n 2.6 | +171.6, sd 108, n 3.1 | +505.9, sd 308, n 2.9 |
+| ceiling, detector 0.75 / 0.05 | +73.1, sd 80, n 9.3 | +114.3, sd 134, n 10.8 | +339.9, sd 422, n 12.1 |
+| typical person, detector 0.75 / 0.05 | +48.1, sd 80, n 21.6 | +80.0, sd 134, n 22.1 | +258.9, sd 370, n 16.0 |
+| typical person, thermostat prompt | +96.2, sd 69, n 4.1 | +143.2, sd 112, n 4.8 | +360.6, sd 344, n 7.1 |
+| as-is rule (O16) | +1.4, sd 73 | -3.1, sd 130 | +82.6, sd 375, n 162 |
+| R2 triage (O16t) | -2.4, sd 84 | -1.1, sd 137 | +125.7, sd 355, n 63 |
+| the policy's own suspicion (O17) | +13.5, sd 86 | +25.5, sd 153 | +191.1, sd 369 |
+
+The as-is rule's +83 over a full episode is +1 over the first 150
+steps, because it needs looks to confirm files before it restores
+anything; at the trial's cut the as-is condition is a true zero, and
+the trial's prediction there is an equivalence claim that N = 24 to 36
+participants bounds to within a tenth of the recoverable loss. The
+ground-truth gain needs three episodes to see; the judgment gap the
+typical person shows (0.07 to 0.10 of the distance, against a
+per-episode share sd of about 0.38) needs about 100, which sets the
+trial's N at 36 with three scored episodes per condition. The
+protocol draft carries these numbers.
+
+### What this does to the trial
+
+- The two conditions are ground truth (ceiling 0.74, the modelled
+  person 0.60) and as-is (ceiling zero at the cut). A third, a
+  detector display at 0.75 recall and 5 percent false alarms (ceiling
+  0.40, the modelled person 0.31), is buildable because the
+  experimenter controls the display, and detectable at 17
+  participants; it costs 45 minutes of session or half the episodes.
+- The person's error profile is a constant distance below the effort
+  curve whatever the prompt, so the judgment measure (share minus the
+  curve at the person's own count) reads the person and not the
+  engagement rule.
+- Skipping prompts is the costliest error and delay the cheapest; the
+  pilot should measure both before the profiles are trusted.
+- Every evidence-based display (the as-is stream, R2's triage, the
+  policy's own suspicion) is worth about nothing in the first 150
+  steps and pays only late. A session in which the participant joins
+  an episode in progress would make the policy's own suspicion a
+  condition (0.23 over a full episode, no ground truth); that is one
+  harness flag and a small queue.
+- All five agents on screen. The value is spread and super-additive.
+
+### Open items
+
+- A `--start` flag (the supervisor engages from step N) and arms for
+  the join-in-progress session: O1, the typical person, O17 and O16
+  from step 200 or 250, scored on the window.
+- A per-compromise recall for the latch (the share of compromises ever
+  latched, from a footer counter), so the as-is stream can be placed on
+  the surface by the model's own parameter.
+- The pilot's delays, wrong-host and skip rates in place of the two
+  profiles, then the hands sweep rerun at those values.
+- The thermostat with the typical person on H-MARL.
+
 ## What the simulator ran
 
 Every supervisor arm in this study counted an override as executed when
