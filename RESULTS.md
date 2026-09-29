@@ -4277,6 +4277,235 @@ as-is-eyes version and belongs with the O2f family's ceilings. The loss
 thermostat's window and the alert window are both 16 simulator steps;
 neither was varied.
 
+## Delivered directives: the held click, the rate curve and the as-is ceiling
+
+Queue G (`queue_G.sh`, 25 arms, two lanes, 2026-09-28, launched 22:27,
+done 23:36, one worker segfault rerun; `./queue_G.sh read`) runs every
+arm with the directive held for the agent and answers the questions the
+trial's screen has to settle before the protocol is written: what a click
+made on a busy agent costs when the screen holds it, what the rate buys
+and whether the burst-against-spread reading survives delivered
+directives, what the as-is display is worth, whether the alert feed can
+aim as well as time, and two more rungs of the thermostat ladder. All
+arms 100 episodes on seeds 0 to 99, `--wait-busy`, against the same
+controls and RT ceilings as the axis. Execution shares under the flag,
+from the step records of twenty episodes: Restore 0.991 under the queue
+on KEEP and 0.990 on H-MARL, O16's Analyse 0.996 and Restore 0.988. An
+attempt count is an execution count from here.
+
+### The held click
+
+Under `--wait-busy` alone the supervisor is consulted only on a free
+tick, so every directive is decided on the state it fires into. `--queue`
+(`tools_add_queue.py`, 2026-09-28) consults it on a busy tick as well and
+holds the directive until the agent is free: `first` keeps the first
+decision made during a busy spell, `last` re-decides on every busy tick
+and keeps the latest. This is what a screen does when it accepts a click
+on a busy agent and shows it holding. A held directive whose host is
+clean by the time it fires is counted stale and fires anyway, because
+the person clicked it.
+
+| Arm | Mean | Against the re-deciding rule | Wins | p | Closed | Held / ep | Stale share | Hold, ticks |
+|---|---|---|---|---|---|---|---|---|
+| `wo_O1_g32_wb` (KEEP, decided free) | -490.7 | | | | 0.743 | | | |
+| `wo_O1_g32_qf_wb`, first | -491.9 | -1.2 | 40/100 | 0.83 | 0.742 | 18.9 of 48.2 | 0.073 | 1.6 |
+| `wo_O1_g32_ql_wb`, last | -500.5 | -9.8 | 36/100 | 0.73 | 0.732 | 18.9 of 48.1 | 0.068 | 1.0 |
+| `hm_wo_O1_g32_wb` (H-MARL, decided free) | -428.0 | | | | 0.730 | | | |
+| `hm_wo_O1_g32_qf_wb`, first | -457.8 | -29.9 | 32/100 | 0.023 | 0.678 | 30.9 of 47.9 | 0.044 | 1.1 |
+| `hm_wo_O1_g32_ql_wb`, last | -459.0 | -31.0 | 30/100 | 0.012 | 0.676 | 30.9 of 48.0 | 0.043 | 1.0 |
+
+On KEEP two directives in five are decided while the agent is mid-action
+and held one to two ticks; seven percent of those fire on a host that was
+cleaned meanwhile, and the cost is one to ten points, inside the band. On
+H-MARL, whose agents are busy half the time, two in three are decided
+busy, and the cost is 30 points, a twentieth of the distance to the
+ceiling, seven percent of the +415 the directive is worth: measurable at
+100 seeds (p 0.02) and small. First and last are the same on both
+defenders, so the screen may let the person change a held click. Against
+this sit the two directives in five on KEEP and three in five on H-MARL
+that the dropping channel lost outright. The screen accepts a click at
+any moment, shows it holding, and pays at most a twentieth of the
+distance for doing so.
+
+### The rate curve
+
+The fixed cadence from gap 4 to gap 128 on KEEP under Wrecker, the
+directive held (control -1,115.7, RT -274.9):
+
+| Gap | Arm | Interventions / ep | Mean | Against control | Closed | Per intervention |
+|---|---|---|---|---|---|---|
+| 4 | `wo_O1_g4_wb` | 74.7 | -324.5 | +791.1 | 0.941 | 0.0126 |
+| 8 | `wo_O1_g8_wb` | 72.8 | -332.5 | +783.2 | 0.932 | 0.0128 |
+| 16 | `wo_O1_g16_wb` | 65.1 | -353.7 | +761.9 | 0.906 | 0.0139 |
+| 32 | `wo_O1_g32_wb` | 48.1 | -490.7 | +624.9 | 0.743 | 0.0154 |
+| 64 | `wo_O1_g64_wb` | 31.3 | -613.6 | +502.1 | 0.597 | 0.0191 |
+| 96 | `wo_O1_g96_wb` | 23.0 | -691.3 | +424.4 | 0.505 | 0.0219 |
+| 128 | `wo_O1_g128_wb` | 18.2 | -744.0 | +371.7 | 0.442 | 0.0243 |
+| none, O2 with a budget of 77 | `wo_O2_g0_b77_wb` | 71.0 | -327.5 | +788.1 | 0.937 | 0.0132 |
+| 32, O2 | `wo_O2_g32_wb` | 47.5 | -490.4 | +625.3 | 0.744 | 0.0157 |
+
+H-MARL under Wrecker (control -842.8): gap 16, 63.3 an episode, -329.0,
+0.905; gap 32, 46.4, -428.0, 0.730; gap 64, 30.1, -530.1, 0.551; gap
+128, 17.8, -661.5, 0.319.
+
+The curve is smooth and concave, with a plateau at 0.93 to 0.94 from gap
+8 down at about 73 interventions an episode, which is about the number
+of hosts red compromises in an episode: the plateau is where the
+supervisor restores each host as it is taken. The last 0.06 is the gap
+floor and the policy's own actions between directives. Each further
+intervention is worth less than the one before it, 0.024 of the distance
+at 18 an episode and 0.013 at 75, and there is no rate at which the
+supervisor is worth nothing. H-MARL falls off faster at low rates, 0.32
+at 18 against KEEP's 0.44, and meets KEEP at gap 16.
+
+O2 at no gap with a budget of 77 was run to reproduce the study's
+earliest finding, that a burst of restores loses to the same restores
+spread across the episode. With directives delivered, it does not. The
+budget is never spent (71 of 77), the restores are spread evenly across
+the episode (6.6 to 7.9 per fifty steps, the last at step 490), and the
+arm sits on the curve at 71 an episode, 0.937. Paired against O2 at gap
+32 it wins by +163 (96/100), because it makes 71 decisions where the gap
+allows 48, and O2 at gap 32 is O1 at gap 32 (+0.3 between them), so the
+budget is not the variable at that pace either. A burst cannot be
+constructed under delivered directives: a supervisor at no gap restores
+each host as it is compromised, and red compromises about 73 an episode.
+The burst that lost four to one through the dropping channel was 77
+attempts fired early onto busy agents and mostly discarded. The earlier
+reading does not reverse, it dissolves: the difference between the two
+arms was always their delivered count.
+
+This removes the justification the trial had for spacing decisions 32
+apart. Gap 32 is a pace, and 48 decisions an episode is where the
+prototype's tempo puts a person, but it is not a design that protects
+the person from themselves, because there is nothing to protect against.
+What a person scores depends on how many good decisions they make. The
+thermostat and the timer place the same count of decisions at different
+moments and score the same (queue F, and the rungs below), so a person is
+read against the curve at their own count, which separates workload from
+judgment, and the screen never withholds a click for the sake of pacing.
+
+### The as-is ceiling
+
+O16 is a supervisor with the trial's as-is display and nothing else. Its
+eyes are O2f's latch, the agents' own observation stream, the alerts the
+screen shows. Its hands are a look and a restore: on a free tick with the
+floor open it restores a latched host whose Analyse has returned a file
+with Density at or above 0.9 since its last restore, and otherwise
+analyses the latched host it has not looked at within the window. No
+ground truth enters anywhere. It proposes nothing while the floor is
+shut, and it books a restore only when it proposes one.
+
+| Pairing | Arm | Mean | Against control | Wins | p | Decisions / ep (looks / restores) | Confirmed / ep | Closed | Directed look (O10) |
+|---|---|---|---|---|---|---|---|---|---|
+| KEEP, Wrecker, gap 32 | `wo_O16_g32_wb` | -1033.1 | +82.6 | 60/100 | 0.057 | 71.2 (66.9 / 4.3) | 6.2 | 0.098 | 0.224 |
+| KEEP, Wrecker, gap 8 | `wo_O16_g8_wb` | -920.1 | +195.6 | 73/100 | <0.001 | 228.9 (222.3 / 6.5) | 7.4 | 0.233 | |
+| KEEP, stock | `so_O16_g32_wb` | -188.0 | -0.7 | 49/100 | 0.92 | 71.8 (66.9 / 5.0) | 6.5 | -0.018 | 0.060 |
+| KEEP, mass 16 | `o16_g32_FSRedAgentWreckerQ16_wb` | -491.0 | +48.2 | | | 71.4 (65.2 / 6.2) | 8.5 | 0.133 | 0.181 |
+| KEEP, mass 32 | `o16_g32_FSRedAgentWreckerQ32_wb` | -690.8 | +82.3 | | | 71.7 (66.4 / 5.3) | 7.8 | 0.148 | 0.267 |
+| H-MARL, Wrecker | `hm_wo_O16_g32_wb` | -851.6 | -8.9 | 48/100 | 0.76 | 71.9 (70.4 / 1.4) | 2.1 | -0.016 | 0.152 |
+
+The as-is display closes a tenth of the distance on KEEP under Wrecker,
++83, at the edge of the band: p 0.057, 60 of 100. The minimum detectable
+effect of a 100-seed paired arm on this pairing is about 106 points
+(`tools_power.py`), larger than the effect, so a person who played this
+rule perfectly on the as-is display would not be distinguishable from the
+control at the trial's size. Sixty-seven of its 71 decisions an episode
+are looks; six of them confirm a file and four restores fire, against
+about 73 compromises. On H-MARL the stream confirms two hosts an episode
+and the rule is worth nothing. Along the axis it closes 0.13 and 0.15 at
+mass 16 and 32, a third to a half of what the directed look closes at
+the same pace. At gap 8 the rule makes 229 decisions an episode, all but
+seven of them looks, and closes 0.233, the same as the directed look at
+gap 32: the as-is stream can be made to yield the directed look's share
+by looking on nearly every free tick, at 0.001 of the distance per
+decision, which is not a rate a person can hold.
+
+The information ladder on KEEP under Wrecker, hands and pace fixed,
+directives held: truth +625, a look directed by truth +188, the agents'
+evidence with a look +83, the agents' evidence alone -12 (O2f, fired at
+its tick). On H-MARL +415, +87, -9, -165. The trial's as-is display sits
+on the third rung.
+
+### The alert gate with as-is hands
+
+O15h keeps O15a's gate (one alert on the agent's hosts in the trailing
+16 steps) and sends the restore to the host of the latest alert instead
+of a ground-truth compromised host.
+
+| Pairing | Arm | Mean | Against control | Restores / ep | Gate open, agent-ticks / ep | Open with that host compromised | Clean-target share | Closed |
+|---|---|---|---|---|---|---|---|---|
+| KEEP, Wrecker | `wo_O15h_e1_g32_wb` | -1015.6 | +100.1 | 56.5 | 651 | 89 | 0.86 | 0.119 |
+| the same gate with a ground-truth hand | `wo_O15a_e1_g32_wb` | -638.4 | +477.3 | 41.4 | 680 | 320 | | 0.568 |
+| H-MARL, Wrecker | `hm_wo_O15h_e1_g32_wb` | -860.2 | -17.5 | 49.1 | 437 | 62 | 0.86 | -0.031 |
+| the same gate with a ground-truth hand | `hm_wo_O15a_e1_g32_wb` | -551.1 | +291.6 | 36.1 | 435 | 230 | | 0.514 |
+
+Paired against O15a on KEEP, -377 (9/100). The gate opens at the right
+times, since with a ground-truth hand it closes 0.57 at 41 an episode,
+but 86 percent of the ticks it opens on, the latest alert names a host
+that is clean, on both defenders. The alert feed can time and cannot
+aim. A display built on it is a prompt, and the target has to come from
+somewhere else.
+
+### Two more thermostat rungs
+
+The loss thermostat at mass 16 and 32, filling in the ladder from queue
+F (control -539.2 and -773.1; O1 at gap 32 closes 0.712 and 0.708):
+
+| Adversary | Rule | Interventions / ep | Mean | Closed | Per intervention |
+|---|---|---|---|---|---|
+| mass 16 | thermostat 3 | 44.4 | -301.3 | 0.656 | 0.0148 |
+| mass 16 | thermostat 6 | 37.0 | -305.1 | 0.645 | 0.0174 |
+| mass 16 | thermostat 12 | 27.2 | -350.3 | 0.521 | 0.0191 |
+| mass 16 | cadence, gap 64 | 30.9 | -332.6 | 0.569 | 0.0184 |
+| mass 32 | thermostat 6 | 38.5 | -391.0 | 0.687 | 0.0178 |
+| mass 32 | thermostat 11 | 32.6 | -406.0 | 0.660 | 0.0202 |
+| mass 32 | thermostat 22 | 22.7 | -480.2 | 0.526 | 0.0232 |
+| mass 32 | cadence, gap 64 | 30.7 | -460.1 | 0.563 | 0.0183 |
+
+At both depths the thermostat sits on or above the cadence at every
+rung: at mass 32, 0.66 at 32.6 an episode against the cadence's 0.56 at
+30.7 (+54 paired, p 0.02, queue F), and at mass 16, 0.65 at 37 against
+0.57 at 31 (+28, p 0.09). Under Wrecker the two are equal. The thermostat
+is never worse than the timer at matched effort, and where the loss
+signal is cleaner it is better.
+
+### H-MARL's mode gate, held
+
+`hm_wo_O14_g32_wb` reads -880.27, -37.5 against the control (43/100,
+p 0.23), identical to the decimal to the arm fired at its tick. That is
+the expected result: the mode gate edits the policy's own action on the
+policy's own tick and never carries a directive across a busy spell, so
+there is nothing for the flag to hold. The rung stays inside the band
+and the hatching comes off it.
+
+### What this does to the trial
+
+- The screen accepts a click at any moment and shows it holding. The
+  price is -1 on KEEP and -30 on H-MARL; first and last are the same.
+- Gap 32 is a pace, not a justification. The burst-against-spread
+  reading was a delivery artifact. A person is read against the curve at
+  their own count, and the timer prompts without withholding a click.
+- The as-is display's ceiling is +83 on KEEP under Wrecker and nothing
+  on H-MARL, below the minimum detectable effect at 100 seeds. The as-is
+  condition is the trial's floor; the ground-truth condition is its
+  measurement; and the smallest display change with a visible ceiling is
+  one that gives the person the directed look, +188.
+- The alert feed is a cue, not a target; the status board with a
+  threshold alarm is an anti-pattern (queue F); the loss thermostat is a
+  prompt that costs nothing against the timer and gains at mild depths.
+- Execution shares under the flag are 0.99. Every count in the study from
+  queue C on is a count of executed directives.
+
+### Open items
+
+- O16 with a second-alert triage before the look (R2's rule as a
+  supervisor), to see whether the as-is stream can be filtered into a
+  visible ceiling without ground truth.
+- The thermostat and the held click together, which is the trial's
+  actual condition.
+- The prototype's tempo re-derived from wall time, so the person's count
+  can be placed on the curve before the pilot.
+
 ## What the simulator ran
 
 Every supervisor arm in this study counted an override as executed when

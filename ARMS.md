@@ -1691,8 +1691,139 @@ alike. The full reading is in RESULTS.md "When to engage".
 
 ---
 
+## Queue G: delivered-directive arms
+
+`tools_add_queue.py` (2026-09-28) adds three things to the harness, each
+guarded so an unpatched run is unchanged.
+
+- `--queue first|last` (O1, O15r and O15c on a learned policy, requires
+  `--wait-busy`). On a busy tick with the gap floor open the supervisor
+  is consulted and its directive stashed for the agent; `first` keeps the
+  first stash of a busy spell, `last` replaces it on every busy tick. On
+  the agent's next free tick the stash fires as decided and is counted as
+  an override, with `queue_fired`, `queue_stale` (its host was no longer
+  compromised when it fired; it fires anyway) and `queue_wait` (ticks
+  held). Header field `queue`; footer fields `queued`, `queue_fired`,
+  `queue_stale`, `queue_wait`.
+- `O16`, the as-is supervisor: O2f's latch for eyes; on a free tick with
+  the floor open, Restore a latched host whose Analyse returned a file
+  with Density at or above 0.9 since its last restore, otherwise Analyse
+  the latched host not looked at within `ANALYSE_WINDOW`; nothing while
+  the floor is shut; the restore is booked on proposal only. Footer
+  `o16_confirmed`.
+- `O15h`, O15a's gate with the Restore sent to the host of the latest
+  alert in the window. Footer `o15h_clean` (gate-open ticks whose target
+  was clean by ground truth; `engaged_hit` the ones where it was
+  compromised).
+
+`capture_hmarl.py` carries `--queue` and the same header and footer
+fields. The O2e smoke and the H-MARL compat gate reproduce under the
+patch. `queue_G.sh` launches the 25 arms on two lanes and, called with
+`read`, prints the tables below from the footers and `tools_gate.py`.
+
+Run 2026-09-28, launched 22:27, done 23:36. `wo_O1_g8_wb` lost a worker
+at 22:52 and was rerun from a clean directory after the queue finished
+(`mean -332.46 stdev 54.64 overrides/ep 72.8`). All arms 100 episodes on
+seeds 0 to 99, `--wait-busy`, budget 99999 except where noted, six
+workers. Shares are of the distance from the control to RT under the
+same adversary.
+
+The held click (KEEP control `red_FSRedAgentWrecker` -1,115.7; H-MARL
+`hm_w_none` -842.8; RT `rd_RT_w_none_wb` -274.9):
+
+| Directory | Rule | Mean | Against control | Against the free-tick arm | Ovr / ep | Deferred | Queued / fired / stale | Wait, ticks | Closed |
+|---|---|---|---|---|---|---|---|---|---|
+| `wo_O1_g32_qf_wb` | O1 gap 32, queue first | -491.9 | +623.8 | -1.2 (40/100, p 0.826) | 48.2 | 401.5 | 18.9 / 18.9 / 1.4 | 1.6 | 0.742 |
+| `wo_O1_g32_ql_wb` | O1 gap 32, queue last | -500.5 | +615.2 | -9.8 (36/100, p 0.731) | 48.1 | 402.8 | 18.9 / 18.9 / 1.3 | 1.0 | 0.732 |
+| `hm_wo_O1_g32_qf_wb` | O1 gap 32, queue first | -457.8 | +384.9 | -29.9 (32/100, p 0.023) | 47.9 | 332.0 | 30.9 / 30.8 / 1.4 | 1.1 | 0.678 |
+| `hm_wo_O1_g32_ql_wb` | O1 gap 32, queue last | -459.0 | +383.8 | -31.0 (30/100, p 0.012) | 48.0 | 333.2 | 30.9 / 30.8 / 1.3 | 1.0 | 0.676 |
+
+The rate curve, KEEP under Wrecker (gaps 32, 64 and 96 are queue C and
+F arms, listed for the curve):
+
+| Directory | Rule | Mean | Against control | Ovr / ep | Deferred | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|
+| `wo_O1_g4_wb` | O1 gap 4 | -324.5 | +791.1 | 74.7 | 0.0 | 0.941 | 0.0126 |
+| `wo_O1_g8_wb` | O1 gap 8 | -332.5 | +783.2 | 72.8 | 44.9 | 0.932 | 0.0128 |
+| `wo_O1_g16_wb` | O1 gap 16 | -353.7 | +761.9 | 65.1 | 189.3 | 0.906 | 0.0139 |
+| `wo_O1_g32_wb` | O1 gap 32 | -490.7 | +624.9 | 48.1 | 399.2 | 0.743 | 0.0154 |
+| `wo_O1_g64_wb` | O1 gap 64 | -613.6 | +502.1 | 31.3 | 609.7 | 0.597 | 0.0191 |
+| `wo_O1_g96_wb` | O1 gap 96 | -691.3 | +424.4 | 23.0 | 710.0 | 0.505 | 0.0219 |
+| `wo_O1_g128_wb` | O1 gap 128 | -744.0 | +371.7 | 18.2 | 770.0 | 0.442 | 0.0243 |
+| `wo_O2_g0_b77_wb` | O2, no gap, budget 77 | -327.5 | +788.1 | 71.0 | 0.0 | 0.937 | 0.0132 |
+| `wo_O2_g32_wb` | O2 gap 32 | -490.4 | +625.3 | 47.5 | 373.7 | 0.744 | 0.0157 |
+| `hm_wo_O1_g16_wb` | H-MARL, O1 gap 16 | -329.0 | +513.8 | 63.3 | 163.7 | 0.905 | 0.0143 |
+| `hm_wo_O1_g128_wb` | H-MARL, O1 gap 128 | -661.5 | +181.2 | 17.8 | 590.0 | 0.319 | 0.0180 |
+
+`wo_O2_g0_b77_wb` paired against `wo_O2_g32_wb`: +162.9, 96/100,
+p <0.001. Its restores by fifty-step bin run 6.6 to 7.9 an episode with
+the last at step 490; the budget is never reached.
+
+The as-is supervisor (stock control `corpus_v1` -187.3, RT
+`rd_RT_s_none_wb` -148.1; mass 16 and 32 controls -539.2 and -773.1):
+
+| Directory | Pairing | Mean | Against control | Ovr / ep | Analyses / restores / confirmed | Agreements | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|---|
+| `wo_O16_g32_wb` | KEEP, Wrecker | -1033.1 | +82.6 (60/100, p 0.057) | 71.2 | 66.9 / 4.3 / 6.2 | 60.5 | 0.098 | 0.0014 |
+| `wo_O16_g8_wb` | KEEP, Wrecker, gap 8 | -920.1 | +195.6 (73/100, p <0.001) | 228.9 | 222.3 / 6.5 / 7.4 | 56.9 | 0.233 | 0.0010 |
+| `so_O16_g32_wb` | KEEP, stock | -188.0 | -0.7 (49/100, p 0.92) | 71.8 | 66.9 / 5.0 / 6.5 | 59.0 | -0.018 | -0.0002 |
+| `o16_g32_FSRedAgentWreckerQ16_wb` | KEEP, mass 16 | -491.0 | +48.2 | 71.4 | 65.2 / 6.2 / 8.5 | 63.4 | 0.133 | 0.0019 |
+| `o16_g32_FSRedAgentWreckerQ32_wb` | KEEP, mass 32 | -690.8 | +82.3 | 71.7 | 66.4 / 5.3 / 7.8 | 63.2 | 0.148 | 0.0021 |
+| `hm_wo_O16_g32_wb` | H-MARL, Wrecker | -851.6 | -8.9 (48/100, p 0.76) | 71.9 | 70.4 / 1.4 / 2.1 | 25.0 | -0.016 | -0.0002 |
+
+The directed look on the same pairings for reference: `wo_O10_g32_wb`
+0.224, `o10_g32_wb` (stock) 0.060, `o10_g32_FSRedAgentWreckerQ16_wb`
+0.181, `o10_g32_FSRedAgentWreckerQ32_wb` 0.267, `hm_wo_O10_g32_wb`
+0.152.
+
+The alert gate with as-is hands:
+
+| Directory | Pairing | Mean | Against control | Restores / ep | Deferred | Engaged / hit / quiet | `o15h_clean` | Closed |
+|---|---|---|---|---|---|---|---|---|
+| `wo_O15h_e1_g32_wb` | KEEP, Wrecker | -1015.6 | +100.1 | 56.5 | 594.3 | 651 / 89 / 477 | 561.5 | 0.119 |
+| `hm_wo_O15h_e1_g32_wb` | H-MARL, Wrecker | -860.2 | -17.5 | 49.1 | 388.0 | 437 / 62 / 396 | 375.5 | -0.031 |
+
+`wo_O15h_e1_g32_wb` paired against `wo_O15a_e1_g32_wb`: -377.2, 9/100,
+p <0.001.
+
+The thermostat at mass 16 and 32 (gap-64 cadences and the mid rungs are
+queue F arms, listed for the ladder):
+
+| Directory | Rule | Mean | Against control | Ovr / ep | Deferred | Engaged / hit / quiet | Closed | Per ovr |
+|---|---|---|---|---|---|---|---|---|
+| `o15r_e3_g32_FSRedAgentWreckerQ16_wb` | O15r, 3 | -301.3 | +237.9 | 44.4 | 328.3 | 1179 / 373 / 150 | 0.656 | 0.0148 |
+| `o15r_e6_g32_FSRedAgentWreckerQ16_wb` | O15r, 6 | -305.1 | +234.1 | 37.0 | 237.0 | 868 / 274 / 328 | 0.645 | 0.0174 |
+| `o15r_e12_g32_FSRedAgentWreckerQ16_wb` | O15r, 12 | -350.3 | +188.9 | 27.2 | 149.3 | 539 / 177 / 543 | 0.521 | 0.0191 |
+| `o1_g64_FSRedAgentWreckerQ16_wb` | O1 gap 64 | -332.6 | +206.6 | 30.9 | 605.1 | | 0.569 | 0.0184 |
+| `o15r_e6_g32_FSRedAgentWreckerQ32_wb` | O15r, 6 | -391.0 | +382.1 | 38.5 | 275.8 | 1008 / 314 / 254 | 0.687 | 0.0178 |
+| `o15r_e11_g32_FSRedAgentWreckerQ32_wb` | O15r, 11 | -406.0 | +367.1 | 32.6 | 198.6 | 762 / 231 / 394 | 0.660 | 0.0202 |
+| `o15r_e22_g32_FSRedAgentWreckerQ32_wb` | O15r, 22 | -480.2 | +292.8 | 22.7 | 99.6 | 363 / 122 / 642 | 0.526 | 0.0232 |
+| `o1_g64_FSRedAgentWreckerQ32_wb` | O1 gap 64 | -460.1 | +312.9 | 30.7 | 588.5 | | 0.563 | 0.0183 |
+
+H-MARL's mode gate held: `hm_wo_O14_g32_wb` -880.27, -37.5 against the
+control (43/100, p 0.228), 57.8 overrides an episode, identical to
+`hm_wo_O14_g32` fired at its tick. The mode gate edits the policy's own
+action on its own tick and carries nothing across a busy spell.
+
+Execution shares from the step records of twenty episodes
+(`tools_dropped.py`): `wo_O1_g32_qf_wb` Restore 47.8 of 48.2 an episode
+executed, 0.991, busy share of agent-steps 0.397; `wo_O16_g32_wb`
+Analyse 65.9 of 66.2, 0.996, Restore 4.2 of 4.2, 0.988, busy share
+0.393; `hm_wo_O1_g32_qf_wb` Restore 46.6 of 47.1, 0.990, busy share
+0.538.
+
 ## Known issues
 
+- **Queue G segfault and the rerun (2026-09-28).** `wo_O1_g8_wb` lost a
+  worker at 22:52 (exit 1, SIGSEGV in a worker) and `queue_G.sh` went on
+  with the other 24 arms. The partial root-owned directory was removed
+  with `sudo rm -rf` and the arm rerun from a clean directory after the
+  queue finished; every queue G directory holds 100 footers. Two rerun
+  attempts before that were stopped by the shell, because the `sudo rm`
+  was inside the `nohup` job and waited for a password in the background:
+  `sudo` runs as its own foreground line, and the background job starts
+  after it. `queue_G.sh read` prints the exits and a completeness check
+  first.
 - **The commit history was rewritten on 2026-09-28; `harness_sha` values
   recorded from 2026-09-18 onward no longer resolve.** 
   Session trailers were stripped from 30 commit messages with `git
