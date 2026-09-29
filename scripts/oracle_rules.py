@@ -30,7 +30,7 @@ MACHINE = _platform.node()
 RED_AGENT_NAME = "FiniteStateRedAgent"   # overwritten where --red is resolved
 # --- end provenance ---
 
-EPISODE_LENGTH = 500
+EPISODE_LENGTH = int(os.environ.get("CAGE_EPISODE_LENGTH", "500"))   # 500 unless a short-episode arm sets it
 BLUE = [f"blue_agent_{i}" for i in range(5)]
 RED = [f"red_agent_{i}" for i in range(6)]
 
@@ -132,7 +132,7 @@ except ImportError:
 
 KNOWN_RULES = {"none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
                "O2e", "O2er", "O2ew", "O2s", "O10", "O11", "O12", "O13", "O14",
-               "O2f", "O2fr", "O2fw", "O15r", "O15a", "O15c"}
+               "O2f", "O2fr", "O2fw", "O15r", "O15a", "O15c", "O15h", "O16", "O16t", "O17"}
 DEFENDERS = ("R1", "R2", "R2d", "R3", "R4", "R4p", "R4d", "R4t", "R4t3", "R4tn", "RT")
 ALERTS_TO_RESTORE = {"R1": 10**9, "R2": 2, "R2d": 2, "R3": 1, "R4": 2, "R4t": 2, "R4t3": 3, "R4tn": 2}   # monitor alerts since the last eviction
 RESTORE_WINDOW = 30      # O8's window: do not restore the same host twice within it
@@ -339,7 +339,7 @@ def make_defender(cyborg, kind, stats, decoys):
     return propose
 
 
-def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False, engage=None, window=16):
+def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, agents=None, noise_seed=0):
     """Return intercept(agent_name, act) -> act. Rule bodies are verbatim from oracle.py.install_oracle."""
     if decoys is None:
         decoys = {}
@@ -351,8 +351,80 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
         defender = make_defender(cyborg, _dk, stats, decoys)
     if rule not in KNOWN_RULES:
         raise ValueError(f"unknown rule {rule}")
-    if rule in ("O15r", "O15a", "O15c") and engage is None:
+    if rule in ("O15r", "O15a", "O15c", "O15h", "O17") and engage is None:
         raise ValueError(f"{rule} needs an engagement threshold (--engage)")
+    if queue is not None:
+        if queue not in ("first", "last"):
+            raise ValueError(f"queue must be first or last, not {queue}")
+        if rule not in ("O1", "O15r", "O15c") or defender is not None or not wait_busy:
+            raise ValueError("--queue applies to O1, O15r and O15c on a learned policy, with --wait-busy")
+    if rule in ("O16t", "O17") and defender is not None:
+        raise ValueError(f"{rule} supervises a learned policy")
+    # a person's eyes and hands (tools_add_person.py): all off unless asked for
+    noise = dict(noise or {})
+    eyes = noise.get("recall") is not None or noise.get("false") is not None
+    hands = any(noise.get(k) is not None for k in ("delay", "wrong", "skip"))
+    r_ = 1.0 if noise.get("recall") is None else float(noise["recall"])
+    f_ = 0.0 if noise.get("false") is None else float(noise["false"])
+    d_ = int(noise.get("delay") or 0)
+    w_ = float(noise.get("wrong") or 0.0)
+    s_ = float(noise.get("skip") or 0.0)
+    if eyes and (rule != "O1" or defender is not None):
+        raise ValueError("--recall and --false-alarm apply to O1 on a learned policy")
+    if eyes and not (0.0 <= r_ <= 1.0 and 0.0 <= f_ < 1.0):
+        raise ValueError("recall in [0, 1], false-alarm rate in [0, 1)")
+    if hands and queue != "first":
+        raise ValueError("--delay, --wrong and --skip need --queue first: a person's click is held for the agent")
+    if hands and not (d_ >= 0 and 0.0 <= w_ <= 1.0 and 0.0 <= s_ < 1.0):
+        raise ValueError("delay >= 0, wrong in [0, 1], skip in [0, 1)")
+    only = None
+    if agents is not None:
+        if defender is not None:
+            raise ValueError("--agents applies to a supervisor on a learned policy")
+        only = {a if str(a).startswith("blue_agent_") else f"blue_agent_{int(a)}" for a in agents}
+    rng = random.Random(noise_seed)          # private: the environment's and the policy's draws are untouched
+    FA_DWELL = 16                            # a false alarm shows for this many steps once raised
+    p_fa = f_ / (FA_DWELL * (1.0 - f_)) if f_ else 0.0   # onset rate per step for a stationary share f flagged
+    _inst = {}; _fa = {}; _seen_at = {}
+    sup_stats = {}
+    sup = make_defender(cyborg, "R2", sup_stats, decoys) if rule == "O16t" else None
+
+    def _see(agent_name, comp):
+        """O1's view through a detector: a compromise is shown for its whole life with probability
+        recall, drawn when first looked at; a clean host raises a false alarm that shows for FA_DWELL
+        steps; the person picks one flagged host at random. Returns the pick as O1's list, or []."""
+        now = int(getattr(cyborg.environment_controller, "step_count", 0) or 0)
+        k = max(1, now - _seen_at.get(agent_name, now - 1)); _seen_at[agent_name] = now
+        p_on = 1.0 - (1.0 - p_fa) ** k if p_fa else 0.0     # onsets over the steps since the last look
+        cs = {c[0] for c in comp}
+        inst = _inst.setdefault(agent_name, {}); fa = _fa.setdefault(agent_name, {})
+        for h in list(inst):
+            if h not in cs:
+                del inst[h]                  # that compromise has ended; a new one draws afresh
+        own = owned_hosts(cyborg, agent_name); ownset = set(own)
+        hosts = list(own) + sorted(h for h in cs if h not in ownset)
+        seen = []
+        for h in hosts:
+            if h in cs:
+                if h not in inst:
+                    inst[h] = rng.random() < r_
+                if inst[h]:
+                    seen.append(h)
+            elif fa.get(h, -1) >= now:
+                seen.append(h)
+            elif p_on and rng.random() < p_on:
+                fa[h] = now + FA_DWELL - 1
+                seen.append(h)
+        tp = sum(1 for h in seen if h in cs)
+        stats["eyes_tp"] = stats.get("eyes_tp", 0) + tp
+        stats["eyes_fn"] = stats.get("eyes_fn", 0) + len(cs) - tp
+        stats["eyes_fp"] = stats.get("eyes_fp", 0) + len(seen) - tp
+        stats["eyes_clean"] = stats.get("eyes_clean", 0) + len(hosts) - len(cs)
+        if not seen:
+            return []
+        tgt = rng.choice(sorted(seen))
+        return [(tgt, subnet_of(tgt))]
+
 
     flagged = {}   # O2e: agent_name -> hosts named by a substantive obs since last Restore/Remove
     META = {"success", "action", "message"}
@@ -406,14 +478,78 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
 
         comp = compromised_by_agent(cyborg).get(agent_name, [])
 
-        if rule in ("O15r", "O15a", "O15c"):
+        if rule == "O16t":
+            # R2's triage as a supervisor: its eyes (alerts per owned host since its last restore, a
+            # confirmed file) and its choice (restore on a second alert or a confirmed file, else look
+            # at a host alerted once), offered at the gate; ground truth is read for bookkeeping only
+            p = sup(agent_name, act)
+            stats["sup_tp"] = sup_stats.get("d_tp", 0)
+            stats["sup_fp"] = sup_stats.get("d_fp", 0)
+            stats["sup_fn"] = sup_stats.get("d_fn", 0)
+            stats["sup_own"] = stats.get("sup_own", 0) + len(owned_hosts(cyborg, agent_name))
+            if min_gap and _tick.get(agent_name, 0) - _last.get(agent_name, -10**9) < min_gap:
+                return act                    # the gate is shut: nothing proposed, nothing booked
+            if type(p).__name__ not in ("Restore", "Analyse"):
+                return act
+            if type(act) is type(p) and getattr(act, "hostname", None) == getattr(p, "hostname", None):
+                stats["agree"] += 1
+                return act
+            if stats["override"] >= budget:
+                stats["exhausted"] += 1
+                return act
+            stats["override"] += 1
+            return p
+
+        if rule == "O17":
+            # the policy's own suspicion: each owned host scored by the probability the actor puts on
+            # Remove or Restore of it; at the gate, restore the top host if its score is at least the
+            # threshold. Ground truth is read for bookkeeping only
+            pr = stats["probs"].get(agent_name) if isinstance(stats.get("probs"), dict) else None
+            if pr is None or NODE_ACTIONS is None:
+                return act
+            ownset = set(owned_hosts(cyborg, agent_name))
+            aid = int(agent_name[-1]); score = {}
+            for s_i, sn in enumerate(MY_SUBNETS[aid]):
+                for k in (1, 2):                      # NODE_ACTIONS: 1 = Remove, 2 = Restore
+                    base = s_i * MAX_ACTIONS + k * MAX_HOSTS
+                    for j in range(MAX_HOSTS):
+                        h = f"{sn}_user_host_{j-6}" if j > 5 else f"{sn}_server_host_{j}"
+                        if h in ownset:
+                            score[h] = score.get(h, 0.0) + float(pr[base + j])
+            if not score:
+                return act
+            top = max(sorted(score), key=lambda h: score[h])
+            cs = {c[0] for c in comp}
+            sig = score[top]
+            stats["signal_sum"] = stats.get("signal_sum", 0.0) + sig
+            stats["signal_ticks"] = stats.get("signal_ticks", 0) + 1
+            stats.setdefault("sig", {})[agent_name] = [
+                round(sig, 5), int(top in cs),
+                round(max((score.get(h, 0.0) for h in cs), default=0.0), 5),
+                round(max((v for h, v in score.items() if h not in cs), default=0.0), 5), len(cs)]
+            if sig < engage:
+                if comp:
+                    stats["quiet_comp"] = stats.get("quiet_comp", 0) + 1
+                return act
+            stats["engaged"] = stats.get("engaged", 0) + 1
+            if type(act).__name__ in ("Restore", "Remove") and getattr(act, "hostname", None) == top:
+                stats["agree"] += 1
+                return act
+            if top in cs:
+                stats["engaged_hit"] = stats.get("engaged_hit", 0) + 1
+            else:
+                stats["o17_clean"] = stats.get("o17_clean", 0) + 1
+            stats["override"] += 1
+            return Restore(session=0, agent=agent_name, hostname=top)
+
+        if rule in ("O15r", "O15a", "O15c", "O15h"):
             # the engagement gate: act (as O1 would) only when a signal a supervisor could watch is
             # at or above the threshold; the gap floor is intercept's, the wait is the flag's
             now = int(getattr(cyborg.environment_controller, "step_count", 0) or 0)
             if rule == "O15r":                  # loss over the trailing window, team-wide
                 hist = stats.get("rew_hist") or []
                 sig = -sum(hist[-window:])
-            elif rule == "O15a":                # alerts on owned hosts over the trailing window
+            elif rule in ("O15a", "O15h"):      # alerts on owned hosts over the trailing window
                 obs = cyborg.get_observation(agent_name) or {}
                 st = flagged.setdefault(agent_name, {"t": 0, "h": {}})
                 st["t"] += 1
@@ -427,9 +563,9 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
                     _conf = any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl)
                     if not _conf and (t == 1 or st.get("acted") == (h, t - 1)):
                         continue           # the reset listing, or the echo of this agent's own action
-                    al.append(now)
+                    al.append((now, h))
                     stats["alerts"] = stats.get("alerts", 0) + 1
-                while al and al[0] <= now - window:
+                while al and al[0][0] <= now - window:
                     al.pop(0)
                 sig = len(al)
             else:                               # compromised owned hosts, ground truth
@@ -442,6 +578,16 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
                     stats["quiet_comp"] = stats.get("quiet_comp", 0) + 1
                 return act
             stats["engaged"] = stats.get("engaged", 0) + 1
+            if rule == "O15h":                  # as-is hands: restore the host of the latest alert
+                if not al:
+                    return act
+                tgt = al[-1][1]
+                if tgt in {c[0] for c in comp}:
+                    stats["engaged_hit"] = stats.get("engaged_hit", 0) + 1
+                else:
+                    stats["o15h_clean"] = stats.get("o15h_clean", 0) + 1
+                stats["override"] += 1
+                return Restore(session=0, agent=agent_name, hostname=tgt)
             if not comp:
                 return act
             stats["engaged_hit"] = stats.get("engaged_hit", 0) + 1
@@ -478,7 +624,7 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
                     return Sleep()
                 stats["agree"] += 1
             return act
-        if rule in ("O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13"):
+        if rule in ("O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13", "O16"):
             obs = cyborg.get_observation(agent_name) or {}
             st = flagged.setdefault(agent_name, {"t": 0, "h": {}})   # h: host -> [first_seen, last_seen]
             st["t"] += 1
@@ -489,7 +635,7 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
                         _fl = v.get("Files") or []
                         if not any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl):
                             continue
-                    if rule in ("O2f", "O2fr", "O2fw"):
+                    if rule in ("O2f", "O2fr", "O2fw", "O16"):
                         _fl = v.get("Files") or []
                         _conf = any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl)
                         if not _conf and (t == 1 or st.get("acted") == (h, t - 1)):
@@ -515,6 +661,37 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
             if type(act).__name__ in ("Restore", "Remove") and acting_on in ecomp:
                 stats["agree"] += 1
                 st["h"].pop(acting_on, None)
+                return act
+            if rule == "O16":
+                # the as-is supervisor: eyes are the latch, hands are a look at a latched host and a
+                # Restore once a look has returned a confirmed file; no ground truth anywhere
+                conf = st.setdefault("conf", {}); inv = st.setdefault("inv", {}); rst = st.setdefault("rst", {})
+                for h, v in obs.items():
+                    if h not in META and isinstance(v, dict):
+                        _fl = v.get("Files") or []
+                        if any(isinstance(x, dict) and float(x.get("Density") or 0) >= 0.9 for x in _fl):
+                            if conf.get(h, -10**9) <= rst.get(h, -10**9):
+                                stats["o16_confirmed"] = stats.get("o16_confirmed", 0) + 1
+                            conf[h] = t
+                if min_gap and _tick.get(agent_name, 0) - _last.get(agent_name, -10**9) < min_gap:
+                    return act                # the gate is shut: nothing proposed, nothing booked
+                hit = [h for h in ecomp if conf.get(h, -10**9) > rst.get(h, -10**9)]
+                if hit:
+                    if stats["override"] >= budget:
+                        stats["exhausted"] += 1
+                        return act
+                    tgt = hit[0]; rst[tgt] = t; st["h"].pop(tgt, None)
+                    stats["override"] += 1
+                    return Restore(session=0, agent=agent_name, hostname=tgt)
+                look = [h for h in ecomp if conf.get(h, -10**9) <= rst.get(h, -10**9)
+                        and t - inv.get(h, -10**9) >= ANALYSE_WINDOW]
+                if look:
+                    if stats["override"] >= budget:
+                        stats["exhausted"] += 1
+                        return act
+                    tgt = look[0]; inv[tgt] = t
+                    stats["override"] += 1
+                    return Analyse(session=0, agent=agent_name, hostname=tgt)
                 return act
             if rule == "O13":
                 inv = st.setdefault("inv", {})            # host -> agent-step of last investigation
@@ -554,6 +731,8 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
             st["h"].pop(tgt, None)
             return Restore(session=0, agent=agent_name, hostname=tgt)
 
+        if eyes:
+            comp = _see(agent_name, comp)          # O1 through a detector (validated: O1 only)
         if rule == "O4":
             comp = [c for c in comp if c[1] in EXPENSIVE]
         if not comp:
@@ -645,35 +824,116 @@ def make_oracle(cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_bus
         except AttributeError:
             return False
 
-    _tick = {}; _last = {}
+    def _hands(agent_name, res):
+        """a person's hands on a directive decided now: None when they let this prompt pass, else the
+        directive as clicked, on another owned host with probability wrong"""
+        if s_ and rng.random() < s_:
+            stats["h_skip"] = stats.get("h_skip", 0) + 1
+            return None
+        h = getattr(res, "hostname", None)
+        if w_ and h and rng.random() < w_:
+            pool = [x for x in owned_hosts(cyborg, agent_name) if x != h]
+            if pool:
+                stats["h_wrong"] = stats.get("h_wrong", 0) + 1
+                return type(res)(session=0, agent=agent_name, hostname=rng.choice(pool))
+        return res
+
+    def _ran(agent_name, res):
+        # a directive handed to a free agent: count a restore on a clean host; clear a false alarm on it
+        h = getattr(res, "hostname", None)
+        if type(res).__name__ == "Restore" and h:
+            if h not in {c[0] for c in compromised_by_agent(cyborg).get(agent_name, [])}:
+                stats["exec_clean"] = stats.get("exec_clean", 0) + 1
+            if eyes:
+                _fa.get(agent_name, {}).pop(h, None)
+
+    _tick = {}; _last = {}; _queued = {}; _due = {}
     def intercept(agent_name, act):
         stats["calls"] += 1
+        if only is not None and agent_name not in only:
+            return act                           # --agents: this agent runs as the policy alone
         if wait_busy and _busy(agent_name):
             stats["busy"] = stats.get("busy", 0) + 1
             _tick[agent_name] = _tick.get(agent_name, 0) + 1
             if defender is not None:
                 defender.observe(agent_name)
                 return Sleep()
+            if sup is not None:
+                sup.observe(agent_name)          # O16t: R2 keeps reading the stream while the agent is busy
+            if queue and (queue == "last" or agent_name not in _queued) \
+                    and not (min_gap and _tick[agent_name] - _last.get(agent_name, -10**9) < min_gap):
+                # the supervisor decides on the busy tick, as a person clicking would, and the
+                # directive is held for the agent's next free tick; it is booked when it fires
+                q = _decide(agent_name, act)
+                if q is not act:
+                    stats["override"] -= 1
+                    if hands:
+                        q = _hands(agent_name, q)
+                        if q is None:
+                            _last[agent_name] = _tick[agent_name]   # the prompt passes; the next comes a gap later
+                            return act
+                    if agent_name not in _queued:
+                        stats["queued"] = stats.get("queued", 0) + 1
+                    _queued[agent_name] = (q, _fmt(act), _tick[agent_name])
+                    _due[agent_name] = _tick[agent_name] + d_
+                elif queue == "last":
+                    _queued.pop(agent_name, None)  # the latest decision is to do nothing
             return act
         if defender is not None:
             act = defender(agent_name, act)      # the rule defender's proposal replaces the policy's
         _tick[agent_name] = _tick.get(agent_name, 0) + 1
-        res = _decide(agent_name, act)
-        if res is not act:
+        fired = False
+        if queue and agent_name in _queued and _tick[agent_name] >= _due.get(agent_name, 0):
+            res, _from, _at = _queued.pop(agent_name)      # fires as decided, whatever is true now
+            _h = getattr(res, "hostname", None)
+            if _h and _h not in {c[0] for c in compromised_by_agent(cyborg).get(agent_name, [])}:
+                stats["queue_stale"] = stats.get("queue_stale", 0) + 1
+            stats["queue_wait"] = stats.get("queue_wait", 0) + (_tick[agent_name] - _at)
+            stats["queue_fired"] = stats.get("queue_fired", 0) + 1
+            stats["override"] += 1
+            _last[agent_name] = _tick[agent_name]
+            _k = "exec_" + type(res).__name__
+            stats[_k] = stats.get(_k, 0) + 1
+            stats.setdefault("ovr", []).append([agent_name, _from, _fmt(res)])
+            _ran(agent_name, res)
+            fired = True
+        elif queue and agent_name in _queued:
+            res = act                            # a click still on its way (--delay): the policy runs meanwhile
+        else:
+            res = _decide(agent_name, act)
+        if res is not act and not fired:
             if min_gap and _tick[agent_name] - _last.get(agent_name, -10**9) < min_gap:
                 stats["override"] -= 1
                 stats["deferred"] = stats.get("deferred", 0) + 1
                 res = act
             else:
-                _last[agent_name] = _tick[agent_name]
-                _k = "exec_" + type(res).__name__
-                stats[_k] = stats.get(_k, 0) + 1
-                stats.setdefault("ovr", []).append([agent_name, _fmt(act), _fmt(res)])
+                if hands:
+                    stats["override"] -= 1       # booked again below if the click lands now
+                    clicked = _hands(agent_name, res)
+                    if clicked is None:
+                        _last[agent_name] = _tick[agent_name]
+                        res = act
+                    elif d_ > 0:
+                        stats["queued"] = stats.get("queued", 0) + 1
+                        _queued[agent_name] = (clicked, _fmt(act), _tick[agent_name])
+                        _due[agent_name] = _tick[agent_name] + d_
+                        res = act
+                    else:
+                        stats["override"] += 1
+                        res = clicked
+                if res is not act:
+                    _last[agent_name] = _tick[agent_name]
+                    _k = "exec_" + type(res).__name__
+                    stats[_k] = stats.get(_k, 0) + 1
+                    stats.setdefault("ovr", []).append([agent_name, _fmt(act), _fmt(res)])
+                    _ran(agent_name, res)
         if agent_name in flagged:                # O2f family: the executed action's host, for the echo test
             _h = getattr(res, "hostname", None)
             flagged[agent_name]["acted"] = (_h, flagged[agent_name]["t"]) if _h else None
         if defender is not None:
             defender.note(agent_name, res)       # whatever runs, the rule remembers it
+        if sup is not None:
+            sup.note(agent_name, res)            # O16t: whatever runs, R2's memory records it
         return res
 
     return intercept

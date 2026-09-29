@@ -39,16 +39,17 @@ from oracle_rules import (make_oracle, note_impacts, owned_hosts, compromised_by
                           _IMPACT_SEEN, _HOSTS_CACHE)
 
 
-def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False, engage=None, window=16):
+def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, agents=None, noise_seed=0):
     """Wrap action_translator so overrides slot in before execution."""
-    intercept = make_oracle(cyborg, rule, stats, budget, decoys, min_gap, wait_busy, engage, window)
+    intercept = make_oracle(cyborg, rule, stats, budget, decoys, min_gap, wait_busy, engage, window, queue,
+                            noise=noise, agents=agents, noise_seed=noise_seed)
     original = env.action_translator
     def patched(agent_name, a_id):
         return intercept(agent_name, original(agent_name, a_id))
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, only_agents=None):
     seed = base_seed + ep
     torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
 
@@ -67,8 +68,9 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     stats = Counter()
     stats["dact"] = []      # rule defender's per-step reasons; emptied into each step record
     decoys = {}
-    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap, wait_busy, engage, window)
-    if rule == "O11":
+    install_oracle(env, cyborg, rule, stats, budget, decoys, min_gap, wait_busy, engage, window, queue,
+                   noise=noise, agents=only_agents, noise_seed=seed)
+    if rule in ("O11", "O17"):
         stats["probs"] = {}
         for _n, _ag in agents.items():
             def _wrap(obs, *a, _orig=_ag.get_action, _ag=_ag, _n=_n):
@@ -93,7 +95,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
     with open(path, "w") as f:
         f.write(json.dumps({
             "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "red_agent": _rc.__name__, "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "engage": engage, "window": window, "cyborg_version": CYBORG_VERSION,
+            "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "engage": engage, "window": window, "queue": queue, "noise": noise, "agents": only_agents, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
 
@@ -141,6 +143,13 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
             "engaged": stats.get("engaged", 0), "engaged_hit": stats.get("engaged_hit", 0),
             "quiet_comp": stats.get("quiet_comp", 0), "signal_sum": stats.get("signal_sum", 0.0),
             "signal_ticks": stats.get("signal_ticks", 0), "alerts": stats.get("alerts", 0),
+            "queued": stats.get("queued", 0), "queue_fired": stats.get("queue_fired", 0),
+            "queue_stale": stats.get("queue_stale", 0), "queue_wait": stats.get("queue_wait", 0),
+            "o16_confirmed": stats.get("o16_confirmed", 0), "o15h_clean": stats.get("o15h_clean", 0),
+            "exec_clean": stats.get("exec_clean", 0), "h_skip": stats.get("h_skip", 0), "h_wrong": stats.get("h_wrong", 0),
+            "eyes_tp": stats.get("eyes_tp", 0), "eyes_fp": stats.get("eyes_fp", 0), "eyes_fn": stats.get("eyes_fn", 0), "eyes_clean": stats.get("eyes_clean", 0),
+            "sup_tp": stats.get("sup_tp", 0), "sup_fp": stats.get("sup_fp", 0), "sup_fn": stats.get("sup_fn", 0), "sup_own": stats.get("sup_own", 0),
+            "o17_clean": stats.get("o17_clean", 0),
             "analyses": stats.get("exec_Analyse", 0), "restores": stats.get("exec_Restore", 0),
             "removes": stats.get("exec_Remove", 0), "sleeps": stats.get("exec_Sleep", 0),
             "flags_new": stats.get("flags_new", 0),
@@ -171,6 +180,13 @@ def main():
     p.add_argument("--wait-busy", action="store_true", help="a directive to a busy agent waits for its next free tick instead of being dropped by the simulator; rule defenders sleep while busy")
     p.add_argument("--engage", type=float, default=None, help="O15 threshold: O15r loss over the window, O15a alerts over the window, O15c compromised owned hosts")
     p.add_argument("--window", type=int, default=16, help="O15r and O15a trailing window in simulator steps")
+    p.add_argument("--queue", choices=["first", "last"], default=None, help="with --wait-busy: decide on a busy tick and hold the directive for the free tick (first: keep the first decision; last: replace it each busy tick)")
+    p.add_argument("--recall", type=float, default=None, help="O1 through a detector: probability a compromise is ever shown (drawn per compromise)")
+    p.add_argument("--false-alarm", type=float, default=None, help="O1 through a detector: stationary share of clean owned hosts flagged")
+    p.add_argument("--delay", type=int, default=None, help="with --queue first: steps from a person's decision to the click landing")
+    p.add_argument("--wrong", type=float, default=None, help="with --queue first: probability the click lands on another owned host")
+    p.add_argument("--skip", type=float, default=None, help="with --queue first: probability a person lets a prompt pass")
+    p.add_argument("--agents", default=None, help="supervise only these agents, e.g. 0,4")
     p.add_argument("--rule", default="O1", type=_rule_arg,
                    help="a supervisor rule on KEEP, or a rule defender (R1 to R4, RT), optionally with a supervisor rule on top (R4+O1)")
     p.add_argument("--episodes", type=int, default=100)
@@ -181,12 +197,15 @@ def main():
     p.add_argument("--red", default="FiniteStateRedAgent")
     p.add_argument("--out", default="/work/data/traces/oracle")
     a = p.parse_args()
+    noise = {k: v for k, v in (("recall", a.recall), ("false", a.false_alarm), ("delay", a.delay),
+                               ("wrong", a.wrong), ("skip", a.skip)) if v is not None} or None
+    agents = [int(x) for x in a.agents.split(",")] if a.agents else None
 
     os.makedirs(a.out, exist_ok=True)
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window, a.queue, noise, agents)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]

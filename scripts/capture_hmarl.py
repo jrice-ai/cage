@@ -64,7 +64,7 @@ from oracle_rules import (make_oracle, note_impacts, compromised_by_agent,
                           EPISODE_LENGTH, BLUE, RED, HARNESS_SHA, MACHINE)
 
 RULES = ["none", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9r", "O9s",
-         "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13", "O14", "O15r", "O15a", "O15c"]
+         "O2e", "O2er", "O2ew", "O2f", "O2fr", "O2fw", "O2s", "O10", "O12", "O13", "O14", "O15r", "O15a", "O15c", "O15h", "O16", "O16t"]
 
 _SUB = None
 
@@ -180,7 +180,8 @@ def _o14(env, cyborg, obs, stats, min_gap, t, last):
 def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, out_dir, hdr):
     agents = _submission().AGENTS
     holder["intercept"] = make_oracle(cyborg, "none" if rule == "O14" else rule,
-                                      stats, budget, {}, min_gap, hdr.get("wait_busy", False), hdr.get("engage"), hdr.get("window", 16))
+                                      stats, budget, {}, min_gap, hdr.get("wait_busy", False), hdr.get("engage"), hdr.get("window", 16), hdr.get("queue"),
+                                      noise=hdr.get("noise"), agents=hdr.get("agents"), noise_seed=seed)
     holder["space"].clear()
     o14_last = {}
     expert = {}
@@ -271,7 +272,8 @@ def capture_episode(ep, a):
     cyborg, env = _make_env(seed, _red_class(a["red"]))
     holder = _install(env)
     hdr = {"red_agent": a["red"], "seed_mode": "episode", "policy_seed": pseed,
-           "workers": a["workers"], "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"]}
+           "workers": a["workers"], "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"], "queue": a["queue"],
+           "noise": a["noise"], "agents": a["agents"]}
     foot = _run_episode(ep, seed, cyborg, env, holder, a["rule"], Counter(),
                         a["budget"], a["min_gap"], a["out"], hdr)
     print(f"episode {ep} seed {seed} total {foot['total_reward']:.2f} "
@@ -288,7 +290,8 @@ def capture_compat(a):
     holder = _install(env)
     foots = []
     for ep in range(a["episodes"]):
-        hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0, "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"]}
+        hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0, "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"], "queue": a["queue"],
+               "noise": a["noise"], "agents": a["agents"]}
         foots.append(_run_episode(ep, s, cyborg, env, holder, a["rule"], Counter(),
                                   a["budget"], a["min_gap"], a["out"], hdr))
         tot = [x["total_reward"] for x in foots]
@@ -309,10 +312,20 @@ def main():
     ap.add_argument("--wait-busy", action="store_true", help="a directive to a busy agent waits for its next free tick")
     ap.add_argument("--engage", type=float, default=None, help="O15 threshold (see oracle_rules)")
     ap.add_argument("--window", type=int, default=16, help="O15r and O15a trailing window in simulator steps")
+    ap.add_argument("--queue", choices=["first", "last"], default=None, help="with --wait-busy: decide on a busy tick and hold the directive for the free tick")
+    ap.add_argument("--recall", type=float, default=None, help="O1 through a detector (see oracle.py)")
+    ap.add_argument("--false-alarm", type=float, default=None, help="O1 through a detector (see oracle.py)")
+    ap.add_argument("--delay", type=int, default=None, help="with --queue first: a person's delay in steps")
+    ap.add_argument("--wrong", type=float, default=None, help="with --queue first: probability of the wrong host")
+    ap.add_argument("--skip", type=float, default=None, help="with --queue first: probability a prompt passes")
+    ap.add_argument("--agents", default=None, help="supervise only these agents, e.g. 0,4")
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--compat", action="store_true", help="mirror evaluation.py seeding, sequential")
     ap.add_argument("--out", required=True)
     a = vars(ap.parse_args())
+    a["noise"] = {k: a[j] for k, j in (("recall", "recall"), ("false", "false_alarm"), ("delay", "delay"),
+                                        ("wrong", "wrong"), ("skip", "skip")) if a[j] is not None} or None
+    a["agents"] = [int(x) for x in a["agents"].split(",")] if a["agents"] else None
     os.makedirs(a["out"], exist_ok=True)
     print(f"capture_hmarl {HARNESS_SHA[:12]} on {MACHINE}  h3p={H3P}  rule={a['rule']} "
           f"red={a['red']} gap={a['min_gap']} budget={a['budget']} "
