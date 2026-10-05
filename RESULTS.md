@@ -1569,6 +1569,23 @@ at this competence level, a detectable supervision effect must be large. This
 is a quantitative argument for running the human arm against a degraded policy,
 where both variance terms are larger.
 
+**Correction, 2026-10-05.** The two figures above are means of per-episode
+sample standard deviations, which cannot separate sampling from difficulty:
+the sd of per-episode means over four seeds still carries a quarter of the
+sampling variance. The one-way random-effects decomposition (episode as the
+factor, policy seeds as replicates, pooled within-episode variance, the
+sampling share of the mean removed) gives sampling 0.89 [0.72, 1.00] of
+outcome variance at the stock red (pooled within sd 59.39, difficulty sd
+21.03) and 0.95 [0.82, 1.00] under Wrecker (pooled within sd 297.01,
+difficulty sd 70.91; the earlier "difficulty dominates, ratio 0.72" at
+"Noise floor at the new difficulty" does not survive this). The per-episode
+sds are heavy-tailed (stock max 335 on ep_00079, Wrecker max 966 on
+ep_00057); without the five widest episodes the shares are 0.72 and 0.87.
+Script: `~/papers/recompute_variance.py` over `corpus_v1`, `keep_null`,
+`keep_null_9001`, `keep_null_9002` and `red_FSRedAgentWrecker`,
+`wrecker_null_9000`, `wrecker_null_9001`. Papers cite the decomposition,
+not the means of sds.
+
 ### Difficulty does not transfer across competence levels
 
 Greedy KEEP is deterministic, so all of its between-episode variance is
