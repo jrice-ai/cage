@@ -1593,6 +1593,13 @@ computed with t = 2.353, the 90 percent two-sided value at 3 df. At 95 percent
 [-140.61, -122.07]. Both published scores remain inside. `~/papers/means.py`
 prints the interval.
 
+**Correction, 2026-10-05 (intervals).** The "95% CI" on the KEEP reference
+(-199.66 to -183.02) and on the H-MARL reference (-138.25 to -124.44) were
+computed with t = 2.353, the 90 percent two-sided value at 3 df. At 95 percent
+(t = 3.182) they are KEEP -191.34 [-202.61, -180.07] and H-MARL -131.34
+[-140.61, -122.08]. Both published scores remain inside. `~/papers/means.py`
+prints the interval.
+
 ### Difficulty does not transfer across competence levels
 
 Greedy KEEP is deterministic, so all of its between-episode variance is
