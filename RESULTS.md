@@ -4883,3 +4883,7 @@ to wait for the agent (`--wait-busy`, `tools_add_wait.py`), and a human
 has to be shown that it is waiting. The rerun with waiting directives
 and busy-aware rules is `queue_B.sh`; until it lands, the sections above
 carry their attempt counts and the note that they are attempts.
+
+### Correction 2026-10-10. Rule-target evidence share recomputed
+
+The "Ground-truth rule's target" row above (1101 targets, 70.1 percent on latched evidence, 20 episodes of `corpus_v1`) was computed once without a recorded command and did not reproduce. Four readings of its description (truth and latch at the same step or the previous step) give 1152 to 1340 targets at 66.8 to 68.4 percent. The figure is replaced by a recorded computation (`~/papers/recompute_evidence.py corpus_v1 --rule-at-restores`): at each step where KEEP executed a Restore, the first compromised host owned by that agent in simulator order is the rule's target, scored against that agent's latched evidence set read from the same step. On all 100 episodes: 7710 KEEP Restores, 5541 with a compromised owned host available, rule targets on latched evidence 69.93 percent, KEEP's own Restores 71.66 percent (0.23 percent on ground truth). The conclusion is unchanged, the two target sets are indistinguishable under the evidence criterion. The 20-episode values under the same definition are 1152 targets at 67.53 percent and KEEP at 69.80 percent.
