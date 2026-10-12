@@ -5,8 +5,8 @@ CC4 actions have durations (Restore 5, Remove 3, Analyse 2, DeployDecoy 2) and a
 an agent that is mid-action is dropped (SimulationController: actions_in_progress is set only when
 empty). The step record's "action" is cyborg.get_last_action, the action executed that step, so a
 proposal at step t of an action with duration d is confirmed by an executed action of the same
-type on the same host by the same agent at step t + d - 1 (the window here is 0 .. d + 1 to allow
-for the tick bookkeeping). Everything else was dropped.
+type on the same host by the same agent at step t + d - 1 (exactly; held arms match at that step and nowhere else, and the window of 0 .. d + 1 used
+before 2026-10-12 also caught the agent's own later actions on the same host). Everything else was dropped.
 
 usage: python3 tools_dropped.py DIR [DIR ...] [--episodes N]
 Reports, per arm: overrides by type (proposed, executed, share), defender proposals by kind
@@ -28,12 +28,12 @@ def _acts(r):
 
 def executed_at(steps, i, agent, typ, host):
     d = DUR.get(typ, 1)
-    for k in range(0, d + 2):
-        if i + k >= len(steps):
-            return None
-        a = _acts(steps[i + k]).get(agent, "")
-        if a.startswith(f"[{typ} {host}") or (host == "" and a.startswith(f"[{typ}")):
-            return k
+    k = d - 1                                   # an accepted directive completes at exactly t + d - 1
+    if i + k >= len(steps):
+        return None
+    a = _acts(steps[i + k]).get(agent, "")
+    if a.startswith(f"[{typ} {host}") or (host == "" and a.startswith(f"[{typ}")):
+        return k
     return None
 
 
