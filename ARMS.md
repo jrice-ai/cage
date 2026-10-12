@@ -230,6 +230,7 @@ reproduces O5c exactly. `oracle_O5` predates that revision.
 | `oracle_O8` | O8 | 100 | -253.27 | 197.27 | 154.0 |
 | `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
 | `oracle_O1_n100` | O1 | 100 | -520.29 | 93.43 | 401.8 |
+| `oracle_O1_n100x` | O1, rerun 2026-10-12 with the intervention record; reproduces `oracle_O1_n100` on all 100 footers; 0.650 of executed Restores are O1's own | 100 | -520.29 | 93.43 | 401.8 |
 | `oracle_O2_n100` | O2 | 100 | -523.19 | 97.98 | 403.2 |
 | `oracle_O3_n100` | O3 | 100 | -5803.89 | 1328.90 | 2255.1 |
 | `o10_g32` | O10, gap 32 | 100 | -179.75 | 53.82 | 60.9 |
