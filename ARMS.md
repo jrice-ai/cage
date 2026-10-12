@@ -79,6 +79,7 @@ ladder".
 |---|---|---|---|---|
 | `hmarl_expert_output` | unseeded | FiniteStateRedAgent | -131.99 | 48.51 |
 | `hmarl_s0` | seed 0 | FiniteStateRedAgent | -124.11 | 45.80 |
+| `hmarl_metrics_s0` | seed 0, authors' `evaluation_metrics.py` 2026-10-12 (same trajectory as `hmarl_s0`; recovery precision by their counter 75.4 percent, log at `data/hmarl_metrics/evaluation_metrics_s0.log`) | FiniteStateRedAgent | -124.11 | 45.80 |
 | `hmarl_s1` | seed 1 | FiniteStateRedAgent | -138.31 | 40.97 |
 | `hmarl_s2` | seed 2 | FiniteStateRedAgent | -132.10 | 45.40 |
 | `hmarl_s3` | seed 3 | FiniteStateRedAgent | -130.86 | 47.45 |
