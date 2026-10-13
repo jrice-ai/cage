@@ -537,7 +537,9 @@ same environment seeds, from `tools_paired.py`.
 | `hm_wo_O2f_g32` | FSRedAgentWrecker | O2f | ep | -1007.49 | | -164.7 | 31/100 | <0.001 | 71.6 restores | 9.6 |
 | `hm_s_none` | FiniteStateRedAgent | none | ep | -136.43 | 49.60 | control | | | 0 | |
 | `hm_s_none_p9000` | FiniteStateRedAgent | none | 9000+ep | -136.36 | 48.56 | +0.1 | 51/100 | 0.92 | 0 | |
+| `hm_s_none_p9002` | FiniteStateRedAgent | none | 9002+ep | -134.60 | | +1.8 | 53/100 | 0.547 | 0 | |
 | `hm_so_O1_g32` | FiniteStateRedAgent | O1 | ep | -160.69 | 38.29 | -24.3 | 22/100 | 1.6e-08 | 53.1 restores | 0.0 |
+| `hm_so_O1_g32_wb` | FiniteStateRedAgent | O1 gap 32, held, 2026-10-12 | ep | -133.09 | | +3.3 | 43/100 | 0.228 | 45.8 restores | 0.0 |
 | `hm_so_O10_g32` | FiniteStateRedAgent | O10 | ep | -129.23 | 46.26 | +7.2 | 54/100 | 0.36 | 57.7 analyses | 7.9 |
 
 Recover agent-steps per episode, of 2,500: `hm_w_none` 263.1, `hm_s_none`
@@ -1637,6 +1639,8 @@ KEEP under stock (control `corpus_v1` -187.3, RT `rd_RT_s_none_wb` -148.1):
 | Directory | Rule | Mean | Against control | Interventions / ep | Engaged / hit / quiet | Closed |
 |---|---|---|---|---|---|---|
 | `so_O1_g32_wb` | O1 gap 32 | -174.8 | +12.5 (57/100, p 0.13) | 48.0 | | 0.318 [-0.01, 0.55] |
+| `so_O1_g32` | O1 gap 32, fired, 2026-10-12 | -200.16 | -12.8 (35/100, p 0.005) | 52.3 | | held minus fired +25.3 (77/100, bootstrap 15.6 to 35.2) |
+| `so_O1_n100_wb` | O1, no gap, no budget, held, 2026-10-12 | -192.84 | -5.5 (43/100, p 0.266, bootstrap -21.3 to 10.1) | 74.3 | | the held counterpart of `oracle_O1_n100`, inside the null band |
 | `so_O1_g64_wb` | O1 gap 64 | -169.4 | +17.9 | 30.8 | | 0.457 |
 | `so_O15r_e3_g32_wb` | O15r, 3 | -178.3 | +9.1 | 39.4 | 961 / 306 / 257 | 0.231 |
 | `so_O15c_e2_g32_wb` | O15c, 2 | -195.3 | -7.9 | 34.5 | 323 / 323 / 560 | -0.202 |
