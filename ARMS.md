@@ -403,6 +403,9 @@ adversary; the defender is unchanged and at deployment competence.
 | `red_FSRedAgentWrecker` | KEEP sampled | unset | none | | -1115.65 | 272.91 | 0 | |
 | `wrecker_null_9000` | KEEP sampled | 9000 | none | | -1196.35 | 336.69 | 0 | |
 | `wrecker_null_9001` | KEEP sampled | 9001 | none | | -1107.05 | 297.93 | 0 | |
+| `wrecker_null_9002` | KEEP sampled | 9002 | none | | -1124.73 | 316.14 | 0 | 2026-10-12 |
+| `wrecker_null_9003` | KEEP sampled | 9003 | none | | -1159.41 | 347.01 | 0 | 2026-10-12 |
+| `wrecker_null_9004` | KEEP sampled | 9004 | none | | -1157.75 | 361.52 | 0 | 2026-10-12 |
 | `data/hmarl_red_FSRedAgentWrecker` | H-MARL Expert | seed 0 | none | | -863.86 | 365.65 | 0 | |
 | `wo_O8` | KEEP sampled | unset | O8 | | -1396.42 | 534.72 | 186.8 | 34.9 |
 | `wo_O6` | KEEP sampled | unset | O6 | | -1296.47 | 525.48 | 293.7 | 69.9 |
@@ -500,6 +503,7 @@ an O1 arm at gap 32 (`oracle.py`, Schema B, 6 workers). P95 reproduces
 | `red_FSRedAgentConvOnly` | `o1_g32_FSRedAgentConvOnly` | ConvOnly | -316.62 | -268.19 | +48.43 | 63/100 |
 | `red_FSRedAgentConvOnly_null9000` | | ConvOnly, policy_seed 9000 | -301.66 | | +14.96 vs control | 51/100 |
 | `red_FSRedAgentWreckerQ32_null9000` | | Q32, policy_seed 9000 | -764.96 | | +8.1 vs control | 56/100 |
+| `red_FSRedAgentWreckerQ32_null9001` | | Q32, policy_seed 9001, 2026-10-12 | -743.65 | | +29.4 vs control | 52/100 |
 | `red_FSRedAgentWreckerQ04_null9000` | | Q04, policy_seed 9000 | -314.55 | | +10.6 vs control | 53/100 |
 | `red_FSRedAgentWreckerQ16_null9000` | | Q16, policy_seed 9000 | -559.98 | | -20.8 vs control | 49/100 |
 | `red_FSRedAgentWreckerQ48_null9000` | | Q48, policy_seed 9000 | -961.80 | | -33.6 vs control | 37/100, p 0.012 |
@@ -537,6 +541,7 @@ same environment seeds, from `tools_paired.py`.
 | `hm_wo_O2f_g32` | FSRedAgentWrecker | O2f | ep | -1007.49 | | -164.7 | 31/100 | <0.001 | 71.6 restores | 9.6 |
 | `hm_s_none` | FiniteStateRedAgent | none | ep | -136.43 | 49.60 | control | | | 0 | |
 | `hm_s_none_p9000` | FiniteStateRedAgent | none | 9000+ep | -136.36 | 48.56 | +0.1 | 51/100 | 0.92 | 0 | |
+| `hm_s_none_p9001` | FiniteStateRedAgent | none | 9001+ep | -136.76 | 52.55 | -0.3 | 46/100 | 0.547 | 0 | rerun 2026-10-12, the first run died in a worker |
 | `hm_s_none_p9002` | FiniteStateRedAgent | none | 9002+ep | -134.60 | | +1.8 | 53/100 | 0.547 | 0 | |
 | `hm_so_O1_g32` | FiniteStateRedAgent | O1 | ep | -160.69 | 38.29 | -24.3 | 22/100 | 1.6e-08 | 53.1 restores | 0.0 |
 | `hm_so_O1_g32_wb` | FiniteStateRedAgent | O1 gap 32, held, 2026-10-12 | ep | -133.09 | | +3.3 | 43/100 | 0.228 | 45.8 restores | 0.0 |
