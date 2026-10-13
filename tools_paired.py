@@ -5,10 +5,12 @@ usage: python3 tools_paired.py CONTROL_DIR ARM_DIR [ARM_DIR ...]
 
 Pairs footers by episode file name (same environment seeds). Prints, per arm:
 mean, mean delta over control, wins of N, exact two-sided sign test p (ties dropped),
+then on a second line wins, losses, ties, the per-episode sd of the delta, its standard error
+and a seeded 10,000-draw bootstrap 95% interval of the mean delta,
 and per-episode overrides / agreements / executed analyses and restores, plus
 mode_overrides and recover_agent_steps when present (H-MARL arms).
 """
-import glob, json, os, sys
+import glob, json, os, random, sys
 from math import comb
 
 
@@ -71,12 +73,20 @@ def main():
         deltas = [A[e]["total_reward"] - C[e]["total_reward"] for e in eps]
         wins = sum(1 for x in deltas if x > 0)
         losses = sum(1 for x in deltas if x < 0)
+        ties = len(deltas) - wins - losses
         p = sign_test(wins, losses)
+        md = mean(deltas)
+        sd = (sum((x - md) ** 2 for x in deltas) / (len(deltas) - 1)) ** 0.5 if len(deltas) > 1 else float("nan")
+        se = sd / len(deltas) ** 0.5
+        rng = random.Random(0); n = len(deltas)
+        boots = sorted(mean(rng.choices(deltas, k=n)) for _ in range(10000))
+        lo, hi = boots[250], boots[9749]
         g = lambda k: mean([A[e].get(k, 0) or 0 for e in eps])
         print(f"{os.path.basename(d):<28}{len(eps):>4}{mean([A[e]['total_reward'] for e in eps]):>10.2f}"
               f"{mean(deltas):>+9.1f}{wins:>4}/{len(eps):<3}{p:>7.3f}"
               f"{g('overrides'):>8.1f}{g('agreements'):>8.1f}{g('analyses'):>8.1f}{g('restores'):>8.1f}"
               f"{g('mode_overrides'):>9.1f}{g('recover_agent_steps'):>10.1f}")
+        print(f"{'':<28}    wins {wins} losses {losses} ties {ties}  sd_delta {sd:.1f}  se {se:.1f}  ci95 [{lo:.1f}, {hi:.1f}]  (bootstrap 10000 over episodes, seed 0)")
 
 
 if __name__ == "__main__":
