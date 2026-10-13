@@ -2328,3 +2328,22 @@ minute to rerun.
 - **`pkill -f` patterns.** `\|` is not alternation in `pkill`'s extended
   regex; a pattern written that way matches nothing and reports nothing.
   Use `pkill -f 'a|b'` or kill by PID.
+
+## Continuation redraws, 2026-10-13
+
+Each continuation checkpoint scored under two further policy seeds (`oracle.py --policy-seed 9000` and `9001`, so the policy stream is 9000+ep or 9001+ep on environment seeds 0-99), paired against the same controls as the first draw. `tools_cont.py` gives the decomposition with training seed as the factor. Q32: seed means -52.1, +69.8, -124.2, between-seed sd 98.1, within-seed sd 31.5, between share 0.904, permutation p 0.004. Wrecker: seed means +72.4, +109.3, +25.5, between-seed sd 42.0, within-seed sd 45.3, between share 0.344, permutation p 0.127. `k_kft_Wrecker_s1000_final_w_none_p9000` was rerun alone after its first run lost workers at 62 episodes.
+
+| Directory | Mean | Stdev | Delta vs control | Wins |
+|---|---|---|---|---|
+| `k_kft_WreckerQ32_s1000_final_WreckerQ32_none_p9000` | -794.66 | 261.47 | -21.6 | 51/100 |
+| `k_kft_WreckerQ32_s1000_final_WreckerQ32_none_p9001` | -842.15 | 285.20 | -69.1 | 43/100 |
+| `k_kft_WreckerQ32_s1001_final_WreckerQ32_none_p9000` | -688.79 | 225.45 | +84.3 | 60/100 |
+| `k_kft_WreckerQ32_s1001_final_WreckerQ32_none_p9001` | -740.75 | 249.37 | +32.3 | 55/100 |
+| `k_kft_WreckerQ32_s1002_final_WreckerQ32_none_p9000` | -934.08 | 290.62 | -161.0 | 28/100 |
+| `k_kft_WreckerQ32_s1002_final_WreckerQ32_none_p9001` | -865.55 | 240.50 | -92.5 | 38/100 |
+| `k_kft_Wrecker_s1000_final_w_none_p9000` | -1084.14 | 291.08 | +31.5 | 52/100 |
+| `k_kft_Wrecker_s1000_final_w_none_p9001` | -1025.35 | 270.09 | +90.3 | 61/100 |
+| `k_kft_Wrecker_s1001_final_w_none_p9000` | -1036.34 | 362.56 | +79.3 | 61/100 |
+| `k_kft_Wrecker_s1001_final_w_none_p9001` | -1034.39 | 351.91 | +81.3 | 62/100 |
+| `k_kft_Wrecker_s1002_final_w_none_p9000` | -1140.53 | 366.93 | -24.9 | 50/100 |
+| `k_kft_Wrecker_s1002_final_w_none_p9001` | -1043.22 | 325.63 | +72.4 | 54/100 |
