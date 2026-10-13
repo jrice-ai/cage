@@ -49,9 +49,10 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, 
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, only_agents=None):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, only_agents=None, policy_seed=None):
     seed = base_seed + ep
-    torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
+    pseed = seed if policy_seed is None else policy_seed + ep   # as capture.py: the policy stream can be redrawn on the same environment seed
+    torch.manual_seed(pseed); np.random.seed(seed); random.seed(seed)
 
     import importlib
     _rm = importlib.import_module(f"CybORG.Agents.SimpleAgents.{red_agent}")
@@ -94,7 +95,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 
     with open(path, "w") as f:
         f.write(json.dumps({
-            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "red_agent": _rc.__name__, "episode": ep, "seed": seed,
+            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "red_agent": _rc.__name__, "episode": ep, "seed": seed, "policy_seed": policy_seed,
             "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "engage": engage, "window": window, "queue": queue, "noise": noise, "agents": only_agents, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
@@ -191,6 +192,7 @@ def main():
                    help="a supervisor rule on KEEP, or a rule defender (R1 to R4, RT), optionally with a supervisor rule on top (R4+O1)")
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--base-seed", type=int, default=0)
+    p.add_argument("--policy-seed", type=int, default=None, help="torch seed base for the policy; default ties it to the environment seed")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--budget", type=int, default=77,
                    help="Max overrides per episode for O5")
@@ -205,7 +207,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window, a.queue, noise, agents)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window, a.queue, noise, agents, a.policy_seed)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]
