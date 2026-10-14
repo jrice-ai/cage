@@ -543,6 +543,8 @@ same environment seeds, from `tools_paired.py`.
 | `hm_s_none_p9000` | FiniteStateRedAgent | none | 9000+ep | -136.36 | 48.56 | +0.1 | 51/100 | 0.92 | 0 | |
 | `hm_s_none_p9001` | FiniteStateRedAgent | none | 9001+ep | -136.76 | 52.55 | -0.3 | 46/100 | 0.547 | 0 | rerun 2026-10-12, the first run died in a worker |
 | `hm_s_none_p9002` | FiniteStateRedAgent | none | 9002+ep | -134.60 | | +1.8 | 53/100 | 0.547 | 0 | |
+| `hm_s_none_p9003` | FiniteStateRedAgent | none | 9003+ep | -130.04 | 50.55 | +6.4 | 52/100 | 0.688 | 0 | row added 2026-10-14 from the footers |
+| `hm_s_none_p9004` | FiniteStateRedAgent | none | 9004+ep | -137.63 | 54.58 | -1.2 | 51/100 | 0.920 | 0 | row added 2026-10-14 from the footers |
 | `hm_so_O1_g32` | FiniteStateRedAgent | O1 | ep | -160.69 | 38.29 | -24.3 | 22/100 | 1.6e-08 | 53.1 restores | 0.0 |
 | `hm_so_O1_g32_wb` | FiniteStateRedAgent | O1 gap 32, held, 2026-10-12 | ep | -133.09 | | +3.3 | 43/100 | 0.228 | 45.8 restores | 0.0 |
 | `hm_so_O10_g32` | FiniteStateRedAgent | O10 | ep | -129.23 | 46.26 | +7.2 | 54/100 | 0.36 | 57.7 analyses | 7.9 |
