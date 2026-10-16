@@ -2349,3 +2349,14 @@ Each continuation checkpoint scored under two further policy seeds (`oracle.py -
 | `k_kft_Wrecker_s1001_final_w_none_p9001` | -1034.39 | 351.91 | +81.3 | 62/100 |
 | `k_kft_Wrecker_s1002_final_w_none_p9000` | -1140.53 | 366.93 | -24.9 | 50/100 |
 | `k_kft_Wrecker_s1002_final_w_none_p9001` | -1043.22 | 325.63 | +72.4 | 54/100 |
+
+## Busy-flag arms, 2026-10-15
+
+Released KEEP weights at the stock adversary (`FiniteStateRedAgent`), 100 episodes on environment seeds 0-99, `oracle.py --rule none --workers 20 --log-policy`, A51. `KEEP_BUSY=shipped` runs the wrapper with its busy check as shipped. `KEEP_BUSY=none` reports every agent as free, so the policy acts every step and CybORG drops what a busy agent is sent. Restores passed per episode are counted from the step records' `policy` field by `tools_busy_charge.py`.
+
+| Directory | KEEP_BUSY | Mean | Stdev | Delta vs control | Wins | Restores passed | To busy agents |
+|---|---|---|---|---|---|---|---|
+| `keep_released_busy_shipped` | shipped | -187.32 | 61.24 | control | | 77.46 | 0.00 |
+| `keep_released_busy_none` | none | -286.90 | 62.62 | -99.6 [-115.5, -82.8] | 8/100 | 180.91 | 102.58 |
+
+The control reproduces `corpus_v1` (-187.32, 61.24) to the digit. Split of the paired difference by `tools_busy_charge.py` (10,000-draw bootstrap over episodes, seed 0): charge -103.45 [-108.22, -98.75], rest +3.87 [-10.55, 19.49].
