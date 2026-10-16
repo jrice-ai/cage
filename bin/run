@@ -6,7 +6,7 @@ exec docker run --rm --hostname "$(hostname)" ${CAGE_DOCKER_OPTS:-} \
   --shm-size=4g \
   -e HMARL_RED -e HMARL_SEED -e HMARL_TRAIN_BATCH -e HMARL_RESTORE -e HMARL_ITER0 -e HMARL_ITERS \
   -e HMARL_MODEL_DIR -e HMARL_LOGDIR -e HMARL_POLICY_DIR \
-  -e KEEP_WEIGHTS -e KEEP_RED -e KEEP_RESTORE -e KEEP_EPISODES -e KEEP_WORKERS -e KEEP_SEED -e KEEP_SHARED_ENV_SEED -e KEEP_CKPT -e KEEP_LR_SCALE \
+  -e KEEP_WEIGHTS -e KEEP_RED -e KEEP_RESTORE -e KEEP_EPISODES -e KEEP_WORKERS -e KEEP_SEED -e KEEP_SHARED_ENV_SEED -e KEEP_CKPT -e KEEP_LR_SCALE -e KEEP_BUSY -e KEEP_EPISODE_SEEDS -e KEEP_RESUME -e KEEP_EPISODE_LEN -e KEEP_N -e KEEP_MAX_THREADS -e KEEP_CONCAT_EDGES \
   -e OMP_NUM_THREADS -e MKL_NUM_THREADS \
   -v ~/cage:/work "$img" \
-  bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && if [ -n "$KEEP_WEIGHTS" ]; then cp /work/keep_weights/$KEEP_WEIGHTS/gnn_ppo-*.pt /opt/cage/cage-4-submission/weights/; fi && exec "$@"' _ "$@"
+  bash -c 'cp /work/red_agents/*.py /opt/cage/cage-challenge-4/CybORG/Agents/SimpleAgents/ && if [ -n "$KEEP_WEIGHTS" ]; then cp /work/keep_weights/$KEEP_WEIGHTS/gnn_ppo-*.pt /opt/cage/cage-4-submission/weights/; fi && if [ -n "$KEEP_BUSY" ]; then grep -q _KEEP_BUSY /work/repos/cage-4-submission/wrapper/graph_wrapper.py || { echo "KEEP_BUSY is set but repos/cage-4-submission has no busy switch" >&2; exit 1; }; cp /work/repos/cage-4-submission/wrapper/graph_wrapper.py /opt/cage/cage-4-submission/wrapper/graph_wrapper.py; fi && exec "$@"' _ "$@"
