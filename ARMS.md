@@ -2360,3 +2360,21 @@ Released KEEP weights at the stock adversary (`FiniteStateRedAgent`), 100 episod
 | `keep_released_busy_none` | none | -286.90 | 62.62 | -99.6 [-115.5, -82.8] | 8/100 | 180.91 | 102.58 |
 
 The control reproduces `corpus_v1` (-187.32, 61.24) to the digit. Split of the paired difference by `tools_busy_charge.py` (10,000-draw bootstrap over episodes, seed 0): charge -103.45 [-108.22, -98.75], rest +3.87 [-10.55, 19.49].
+
+### Released KEEP with its busy check off, nine adversaries
+
+As the stock pair above, by `run_busy_reds.sh` (A51, 2026-10-16). Each shipped arm reproduces its `red_*` row to the digit. Delta, charge and rest are paired over 100 episodes, 10,000-draw bootstrap over episodes, seed 0 (`tools_busy_charge.py`).
+
+| Adversary | Shipped mean | sd | Check off mean | sd | Delta | Charge | Rest | Restores to busy agents |
+|---|---|---|---|---|---|---|---|---|
+| Wrecker | -1115.65 | 272.91 | -1270.70 | 308.69 | -155.05 [-232.30, -77.91] | -93.61 [-99.14, -87.76] | -61.44 [-138.78, 16.15] | 95.36 |
+| TargetARestricted | -98.52 | 48.61 | -185.88 | 80.92 | -87.36 [-100.48, -74.72] | -79.95 [-87.38, -72.47] | -7.41 [-18.58, 3.12] | 78.35 |
+| TargetAOperational | -99.89 | 55.40 | -196.56 | 95.50 | -96.67 [-111.21, -82.63] | -81.44 [-89.36, -73.52] | -15.23 [-26.59, -4.40] | 81.46 |
+| TargetA | -104.18 | 55.60 | -185.97 | 83.58 | -81.79 [-94.91, -68.44] | -79.53 [-87.58, -71.68] | -2.26 [-12.83, 8.47] | 79.54 |
+| TargetB | -116.25 | 54.19 | -206.86 | 80.87 | -90.61 [-104.65, -77.47] | -85.23 [-92.19, -78.27] | -5.38 [-16.50, 5.46] | 83.99 |
+| TargetBRestricted | -117.93 | 63.29 | -213.24 | 86.12 | -95.31 [-110.47, -80.93] | -87.33 [-95.03, -79.57] | -7.98 [-20.07, 3.53] | 86.39 |
+| TargetBOperational | -127.31 | 88.17 | -211.39 | 78.90 | -84.08 [-100.63, -65.98] | -83.66 [-90.04, -77.06] | -0.42 [-15.13, 16.28] | 83.71 |
+| Combined | -165.87 | 84.76 | -267.09 | 75.76 | -101.22 [-122.14, -79.74] | -101.17 [-105.90, -96.42] | -0.05 [-20.82, 20.67] | 99.85 |
+| FailureTracker | -205.66 | 90.26 | -299.18 | 68.01 | -93.52 [-113.64, -72.07] | -99.98 [-104.79, -95.35] | 6.46 [-13.77, 28.39] | 100.41 |
+
+Directories `keep_released_busy_{shipped,none}_FSRedAgent<name>`, logs in `data/evals/`, summary in `data/evals/busy_reds.txt`.
