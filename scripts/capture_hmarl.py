@@ -51,6 +51,10 @@ def _find_h3p():
 H3P = _find_h3p()
 sys.path.insert(0, os.path.join(H3P, "subpolicies"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # oracle_rules.py
+_BW = open(os.path.join(H3P, "subpolicies", "BlueFlatWrapper_CC4.py")).read()
+BUSY = (os.environ.get("HMARL_BUSY") or "shipped") if "_HMARL_BUSY" in _BW else "unpatched"
+if BUSY == "unpatched" and os.environ.get("HMARL_BUSY"):
+    sys.exit("HMARL_BUSY is set but the wrapper under H3P has no busy switch")
 
 import numpy as np
 import torch
@@ -101,7 +105,7 @@ def _make_env(seed, red_cls):
 def _install(env):
     """Wrap env_step once per wrapper. holder['intercept'] is replaced per episode so
     the rule's own state (latches, gap ticks, rotation memory) starts fresh."""
-    holder = {"intercept": None, "space": {}}
+    holder = {"intercept": None, "space": {}, "pol": None}
 
     def acts(agent):
         if agent not in holder["space"]:
@@ -123,6 +127,8 @@ def _install(env):
         for key, v in actions.items():             # key: blue_agent_i_investigate | _recover
             agent = key[:12]
             act = v if isinstance(v, Action) else acts(agent)[int(v)]
+            if holder["pol"] is not None:      # --log-policy: the sub-policy's own choice
+                holder["pol"][agent] = str(act)
             res = icp(agent, act)
             out[key] = v if res is act else index_of(agent, res)
         return orig(out, messages, **kw)
@@ -196,7 +202,7 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
         f.write(json.dumps({
             "record": "header", "harness": "capture_hmarl", "defender": "H-MARL Expert",
             "harness_sha": HARNESS_SHA, "machine": MACHINE, "episode": ep, "seed": seed,
-            "rule": rule, "budget": budget, "min_gap": min_gap,
+            "rule": rule, "budget": budget, "min_gap": min_gap, "busy": BUSY,
             "cyborg_version": CYBORG_VERSION, "episode_length": EPISODE_LENGTH, **hdr,
         }) + "\n")
 
@@ -217,6 +223,9 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
                 n_comp = sum(len(v) for v in compromised_by_agent(cyborg).values())
                 phase = int(cyborg.environment_controller.state.mission_phase)
                 n0 = len(stats.get("ovr", []))
+                if hdr.get("log_policy"):
+                    busy = [n for n in BLUE if cyborg.environment_controller.actions_in_progress.get(n) is not None]
+                    holder["pol"] = {}
                 obs, rew, term, trunc, info = env.step(actions)
 
             done = {n: term.get(n, False) or trunc.get(n, False) for n in obs}
@@ -238,7 +247,10 @@ def _run_episode(ep, seed, cyborg, env, holder, rule, stats, budget, min_gap, ou
                 "mode": mode, "expert_mode": expert, "actions": executed, "red_action": red,
                 "reward": r, "cum_reward": total, "overrides": stats.get("ovr", [])[n0:],
                 **({"signal": stats.pop("sig")} if "sig" in stats else {}),
+                **({"policy": holder["pol"], "busy": busy} if hdr.get("log_policy") else {}),
             }) + "\n")
+            if hdr.get("log_policy"):
+                holder["pol"] = None
             t += 1
 
         foot = {
@@ -273,7 +285,7 @@ def capture_episode(ep, a):
     holder = _install(env)
     hdr = {"red_agent": a["red"], "seed_mode": "episode", "policy_seed": pseed,
            "workers": a["workers"], "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"], "queue": a["queue"],
-           "noise": a["noise"], "agents": a["agents"]}
+           "noise": a["noise"], "agents": a["agents"], "log_policy": a["log_policy"]}
     foot = _run_episode(ep, seed, cyborg, env, holder, a["rule"], Counter(),
                         a["budget"], a["min_gap"], a["out"], hdr)
     print(f"episode {ep} seed {seed} total {foot['total_reward']:.2f} "
@@ -291,7 +303,7 @@ def capture_compat(a):
     foots = []
     for ep in range(a["episodes"]):
         hdr = {"red_agent": a["red"], "seed_mode": "compat", "policy_seed": s, "workers": 0, "wait_busy": a["wait_busy"], "engage": a["engage"], "window": a["window"], "queue": a["queue"],
-               "noise": a["noise"], "agents": a["agents"]}
+               "noise": a["noise"], "agents": a["agents"], "log_policy": a["log_policy"]}
         foots.append(_run_episode(ep, s, cyborg, env, holder, a["rule"], Counter(),
                                   a["budget"], a["min_gap"], a["out"], hdr))
         tot = [x["total_reward"] for x in foots]
@@ -321,6 +333,7 @@ def main():
     ap.add_argument("--agents", default=None, help="supervise only these agents, e.g. 0,4")
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--compat", action="store_true", help="mirror evaluation.py seeding, sequential")
+    ap.add_argument("--log-policy", action="store_true", help="record each agent's action as the sub-policy chose it, before any rule, and the agents busy when each step began")
     ap.add_argument("--out", required=True)
     a = vars(ap.parse_args())
     a["noise"] = {k: a[j] for k, j in (("recall", "recall"), ("false", "false_alarm"), ("delay", "delay"),

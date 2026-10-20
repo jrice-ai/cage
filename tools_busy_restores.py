@@ -3,10 +3,13 @@
 
 usage: python3 tools_busy_restores.py data/traces/<arm> [data/traces/<arm> ...]
 
+Reads KEEP traces from oracle.py and H-MARL traces from capture_hmarl.py.
+
 For each arm, mean and sd over its episodes of
   reward              the episode's total reward
   busy agent-steps    steps that began with the agent's action in progress (CybORG drops the new one)
-  sent at busy        busy agent-steps where the policy sent an action (null means it declined)
+  sent at busy        busy agent-steps where the policy sent an action other than Sleep (null is KEEP
+                      declining, Sleep is what H-MARL's shipped mask leaves a busy agent)
   Restores at busy    policy Restores sent to a busy agent, each dropped and charged -1
   Restores at free    policy Restores sent to a free agent
   declined at free    free agent-steps where the policy declined. Should be 0 in every arm, since KEEP
@@ -34,7 +37,7 @@ def episode(path):
                 restore = act is not None and act.startswith("Restore")
                 if agent in busy:
                     c["busy agent-steps"] += 1
-                    c["sent at busy"] += act is not None
+                    c["sent at busy"] += act not in (None, "Sleep")
                     c["Restores at busy"] += restore
                 else:
                     c["Restores at free"] += restore
