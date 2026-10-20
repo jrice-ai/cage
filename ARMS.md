@@ -2403,6 +2403,17 @@ By directory, for the all-arms table (mean and sd over the 100 footers):
 | `keep_released_busy_shipped_FSRedAgentFailureTracker` | -205.66 | 90.26 |
 | `keep_released_busy_none_FSRedAgentFailureTracker` | -299.18 | 68.01 |
 
+### Released H-MARL Expert with its busy mask off, stock adversary
+
+`capture_hmarl.py --rule none --episodes 100 --workers 6 --log-policy` under `HMARL_BUSY=shipped` and `none` (tools_patch_hmarl_busy.py), server, 2026-10-20, 22 cores at three torch threads per worker, 97 minutes an arm. The shipped arm ties `hm_s_none` on all 100 footers. Split by `tools_busy_charge.py`.
+
+| Directory | HMARL_BUSY | Mean | sd | Cost (on minus off) | Charge | Rest | Restores passed | To busy agents | Busy agent-steps | Sent at busy |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `hm_released_busy_shipped` | shipped | -136.43 | 49.60 | control | | | 37.20 | 0.00 | 1307.73 | 0.00 |
+| `hm_released_busy_none` | none | -282.41 | 55.79 | 145.98 [142.03, 149.97] | 145.98 | 0.00 [0.00, 0.00] | 183.18 | 145.98 | 1307.73 | 1289.00 |
+
+The executed actions of the two arms are identical on every step of all 100 episodes, so the mask is worth exactly its charge and a dropped directive leaves nothing behind.
+
 ### Busy-flag pilot checkpoints
 
 KEEP trained from scratch by `run_keep_pilot.sh`, arm F (check as shipped) and arm N (check off), seeds 4101 to 4104, every hundredth checkpoint scored by `eval_keep_pilot.sh` (100 paired episodes, stock adversary, `--log-policy`). N is scored its own way (`_none`) and with the check on (`_shipped`). Recomputed by `~/papers/paper1/fig/fig_curves.py`.
