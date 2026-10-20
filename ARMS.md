@@ -232,6 +232,7 @@ reproduces O5c exactly. `oracle_O5` predates that revision.
 | `oracle_O7` | O7 | 100 | -511.95 | 165.48 | |
 | `oracle_O1_n100` | O1 | 100 | -520.29 | 93.43 | 401.8 |
 | `oracle_O1_n100x` | O1, rerun 2026-10-12 with the intervention record; reproduces `oracle_O1_n100` on all 100 footers; 0.650 of executed Restores are O1's own | 100 | -520.29 | 93.43 | 401.8 |
+| `oracle_O1_n100t` | O1, recapture 2026-10-19 with `--log-truth` (the post-step red-host set in the step record); reproduces `oracle_O1_n100x` on all 100 footers; Restore precision 65.24% on KEEP's basis (red session at t-1, `recompute_criteria.py`), within a quarter of a point of the rule's own share | 100 | -520.29 | 93.43 | 401.8 |
 | `oracle_O2_n100` | O2 | 100 | -523.19 | 97.98 | 403.2 |
 | `oracle_O3_n100` | O3 | 100 | -5803.89 | 1328.90 | 2255.1 |
 | `o10_g32` | O10, gap 32 | 100 | -179.75 | 53.82 | 60.9 |
@@ -2378,6 +2379,29 @@ As the stock pair above, by `run_busy_reds.sh` (A51, 2026-10-16). Each shipped a
 | FailureTracker | -205.66 | 90.26 | -299.18 | 68.01 | -93.52 [-113.64, -72.07] | -99.98 [-104.79, -95.35] | 6.46 [-13.77, 28.39] | 100.41 |
 
 Directories `keep_released_busy_{shipped,none}_FSRedAgent<name>`, logs in `data/evals/`, summary in `data/evals/busy_reds.txt`.
+
+By directory, for the all-arms table (mean and sd over the 100 footers):
+
+| Directory | Mean | sd |
+|---|---|---|
+| `keep_released_busy_shipped_FSRedAgentWrecker` | -1115.65 | 272.91 |
+| `keep_released_busy_none_FSRedAgentWrecker` | -1270.70 | 308.69 |
+| `keep_released_busy_shipped_FSRedAgentTargetARestricted` | -98.52 | 48.61 |
+| `keep_released_busy_none_FSRedAgentTargetARestricted` | -185.88 | 80.92 |
+| `keep_released_busy_shipped_FSRedAgentTargetAOperational` | -99.89 | 55.40 |
+| `keep_released_busy_none_FSRedAgentTargetAOperational` | -196.56 | 95.50 |
+| `keep_released_busy_shipped_FSRedAgentTargetA` | -104.18 | 55.60 |
+| `keep_released_busy_none_FSRedAgentTargetA` | -185.97 | 83.58 |
+| `keep_released_busy_shipped_FSRedAgentTargetB` | -116.25 | 54.19 |
+| `keep_released_busy_none_FSRedAgentTargetB` | -206.86 | 80.87 |
+| `keep_released_busy_shipped_FSRedAgentTargetBRestricted` | -117.93 | 63.29 |
+| `keep_released_busy_none_FSRedAgentTargetBRestricted` | -213.24 | 86.12 |
+| `keep_released_busy_shipped_FSRedAgentTargetBOperational` | -127.31 | 88.17 |
+| `keep_released_busy_none_FSRedAgentTargetBOperational` | -211.39 | 78.90 |
+| `keep_released_busy_shipped_FSRedAgentCombined` | -165.87 | 84.76 |
+| `keep_released_busy_none_FSRedAgentCombined` | -267.09 | 75.76 |
+| `keep_released_busy_shipped_FSRedAgentFailureTracker` | -205.66 | 90.26 |
+| `keep_released_busy_none_FSRedAgentFailureTracker` | -299.18 | 68.01 |
 
 ### Busy-flag pilot checkpoints
 
