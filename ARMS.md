@@ -2378,3 +2378,26 @@ As the stock pair above, by `run_busy_reds.sh` (A51, 2026-10-16). Each shipped a
 | FailureTracker | -205.66 | 90.26 | -299.18 | 68.01 | -93.52 [-113.64, -72.07] | -99.98 [-104.79, -95.35] | 6.46 [-13.77, 28.39] | 100.41 |
 
 Directories `keep_released_busy_{shipped,none}_FSRedAgent<name>`, logs in `data/evals/`, summary in `data/evals/busy_reds.txt`.
+
+### Busy-flag pilot checkpoints
+
+KEEP trained from scratch by `run_keep_pilot.sh`, arm F (check as shipped) and arm N (check off), seeds 4101 to 4104, every hundredth checkpoint scored by `eval_keep_pilot.sh` (100 paired episodes, stock adversary, `--log-policy`). N is scored its own way (`_none`) and with the check on (`_shipped`). Recomputed by `~/papers/paper1/fig/fig_curves.py`.
+
+| Arm | Updates | Seed | F | N check off | N check on | Restores at busy (N) | F minus N (check on) | Wins |
+|---|---|---|---|---|---|---|---|---|
+| `kbf_F_s4101_u100_shipped`, `kbf_N_s4101_u100_none`, `kbf_N_s4101_u100_shipped` | 100 | 4101 | -2864.72 | -1469.00 | -1210.73 | 227.0 | -1654.0 [-1845.6, -1466.9] | 4/100 |
+| `kbf_F_s4102_u100_shipped`, `kbf_N_s4102_u100_none`, `kbf_N_s4102_u100_shipped` | 100 | 4102 | -2140.24 | -1102.42 | -815.98 | 232.2 | -1324.3 [-1444.6, -1207.6] | 3/100 |
+| `kbf_F_s4103_u100_shipped`, `kbf_N_s4103_u100_none`, `kbf_N_s4103_u100_shipped` | 100 | 4103 | -2297.17 | -1197.18 | -878.42 | 301.0 | -1418.8 [-1565.0, -1272.6] | 1/100 |
+| `kbf_F_s4104_u100_shipped`, `kbf_N_s4104_u100_none`, `kbf_N_s4104_u100_shipped` | 100 | 4104 | -1539.99 | -1376.62 | -1085.62 | 282.8 | -454.4 [-542.3, -367.8] | 14/100 |
+| `kbf_F_s4101_u200_shipped`, `kbf_N_s4101_u200_none`, `kbf_N_s4101_u200_shipped` | 200 | 4101 | -809.76 | -1037.22 | -890.65 | 180.4 | +80.9 [2.4, 160.6] | 54/100 |
+| `kbf_F_s4102_u200_shipped`, `kbf_N_s4102_u200_none`, `kbf_N_s4102_u200_shipped` | 200 | 4102 | -593.43 | -960.57 | -805.77 | 222.9 | +212.3 [137.5, 290.5] | 67/100 |
+| `kbf_F_s4103_u200_shipped`, `kbf_N_s4103_u200_none`, `kbf_N_s4103_u200_shipped` | 200 | 4103 | -796.96 | -970.76 | -891.80 | 161.2 | +94.8 [6.2, 183.6] | 58/100 |
+| `kbf_F_s4104_u200_shipped`, `kbf_N_s4104_u200_none`, `kbf_N_s4104_u200_shipped` | 200 | 4104 | -672.80 | -1017.77 | -866.40 | 186.1 | +193.6 [120.2, 268.0] | 75/100 |
+| `kbf_F_s4101_u300_shipped`, `kbf_N_s4101_u300_none`, `kbf_N_s4101_u300_shipped` | 300 | 4101 | -546.44 | -831.65 | -645.60 | 170.5 | +99.2 [45.3, 155.7] | 59/100 |
+| `kbf_F_s4102_u300_shipped`, `kbf_N_s4102_u300_none`, `kbf_N_s4102_u300_shipped` | 300 | 4102 | -454.01 | -981.40 | -725.28 | 201.2 | +271.3 [200.5, 351.2] | 85/100 |
+| `kbf_F_s4103_u300_shipped`, `kbf_N_s4103_u300_none`, `kbf_N_s4103_u300_shipped` | 300 | 4103 | -481.34 | -697.76 | -543.95 | 171.3 | +62.6 [19.8, 106.5] | 61/100 |
+| `kbf_F_s4104_u300_shipped`, `kbf_N_s4104_u300_none`, `kbf_N_s4104_u300_shipped` | 300 | 4104 | -673.97 | -1289.66 | -900.08 | 224.5 | +226.1 [138.3, 315.4] | 67/100 |
+| `kbf_F_s4101_u400_shipped`, `kbf_N_s4101_u400_none`, `kbf_N_s4101_u400_shipped` | 400 | 4101 | -482.58 | -703.26 | -564.69 | 148.0 | +82.1 [30.0, 132.5] | 61/100 |
+| `kbf_F_s4102_u400_shipped`, `kbf_N_s4102_u400_none`, `kbf_N_s4102_u400_shipped` | 400 | 4102 | -354.73 | -823.35 | -605.62 | 173.1 | +250.9 [191.5, 312.1] | 83/100 |
+| `kbf_F_s4103_u400_shipped`, `kbf_N_s4103_u400_none`, `kbf_N_s4103_u400_shipped` | 400 | 4103 | -423.98 | -748.42 | -630.28 | 107.6 | +206.3 [136.4, 276.4] | 73/100 |
+| `kbf_F_s4104_u400_shipped`, `kbf_N_s4104_u400_none`, `kbf_N_s4104_u400_shipped` | 400 | 4104 | -569.98 | -1160.40 | -1029.95 | 180.6 | +460.0 [375.5, 548.4] | 88/100 |
