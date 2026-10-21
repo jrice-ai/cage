@@ -1,20 +1,24 @@
 #!/bin/bash
 # Evaluate one kept pilot checkpoint at the stock adversary, 100 episodes on seeds 0 to 99, with
 # scripts/oracle.py --rule none --log-policy.
-# usage: eval_keep_pilot.sh <tag> <update> [busy] [workers]
-#   tag      kbf_F_s4101, kbf_N_s4101, and so on
+# usage: eval_keep_pilot.sh <tag> <update> [busy] [workers] [policy seed]
+#   tag      kbf_F_s4101, kbf_N_s4101, kbf_S_s4101, and so on
 #   update   a kept update count, such as 100
 #   busy     shipped or none. Default is the arm's own (F shipped, N none). The other value is the
 #            crossed evaluation.
 #   workers  parallel episodes (default 12)
+#   policy seed  an extra sampling draw of the same checkpoint on the same environment seeds, passed to
+#            oracle.py --policy-seed, written to data/traces/<tag>_u<update>_<busy>_p<seed>. The default draw
+#            ties the policy's sampling to the environment seed, as every arm in the paper does.
 # Reads pilot_ckpt/<tag>-<agent>_u<update>.pt, copied from the server's
 # repos/cage-4-submission/checkpoints, stages them as keep_weights/<tag>_u<update>/gnn_ppo-<agent>.pt,
 # and writes the traces to data/traces/<tag>_u<update>_<busy> (the container writes there) and the log
 # to data/evals/. Refuses to overwrite, and checks that the traces record the weights and busy setting
 # asked for. Results go to data/pilot_evals.log.
 set -u
-tag=${1:-}; update=${2:-}; busy=${3:-}; workers=${4:-12}
-case $tag in kbf_[FN]_s[0-9]*) ;; *) echo "tag must look like kbf_F_s4101" >&2; exit 2 ;; esac
+tag=${1:-}; update=${2:-}; busy=${3:-}; workers=${4:-12}; pseed=${5:-}
+case $tag in kbf_[FNS]_s[0-9]*) ;; *) echo "tag must look like kbf_F_s4101" >&2; exit 2 ;; esac
+case $pseed in ''|*[!0-9]*) [ -z "$pseed" ] || { echo "policy seed must be a number" >&2; exit 2; } ;; esac
 case $update in ''|*[!0-9]*) echo "update must be a number" >&2; exit 2 ;; esac
 arm=${tag:4:1}
 if [ -z "$busy" ]; then busy=shipped; [ "$arm" = N ] && busy=none; fi
@@ -23,7 +27,7 @@ cd ~/cage || exit 2
 ck=pilot_ckpt
 name=${tag}_u$update
 stage=keep_weights/$name
-out=data/traces/${name}_$busy
+out=data/traces/${name}_$busy${pseed:+_p$pseed}
 for i in 0 1 2 3 4; do
   [ -f "$ck/$tag-${i}_u$update.pt" ] || { echo "missing $ck/$tag-${i}_u$update.pt" >&2; exit 2; }
 done
@@ -37,13 +41,13 @@ else
 fi
 [ -e "$out" ] && { echo "$out exists. Move it away to evaluate again." >&2; exit 2; }
 mkdir -p data/evals || { echo "cannot create data/evals" >&2; exit 2; }
-log=data/evals/${name}_$busy.log
+log=data/evals/${name}_$busy${pseed:+_p$pseed}.log
 grep -qF -e "--log-policy" scripts/oracle.py || { echo "scripts/oracle.py is not patched" >&2; exit 2; }
 env -u KEEP_RESTORE -u KEEP_LR_SCALE -u KEEP_RED -u KEEP_RESUME -u KEEP_EPISODE_SEEDS -u KEEP_N -u KEEP_CONCAT_EDGES \
     -u CAGE_DOCKER_OPTS KEEP_WEIGHTS=$name KEEP_BUSY=$busy \
-    bin/run cage-keep:dev bash -c "cd /opt/cage/cage-4-submission && python3 -u /work/scripts/oracle.py --rule none --episodes ${EVAL_EPISODES:-100} --workers $workers --log-policy --out /work/$out" > "$log" 2>&1
+    bin/run cage-keep:dev bash -c "cd /opt/cage/cage-4-submission && python3 -u /work/scripts/oracle.py --rule none --episodes ${EVAL_EPISODES:-100} --workers $workers --log-policy ${pseed:+--policy-seed $pseed} --out /work/$out" > "$log" 2>&1
 rc=$?
-echo "$name busy=$busy exit $rc"
+echo "$name busy=$busy${pseed:+ policy seed $pseed} exit $rc"
 [ "$rc" = 0 ] || exit $rc
 python3 - "$out" "$name" "$busy" <<'EOF' || exit 1
 import glob, json, sys
