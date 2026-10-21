@@ -17,7 +17,7 @@
 # asked for. Results go to data/pilot_evals.log.
 set -u
 tag=${1:-}; update=${2:-}; busy=${3:-}; workers=${4:-12}; pseed=${5:-}
-case $tag in kbf_[FNS]_s[0-9]*) ;; *) echo "tag must look like kbf_F_s4101" >&2; exit 2 ;; esac
+case $tag in kbf_[FNSR]_s[0-9]*) ;; *) echo "tag must look like kbf_F_s4101" >&2; exit 2 ;; esac
 case $pseed in ''|*[!0-9]*) [ -z "$pseed" ] || { echo "policy seed must be a number" >&2; exit 2; } ;; esac
 case $update in ''|*[!0-9]*) echo "update must be a number" >&2; exit 2 ;; esac
 arm=${tag:4:1}
