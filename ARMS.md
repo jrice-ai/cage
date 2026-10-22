@@ -2436,3 +2436,20 @@ KEEP trained from scratch by `run_keep_pilot.sh`, arm F (check as shipped) and a
 | `kbf_F_s4102_u400_shipped`, `kbf_N_s4102_u400_none`, `kbf_N_s4102_u400_shipped` | 400 | 4102 | -354.73 | -823.35 | -605.62 | 173.1 | +250.9 [191.5, 312.1] | 83/100 |
 | `kbf_F_s4103_u400_shipped`, `kbf_N_s4103_u400_none`, `kbf_N_s4103_u400_shipped` | 400 | 4103 | -423.98 | -748.42 | -630.28 | 107.6 | +206.3 [136.4, 276.4] | 73/100 |
 | `kbf_F_s4104_u400_shipped`, `kbf_N_s4104_u400_none`, `kbf_N_s4104_u400_shipped` | 400 | 4104 | -569.98 | -1160.40 | -1029.95 | 180.6 | +460.0 [375.5, 548.4] | 88/100 |
+
+### Continuation checkpoints
+
+The check-on arm continued past the paired range by `run_keep_pilot.sh F <seed> 2000 ... resume` (seeds in seed order, rule of 2026-10-19), scored by `eval_keep_pilot.sh` on the 100 paired episodes at the stock adversary, with four sampling draws at 2,000 (tied, 9000, 9001, 9002) as the released policy reproduction interval is built, and the shipped-recipe control (arm S, one layout, workers seeded). Paired difference and wins against `corpus_v1`. Recomputed by `~/papers/paper1/fig/fig_curves.py`.
+
+| Arm | Seed | Updates | Mean | Minus corpus_v1 | Wins |
+|---|---|---|---|---|---|
+| `kbf_F_s4101_u800_shipped` | 4101 | 800 | -336.11 | -148.8 [-172.9, -125.1] | 11/100 |
+| `kbf_F_s4101_u1200_shipped` | 4101 | 1200 | -371.37 | -184.1 [-219.8, -149.5] | 8/100 |
+| `kbf_F_s4101_u1600_shipped` | 4101 | 1600 | -360.36 | -173.0 [-204.7, -144.4] | 8/100 |
+| `kbf_F_s4101_u2000_shipped` | 4101 | 2000 | -324.35 | -137.0 [-163.0, -111.4] | 12/100 |
+| `kbf_F_s4101_u2000_shipped` | 4101 | 2000 | -324.35 | | |
+| `kbf_F_s4101_u2000_shipped_p9000` | 4101 | 2000 | -332.57 | | |
+| `kbf_F_s4101_u2000_shipped_p9001` | 4101 | 2000 | -306.90 | | |
+| `kbf_F_s4101_u2000_shipped_p9002` | 4101 | 2000 | -303.05 | | |
+| four draws, seed 4101 at 2000 | 4101 | 2000 | -316.72 [-339.08, -294.35] | gap to keeprepro 125.4 | |
+| `kbf_S_s4101_u400_shipped` | 4101 | 400 | -458.45 | | |
