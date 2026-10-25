@@ -2439,7 +2439,7 @@ KEEP trained from scratch by `run_keep_pilot.sh`, arm F (check as shipped) and a
 
 ### Continuation checkpoints
 
-The check-on arm continued past the paired range by `run_keep_pilot.sh F <seed> 2000 ... resume` (seeds in seed order, rule of 2026-10-19), scored by `eval_keep_pilot.sh` on the 100 paired episodes at the stock adversary, with four sampling draws at 2,000 (tied, 9000, 9001, 9002) as the released policy reproduction interval is built, and the shipped-recipe control (arm S, one layout, workers seeded). Paired difference and wins against `corpus_v1`. Recomputed by `~/papers/paper1/fig/fig_curves.py`.
+The check-on arm continued past the paired range by `run_keep_pilot.sh F <seed> 2000 ... resume` (seeds in seed order, rule of 2026-10-19), scored by `eval_keep_pilot.sh` on the 100 paired episodes at the stock adversary, with four sampling draws at 2,000 (tied, 9000, 9001, 9002) as the released policy reproduction interval is built. S is the fixed-layout, seeded control (the shipped trainer's single layout kept, the workers' sampling seeded, `run_keep_pilot.sh S`), matched to F update for update. R is the read-all control (`run_keep_pilot.sh R`, 25 episodes generated and read per update), whose update u consumes the experience of F at 5u. Paired difference and wins against `corpus_v1`. Recomputed by `~/papers/paper1/fig/fig_curves.py` (version 4).
 
 | Arm | Seed | Updates | Mean | Minus corpus_v1 | Wins |
 |---|---|---|---|---|---|
@@ -2447,9 +2447,37 @@ The check-on arm continued past the paired range by `run_keep_pilot.sh F <seed> 
 | `kbf_F_s4101_u1200_shipped` | 4101 | 1200 | -371.37 | -184.1 [-219.8, -149.5] | 8/100 |
 | `kbf_F_s4101_u1600_shipped` | 4101 | 1600 | -360.36 | -173.0 [-204.7, -144.4] | 8/100 |
 | `kbf_F_s4101_u2000_shipped` | 4101 | 2000 | -324.35 | -137.0 [-163.0, -111.4] | 12/100 |
-| `kbf_F_s4101_u2000_shipped` | 4101 | 2000 | -324.35 | | |
 | `kbf_F_s4101_u2000_shipped_p9000` | 4101 | 2000 | -332.57 | | |
 | `kbf_F_s4101_u2000_shipped_p9001` | 4101 | 2000 | -306.90 | | |
 | `kbf_F_s4101_u2000_shipped_p9002` | 4101 | 2000 | -303.05 | | |
-| four draws, seed 4101 at 2000 | 4101 | 2000 | -316.72 [-339.08, -294.35] | gap to keeprepro 125.4 | |
-| `kbf_S_s4101_u400_shipped` | 4101 | 400 | -458.45 | | |
+| four draws, F seed 4101 at 2000 | 4101 | 2000 | -316.72 [-339.08, -294.35] | gap to keeprepro 125.4 | |
+| `kbf_F_s4102_u800_shipped` | 4102 | 800 | -341.08 | -153.8 [-179.0, -130.1] | 6/100 |
+| `kbf_F_s4102_u1200_shipped` | 4102 | 1200 | -286.33 | -99.0 [-121.7, -77.5] | 14/100 |
+| `kbf_F_s4102_u1600_shipped` | 4102 | 1600 | -223.98 | -36.7 [-56.0, -18.0] | 34/100 |
+| `kbf_F_s4102_u2000_shipped` | 4102 | 2000 | -221.79 | -34.5 [-57.8, -12.7] | 41/100 |
+| `kbf_F_s4102_u2000_shipped_p9000` | 4102 | 2000 | -229.36 | | |
+| `kbf_F_s4102_u2000_shipped_p9001` | 4102 | 2000 | -206.31 | | |
+| `kbf_F_s4102_u2000_shipped_p9002` | 4102 | 2000 | -217.38 | | |
+| four draws, F seed 4102 at 2000 | 4102 | 2000 | -218.71 [-234.04, -203.38] | gap to keeprepro 27.4 | |
+| `kbf_F_s4103_u800_shipped` | 4103 | 800 | -399.40 | -212.1 [-245.3, -180.9] | 5/100 |
+| `kbf_F_s4103_u1200_shipped` | 4103 | 1200 | -360.14 | -172.8 [-204.0, -141.6] | 7/100 |
+| `kbf_F_s4103_u1600_shipped` | 4103 | 1600 | -221.64 | -34.3 [-54.3, -15.0] | 40/100 |
+| `kbf_F_s4103_u2000_shipped` | 4103 | 2000 | -189.83 | -2.5 [-18.9, 14.1] | 50/100 |
+| `kbf_F_s4103_u2000_shipped_p9000` | 4103 | 2000 | -189.02 | | |
+| `kbf_F_s4103_u2000_shipped_p9001` | 4103 | 2000 | -188.88 | | |
+| `kbf_F_s4103_u2000_shipped_p9002` | 4103 | 2000 | -192.16 | | |
+| four draws, F seed 4103 at 2000 | 4103 | 2000 | -189.97 [-192.39, -187.56] | gap to keeprepro -1.4 | |
+| `kbf_S_s4101_u400_shipped` | 4101 | 400 | -458.45 | -271.1 [-306.9, -235.9] | 2/100 |
+| `kbf_S_s4101_u800_shipped` | 4101 | 800 | -305.72 | -118.4 [-147.6, -90.7] | 14/100 |
+| `kbf_S_s4101_u1200_shipped` | 4101 | 1200 | -352.95 | -165.6 [-208.2, -126.5] | 15/100 |
+| `kbf_S_s4101_u1600_shipped` | 4101 | 1600 | -312.22 | -124.9 [-174.0, -82.2] | 28/100 |
+| `kbf_R_s4101_u100_shipped` | 4101 | 100 | -349.73 | -162.4 [-187.0, -137.6] | 4/100 |
+| `kbf_R_s4101_u200_shipped` | 4101 | 200 | -223.06 | -35.7 [-54.3, -17.5] | 34/100 |
+| `kbf_R_s4101_u300_shipped` | 4101 | 300 | -215.40 | -28.1 [-48.2, -8.6] | 39/100 |
+| `kbf_R_s4101_u400_shipped` | 4101 | 400 | -247.96 | -60.6 [-81.0, -41.0] | 22/100 |
+| `kbf_R_s4101_u400_shipped_p9000` | 4101 | 400 | -255.67 | | |
+| `kbf_R_s4101_u400_shipped_p9001` | 4101 | 400 | -249.97 | | |
+| `kbf_R_s4101_u400_shipped_p9002` | 4101 | 400 | -264.20 | | |
+| four draws, R seed 4101 at 400 | 4101 | 400 | -254.45 [-266.02, -242.88] | gap to keeprepro 63.1 | |
+| `kbf_R_s4102_u100_shipped` | 4102 | 100 | -493.37 | -306.1 [-342.8, -271.7] | 2/100 |
+| `kbf_R_s4102_u200_shipped` | 4102 | 200 | -248.33 | -61.0 [-85.0, -37.9] | 27/100 |
