@@ -1,0 +1,46 @@
+{
+ "KEEP": {
+  "n": 100,
+  "fired": {
+   "busy": 0.3854028056112224,
+   "exec": 0.6051223241590215,
+   "proposed": 5232,
+   "executed": 3166
+  },
+  "held": {
+   "busy": 0.3888296593186373,
+   "exec": 0.9898213543830494,
+   "proposed": 4814,
+   "executed": 4765
+  },
+  "gain_fired": 452.27,
+  "gain_held": 624.93,
+  "share_fired": 0.5379235700607776,
+  "share_held": 0.7432829430165205,
+  "gap": 840.77,
+  "paired_mean": 172.66,
+  "paired_wins": 79
+ },
+ "H-MARL": {
+  "n": 100,
+  "fired": {
+   "busy": 0.529288,
+   "exec": 0.3575791227096058,
+   "proposed": 5403,
+   "executed": 1932
+  },
+  "held": {
+   "busy": 0.537188,
+   "exec": 0.9894328229458702,
+   "proposed": 4637,
+   "executed": 4588
+  },
+  "gain_fired": 98.54,
+  "gain_held": 414.8,
+  "share_fired": 0.17352257519194197,
+  "share_held": 0.730436007607241,
+  "gap": 567.88,
+  "paired_mean": 316.26,
+  "paired_wins": 83
+ }
+}
