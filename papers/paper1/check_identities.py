@@ -69,6 +69,10 @@ for k in sorted(k for k in rows if re.fullmatch(r"long[fsr][a-d](fourh|eighth|tw
         check(f"{k} interval is mean plus or minus 3.182 sd / 2", abs(v(k + "hi") - v(k) - hw) <= 0.03 and abs(v(k) - v(k + "lo") - hw) <= 0.03, f"half-width {hw:.3f}")
         if "keeprepro" in rows and stem + "gap" in rows: check(f"{stem}gap is keeprepro less the four-draw mean", abs(v(stem + "gap") - (v("keeprepro") - v(k))) <= 0.06)
         if stem + "above" in rows: check(f"{stem}above is minus {stem}gap", abs(v(stem + "above") + v(stem + "gap")) <= 0.06)
+if "longdrawsmeanall" in rows:                        # the mean over the continued seeds of their four-draw means at 2,000 updates
+    ks = sorted(k for k in rows if re.fullmatch(r"longf[a-d]draws", k))
+    got = sum(v(k) for k in ks) / len(ks)
+    check("longdrawsmeanall is the mean of the continued seeds' four-draw means", abs(v("longdrawsmeanall") - got) <= 0.06, f"{got:.3f} over {len(ks)} seeds")
 for w in ("oneh", "twoh", "threeh", "fourh"):       # across four training seeds, 3 df, half-width 3.182 sd / 2
     k = f"pilotdelta{w}"
     if all(x in rows for x in (k, f"pilotdeltasd{w}", f"pilotdeltatlo{w}", f"pilotdeltathi{w}")):

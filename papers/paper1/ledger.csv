@@ -577,9 +577,9 @@ relbusywreckerresthi,138.78,C1,keep_released_busy_shipped_FSRedAgentWrecker vs k
 keeppooledprecision,33.33,C4,corpus_v1 100 ep,derived 2026-10-17,"KEEP precision with Restores and Removes pooled as the H-MARL authors pool them, percent units",derived: (restoresperepisode * restoreprecision + removesperepisode * removeprecision) / (restoresperepisode + removesperepisode)
 keepactorparamsreleased,"476,167",C2,weights/gnn_ppo-0.pt,test_keep_busy.sh 2026-10-17,actor parameters of the released KEEP checkpoint (concat_edges True),container: test_keep_busy.sh step 1 prints the count
 keepactorparamstrainer,"459,783",C2,repos/cage-4-submission/train.py,review 2026-10-17,actor parameters train.py builds as shipped (concat_edges False),container: python3 -c with the trainer's constructor
-seedruledate,"October 19, 2026",design,pilot,"this chat, 2026-10-19","date the continuation rule (check-on arm, seeds in seed order, to two thousand updates) was fixed, before the u400 scores of seeds 4102 to 4104 were read",design
-pilotseedlo,4101,design,pilot,run_keep_pilot.sh,first paired training seed of the busy-check pilot,design
-pilotseedhi,4104,design,pilot,run_keep_pilot.sh,last paired training seed of the busy-check pilot,design
+seedruledate,"October 19, 2026",design,pilot,"this chat, 2026-10-19","date the continuation rule (check-on arm, seeds in seed order, to two thousand updates) was fixed, before the u400 scores of seeds 4102 to 4104 were read",cited: design
+pilotseedlo,4101,design,pilot,run_keep_pilot.sh,first paired training seed of the busy-check pilot,cited: design
+pilotseedhi,4104,design,pilot,run_keep_pilot.sh,last paired training seed of the busy-check pilot,cited: design
 pilotfoneh,-2210.5,C5,kbf_F_s4101-4104_u100 vs kbf_N_s4101-4104_u100,fig_curves.py 2026-10-20,"mean over four seeds of the check-on arm at 100 updates, 100 paired episodes each, stock adversary",python3 ~/papers/paper1/fig/fig_curves.py
 pilotnownoneh,-1286.3,C5,kbf_F_s4101-4104_u100 vs kbf_N_s4101-4104_u100,fig_curves.py 2026-10-20,"mean over four seeds of the check-off arm at 100 updates scored its own way, check off",python3 ~/papers/paper1/fig/fig_curves.py
 pilotnononeh,-997.7,C5,kbf_F_s4101-4104_u100 vs kbf_N_s4101-4104_u100,fig_curves.py 2026-10-20,mean over four seeds of the check-off arm at 100 updates scored with the check on,python3 ~/papers/paper1/fig/fig_curves.py
@@ -694,7 +694,7 @@ longfbdrawslo,-234.04,C5,kbf_F_s4102_u2000_shipped and its three draws,fig_curve
 longfbdrawshi,-203.38,C5,kbf_F_s4102_u2000_shipped and its three draws,fig_curves.py 2026-10-26,"95 percent t interval high over the four draws (3 df), check-on arm at 2,000 updates, seed 4102",python3 ~/papers/paper1/fig/fig_curves.py
 longfbdrawsd,9.63,C5,kbf_F_s4102_u2000_shipped and its three draws,fig_curves.py 2026-10-26,"sd of the four draw means, check-on arm at 2,000 updates, seed 4102",python3 ~/papers/paper1/fig/fig_curves.py
 longfbgap,27.4,C5,kbf_F_s4102_u2000_shipped and its three draws,fig_curves.py 2026-10-26,"released policy reproduction mean (keeprepro) less the four-draw mean, points, check-on arm at 2,000 updates, seed 4102",python3 ~/papers/paper1/fig/fig_curves.py
-seedb,4102,design,pilot,run_keep_pilot.sh,training seed 4102,design
+seedb,4102,design,pilot,run_keep_pilot.sh,training seed 4102,cited: design
 longfcfourh,-423.98,C5,kbf_F_s4103_u400_shipped,fig_curves.py 2026-10-26,"check-on arm, seed 4103, at 400 updates, mean over 100 paired episodes at the stock adversary",python3 ~/papers/paper1/fig/fig_curves.py
 longfceighth,-399.40,C5,kbf_F_s4103_u800_shipped,fig_curves.py 2026-10-26,"check-on arm, seed 4103, at 800 updates, mean over 100 paired episodes at the stock adversary, the tied draw",python3 ~/papers/paper1/fig/fig_curves.py
 longfctwelveh,-360.14,C5,kbf_F_s4103_u1200_shipped,fig_curves.py 2026-10-26,"check-on arm, seed 4103, at 1200 updates, mean over 100 paired episodes at the stock adversary, the tied draw",python3 ~/papers/paper1/fig/fig_curves.py
@@ -706,12 +706,12 @@ longfcdrawshi,-187.56,C5,kbf_F_s4103_u2000_shipped and its three draws,fig_curve
 longfcdrawsd,1.52,C5,kbf_F_s4103_u2000_shipped and its three draws,fig_curves.py 2026-10-26,"sd of the four draw means, check-on arm at 2,000 updates, seed 4103",python3 ~/papers/paper1/fig/fig_curves.py
 longfcgap,-1.4,C5,kbf_F_s4103_u2000_shipped and its three draws,fig_curves.py 2026-10-26,"released policy reproduction mean (keeprepro) less the four-draw mean, points, check-on arm at 2,000 updates, seed 4103",python3 ~/papers/paper1/fig/fig_curves.py
 longfcabove,1.4,C5,kbf_F_s4103_u2000_shipped and its three draws,fig_curves.py 2026-10-26,"four-draw mean less the released policy reproduction mean, points, check-on arm at 2,000 updates, seed 4103",derived: -longfcgap
-seedc,4103,design,pilot,run_keep_pilot.sh,training seed 4103,design
+seedc,4103,design,pilot,run_keep_pilot.sh,training seed 4103,cited: design
 longdrawsworst,-316.72,C5,continuation,fig_curves.py 2026-10-26,"lowest four-draw mean at 2,000 updates among the continued seeds",python3 ~/papers/paper1/fig/fig_curves.py
 longdrawsbest,-189.97,C5,continuation,fig_curves.py 2026-10-26,"highest four-draw mean at 2,000 updates among the continued seeds",python3 ~/papers/paper1/fig/fig_curves.py
 longdrawsspread,126.7,C5,continuation,fig_curves.py 2026-10-26,"highest less lowest four-draw mean at 2,000 updates across the continued seeds, points",derived: longdrawsbest - longdrawsworst
 keepreprowidth,22.5,repro,corpus_v1 keep_null keep_null_9001 keep_null_9002,this chat 2026-10-26,"width of the released KEEP policy reproduction interval, points",derived: keepreprohi - keepreprolo
-longdrawsmeanall,-241.8,C5,continuation,fig_curves.py 2026-10-26,"mean over the continued seeds of their four-draw means at 2,000 updates",python3 ~/papers/paper1/fig/fig_curves.py
+longdrawsmeanall,-241.8,C5,continuation,fig_curves.py 2026-10-26,"mean over the continued seeds of their four-draw means at 2,000 updates","derived: mean of longfadraws, longfbdraws and longfcdraws"
 longwithincount,one,C5,continuation,fig_curves.py 2026-10-26,"continued seeds whose four-draw interval at 2,000 updates is within the released reproduction interval (overlaps it)",derived: curves.json draws against keepreprolo and keepreprohi
 longbelowcount,two,C5,continuation,fig_curves.py 2026-10-26,"continued seeds whose four-draw interval at 2,000 updates is below the released reproduction interval",derived: curves.json draws against keepreprolo and keepreprohi
 longabovecount,none,C5,continuation,fig_curves.py 2026-10-26,"continued seeds whose four-draw interval at 2,000 updates is above the released reproduction interval",derived: curves.json draws against keepreprolo and keepreprohi

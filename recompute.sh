@@ -6,7 +6,7 @@
 set -u
 cd "$(dirname "$0")" || exit 2
 [ -d data/traces ] || { echo "unpack the trace archives into data/traces first" >&2; exit 2; }
-H=$(mktemp -d) && ln -s "$PWD/papers" "$H/papers" || exit 2
+H=$(mktemp -d) && ln -s "$PWD/papers" "$H/papers" && ln -s "$PWD" "$H/cage" || exit 2
 HOME="$H" CAGE="$PWD" python3 papers/recompute_check.py papers/paper1/ledger.csv "$@"
 rc=$?
 rm -rf "$H"

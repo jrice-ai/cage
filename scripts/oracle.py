@@ -34,6 +34,16 @@ from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
 from CybORG.Simulator.Actions import Restore, Remove, Monitor, Sleep, Analyse
 from submission import Submission
 import wrapper.graph_wrapper as _gw
+
+
+def _red_presence(state):
+    """Which hosts hold red sessions, and how many. As scripts/capture.py's red_presence."""
+    out = {}
+    for hostname, host in state.hosts.items():
+        red = {a: len(s) for a, s in host.sessions.items() if a.startswith("red") and s}
+        if red:
+            out[hostname] = red
+    return out
 from wrapper.globals import MY_SUBNETS, MAX_HOSTS, MAX_ACTIONS, NODE_ACTIONS
 from oracle_rules import (make_oracle, note_impacts, owned_hosts, compromised_by_agent, subnet_of,
                           EPISODE_LENGTH, BLUE, RED, OWNER, EXPENSIVE, HARNESS_SHA, MACHINE,
@@ -53,7 +63,7 @@ def install_oracle(env, cyborg, rule, stats, budget=77, decoys=None, min_gap=0, 
     env.action_translator = patched
 
 
-def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, only_agents=None, policy_seed=None, log_policy=False):
+def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteStateRedAgent", min_gap=0, workers=0, wait_busy=False, engage=None, window=16, queue=None, noise=None, only_agents=None, policy_seed=None, log_policy=False, log_truth=False):
     seed = base_seed + ep
     pseed = seed if policy_seed is None else policy_seed + ep   # as capture.py: the policy stream can be redrawn on the same environment seed
     torch.manual_seed(pseed); np.random.seed(seed); random.seed(seed)
@@ -101,7 +111,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
 
     with open(path, "w") as f:
         f.write(json.dumps({
-            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "busy": getattr(_gw, "_KEEP_BUSY", "unpatched"), "log_policy": log_policy, "red_agent": _rc.__name__, "episode": ep, "seed": seed, "policy_seed": policy_seed,
+            "record": "header", "harness_sha": HARNESS_SHA, "machine": MACHINE, "weights": os.environ.get("KEEP_WEIGHTS", "shipped"), "busy": getattr(_gw, "_KEEP_BUSY", "unpatched"), "log_policy": log_policy, "log_truth": log_truth, "red_agent": _rc.__name__, "episode": ep, "seed": seed, "policy_seed": policy_seed,
             "rule": rule, "budget": budget, "min_gap": min_gap, "workers": workers, "wait_busy": wait_busy, "engage": engage, "window": window, "queue": queue, "noise": noise, "agents": only_agents, "cyborg_version": CYBORG_VERSION,
             "episode_length": EPISODE_LENGTH,
         }) + "\n")
@@ -137,6 +147,7 @@ def capture_episode(ep, base_seed, out_dir, rule, budget=77, red_agent="FiniteSt
                 "defender": stats.get("dact") or [],
                 **({"signal": stats.pop("sig")} if "sig" in stats else {}),
                 **({"policy": stats["pol"], "busy": busy} if log_policy else {}),
+                **({"truth": {"red_hosts": _red_presence(cyborg.environment_controller.state)}} if log_truth else {}),
             }) + "\n")
             if log_policy:
                 stats["pol"] = {}
@@ -208,6 +219,7 @@ def main():
                    help="Max overrides per episode for O5")
     p.add_argument("--red", default="FiniteStateRedAgent")
     p.add_argument("--log-policy", action="store_true", help="record each agent's directive before any rule, and the agents busy when each step began")
+    p.add_argument("--log-truth", action="store_true", help="record the hosts holding a red session after each step, as capture.py does, so the arm can be scored by recompute_criteria.py")
     p.add_argument("--out", default="/work/data/traces/oracle")
     a = p.parse_args()
     noise = {k: v for k, v in (("recall", a.recall), ("false", a.false_alarm), ("delay", a.delay),
@@ -218,7 +230,7 @@ def main():
     print(f"Rule {a.rule}, {a.episodes} episodes, {a.workers} workers")
 
     res = Parallel(n_jobs=a.workers, prefer="processes")(
-        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window, a.queue, noise, agents, a.policy_seed, a.log_policy)
+        delayed(capture_episode)(ep, a.base_seed, a.out, a.rule, a.budget, a.red, a.min_gap, a.workers, a.wait_busy, a.engage, a.window, a.queue, noise, agents, a.policy_seed, a.log_policy, a.log_truth)
         for ep in range(a.episodes))
 
     tot = [r[0] for r in res]

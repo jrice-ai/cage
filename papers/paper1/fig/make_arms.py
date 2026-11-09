@@ -24,7 +24,7 @@ arms = set()
 for c in cands:
     for d in glob.glob(os.path.join(CAGE, "data", "**", c), recursive=True):
         if is_arm_dir(d): arms.add(os.path.basename(d))
-arms = sorted(arms)
+arms = sorted(a for a in arms if not a.startswith("kbf_"))   # the pilot's checkpoint arms are Tables pilot and cont, not repeated here
 def arm_dir(a):
     hits = [d for d in glob.glob(os.path.join(CAGE, "data", "**", a), recursive=True) if is_arm_dir(d)]
     return hits[0] if hits else None

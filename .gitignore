@@ -6,3 +6,8 @@ __pycache__/
 *.bak
 keep_weights/
 commit_msg_*.txt
+papers/paper1/fig/*.pdf
+papers/paper1/fig/*.png
+papers/paper1/fig/*.tex
+pilot_ckpt/
+incoming/
